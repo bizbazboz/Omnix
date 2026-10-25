@@ -1,0 +1,13 @@
+.git
+.env
+.env.*
+.local
+.playwright-mcp
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/dist
+**/*.tsbuildinfo
+dist
+artifacts

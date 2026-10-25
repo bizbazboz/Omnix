@@ -1,0 +1,33 @@
+name: Container security
+on:
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the production artifact
+        run: docker compose build api
+      - name: Scan without exposing the Docker socket
+        run: |
+          mkdir -p "$RUNNER_TEMP/omnix-security"
+          docker save -o "$RUNNER_TEMP/omnix-security/image.tar" omnix:local
+          docker run --rm \
+            -v "$RUNNER_TEMP/omnix-security/image.tar:/scan/image.tar:ro" \
+            -v "$RUNNER_TEMP/omnix-security:/reports" \
+            aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c \
+            image --input /scan/image.tar \
+            --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+            --scanners vuln --severity HIGH,CRITICAL --exit-code 0 --no-progress \
+            --format json --output /reports/report.json
+          python -c "import json,os; r=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'omnix-security','report.json'))); v=[x for item in r.get('Results',[]) for x in item.get('Vulnerabilities',[])]; print('High findings:',sum(x['Severity']=='HIGH' for x in v)); assert not any(x['Severity']=='CRITICAL' for x in v), 'Critical container vulnerabilities block publishing'"
+      - name: Keep the security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-security
+          path: ${{ runner.temp }}/omnix-security/report.json

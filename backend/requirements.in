@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy
+psycopg[binary]
+alembic
+redis
+celery
+httpx
+authlib
+cryptography
+pydantic-settings
+email-validator
+bleach

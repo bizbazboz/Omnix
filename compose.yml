@@ -1,0 +1,330 @@
+{
+  "name": "omnix-production",
+  "services": {
+    "init": {
+      "image": "${OMNIX_IMAGE:-omnix:local}",
+      "build": {
+        "context": ".",
+        "target": "production"
+      },
+      "user": "0:0",
+      "command": [
+        "python",
+        "-m",
+        "app.bootstrap_keys"
+      ],
+      "volumes": [
+        "app-data:/data",
+        "db-secret:/secrets/db",
+        "redis-secret:/secrets/redis"
+      ],
+      "restart": "no",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "network_mode": "none"
+    },
+    "postgres": {
+      "image": "postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b",
+      "volumes": [
+        "postgres-data:/var/lib/postgresql/data",
+        "db-secret:/run/db:ro"
+      ],
+      "depends_on": {
+        "init": {
+          "condition": "service_completed_successfully"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "pg_isready -U omnix -d omnix"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 20
+      },
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "environment": {
+        "POSTGRES_DB": "omnix",
+        "POSTGRES_PASSWORD_FILE": "/run/db/password",
+        "POSTGRES_USER": "omnix"
+      },
+      "networks": [
+        "data"
+      ]
+    },
+    "redis": {
+      "image": "redis:7.4-alpine@sha256:6ba19c50b56777f5c11c58eff8ddb69d0d5f27ba131cffb63f180ccfd43c66af",
+      "command": [
+        "redis-server",
+        "/run/redis/redis.conf"
+      ],
+      "volumes": [
+        "redis-data:/data",
+        "redis-secret:/run/redis:ro"
+      ],
+      "depends_on": {
+        "init": {
+          "condition": "service_completed_successfully"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "REDISCLI_AUTH=$$(cat /run/redis/password) redis-cli ping"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 20
+      },
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "networks": [
+        "data"
+      ]
+    },
+    "migrate": {
+      "image": "${OMNIX_IMAGE:-omnix:local}",
+      "build": {
+        "context": ".",
+        "target": "production"
+      },
+      "volumes": [
+        "app-data:/data:ro",
+        "db-secret:/run/db:ro",
+        "redis-secret:/run/redis:ro"
+      ],
+      "read_only": true,
+      "tmpfs": [
+        "/tmp"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "restart": "no",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "command": [
+        "alembic",
+        "upgrade",
+        "head"
+      ],
+      "depends_on": {
+        "postgres": {
+          "condition": "service_healthy"
+        },
+        "redis": {
+          "condition": "service_healthy"
+        }
+      },
+      "cap_drop": [
+        "ALL"
+      ],
+      "networks": [
+        "data"
+      ]
+    },
+    "api": {
+      "image": "${OMNIX_IMAGE:-omnix:local}",
+      "build": {
+        "context": ".",
+        "target": "production"
+      },
+      "volumes": [
+        "app-data:/data:ro",
+        "db-secret:/run/db:ro",
+        "redis-secret:/run/redis:ro"
+      ],
+      "read_only": true,
+      "tmpfs": [
+        "/tmp"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "depends_on": {
+        "migrate": {
+          "condition": "service_completed_successfully"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/ready')"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 20
+      },
+      "ports": [
+        "${BIND_ADDRESS:-127.0.0.1}:${HTTP_PORT:-8080}:8000"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "networks": [
+        "data",
+        "default"
+      ]
+    },
+    "worker": {
+      "image": "${OMNIX_IMAGE:-omnix:local}",
+      "build": {
+        "context": ".",
+        "target": "production"
+      },
+      "volumes": [
+        "app-data:/data:ro",
+        "db-secret:/run/db:ro",
+        "redis-secret:/run/redis:ro"
+      ],
+      "read_only": true,
+      "tmpfs": [
+        "/tmp"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "command": [
+        "celery",
+        "-A",
+        "app.tasks.celery",
+        "worker",
+        "--loglevel=warning",
+        "--concurrency=2"
+      ],
+      "depends_on": {
+        "api": {
+          "condition": "service_healthy"
+        }
+      },
+      "stop_grace_period": "60s",
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "celery -A app.tasks.celery inspect ping -d celery@$$HOSTNAME --timeout=5 | grep -q pong"
+        ],
+        "interval": "30s",
+        "timeout": "5s",
+        "retries": 20
+      },
+      "cap_drop": [
+        "ALL"
+      ],
+      "networks": [
+        "data",
+        "default"
+      ]
+    },
+    "scheduler": {
+      "image": "${OMNIX_IMAGE:-omnix:local}",
+      "build": {
+        "context": ".",
+        "target": "production"
+      },
+      "volumes": [
+        "app-data:/data:ro",
+        "db-secret:/run/db:ro",
+        "redis-secret:/run/redis:ro"
+      ],
+      "read_only": true,
+      "tmpfs": [
+        "/tmp"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "restart": "unless-stopped",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "command": [
+        "celery",
+        "-A",
+        "app.tasks.celery",
+        "beat",
+        "--loglevel=warning",
+        "--schedule=/tmp/celerybeat"
+      ],
+      "depends_on": {
+        "api": {
+          "condition": "service_healthy"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "test -f /tmp/celerybeat"
+        ],
+        "interval": "30s",
+        "timeout": "5s",
+        "retries": 20
+      },
+      "cap_drop": [
+        "ALL"
+      ],
+      "networks": [
+        "data",
+        "default"
+      ]
+    }
+  },
+  "volumes": {
+    "app-data": {},
+    "db-secret": {},
+    "redis-secret": {},
+    "postgres-data": {},
+    "redis-data": {}
+  },
+  "networks": {
+    "data": {
+      "internal": true
+    },
+    "default": {}
+  }
+}
