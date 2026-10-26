@@ -8,4 +8,3 @@ export default defineConfig({
     proxy: { "/api": "http://api:8000" }
   }
 });
-
