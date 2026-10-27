@@ -36,7 +36,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=app
+          cache-from: |
+            type=gha,scope=platforms
+            type=gha,scope=app
           cache-to: type=gha,mode=max,scope=app
           provenance: true
           sbom: true

@@ -1,10 +1,10 @@
-FROM node:22.14.0-alpine AS frontend
+FROM --platform=$BUILDPLATFORM node:22.14.0-alpine AS frontend
 WORKDIR /frontend
 COPY web/package*.json ./
 RUN npm ci
 COPY web/ .
 RUN npm run build
-FROM python:3.12.16-slim-trixie AS runtime
+FROM python:3.13.18-slim-trixie@sha256:b7b382eaeb8683a92c6217479b60b59de39514a4ebd6b3cc6ea518c207e22bce AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 STATIC_DIR=/app/static
 WORKDIR /app
 COPY backend/requirements.txt .
@@ -25,5 +25,5 @@ COPY --chown=app:app backend/pytest.ini .
 USER app
 FROM runtime AS production
 USER root
-RUN python -m pip uninstall --yes pip && python -c "import shutil; shutil.rmtree('/usr/local/lib/python3.12/ensurepip', ignore_errors=True)"
+RUN python -m pip uninstall --yes pip && python -c "import ensurepip, pathlib, shutil; shutil.rmtree(pathlib.Path(ensurepip.__file__).parent)"
 USER app
