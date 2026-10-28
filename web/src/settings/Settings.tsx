@@ -1,7 +1,9 @@
+import Select from "../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { api, qc, type Account, type User } from "../lib/api";
+import CopyField from "../components/CopyField";
 import Authentication from "./Authentication";
 import Connections from "./Connections";
 import HealthIntegration from "./HealthIntegration";
@@ -67,16 +69,14 @@ export function ZohoRegistration() {
         Create a Server-based Application in the Zoho API Console for your
         region.
       </p>
-      <label className="form-label">
-        Redirect URI
-        <code className="callback-code">
-          {window.location.origin + "/api/v1/connections/zoho/callback"}
-        </code>
-      </label>
+      <CopyField
+        value={window.location.origin + "/api/v1/connections/zoho/callback"}
+        name="Zoho callback URL"
+      />
       <form onSubmit={save} className="settings-form">
         <label className="form-label">
           Data center
-          <select
+          <Select
             value={form.region}
             onChange={(e) => setForm({ ...form, region: e.target.value })}
           >
@@ -84,7 +84,7 @@ export function ZohoRegistration() {
             <option value="us">United States</option>
             <option value="in">India</option>
             <option value="au">Australia</option>
-          </select>
+          </Select>
         </label>
         <label className="form-label">
           Client ID
@@ -147,10 +147,12 @@ export function ZohoRegistration() {
 
 export function General({
   user,
-  onSaved
+  onSaved,
+  onBusyChange
 }: {
   user: User;
   onSaved?: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const query = useQuery({
     queryKey: ["preferences"],
@@ -188,6 +190,7 @@ export function General({
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
+        onBusyChange?.(true);
         setError("");
         setSaved(false);
         try {
@@ -214,12 +217,15 @@ export function General({
           setError((e as Error).message);
         } finally {
           setBusy(false);
+          onBusyChange?.(false);
         }
       }}
     >
-      <div className="settings-section-heading">
-        <h2>General</h2>
-      </div>
+      {!onSaved && (
+        <div className="settings-section-heading">
+          <h2>General</h2>
+        </div>
+      )}
       <div className="general-fields">
         {user.is_admin && (
           <label className="form-label">
@@ -250,16 +256,16 @@ export function General({
         </label>
         <label className="form-label">
           Clock
-          <select
+          <Select
             value={form.time_format}
             onChange={(e) => setForm({ ...form, time_format: e.target.value })}
           >
             <option value="24">24 hour</option>
             <option value="12">12 hour</option>
-          </select>
+          </Select>
         </label>
       </div>
-      {user.is_admin && (
+      {user.is_admin && !onSaved && (
         <details className="settings-advanced">
           <summary>Advanced · mail access</summary>
           <label className="form-label">
@@ -277,7 +283,7 @@ export function General({
       )}
       <div className="settings-save">
         <button className="primary" disabled={busy}>
-          {onSaved ? "Save and continue" : "Save changes"}
+          {busy ? "Saving…" : onSaved ? "Save and continue" : "Save changes"}
         </button>
         {error && (
           <p className="error" role="alert">
@@ -605,106 +611,6 @@ export default function Settings({
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-export function Onboarding({ user }: { user: User }) {
-  const navigate = useNavigate();
-  const [step, setStep] = useState(0),
-    [error, setError] = useState("");
-  const status = useQuery({
-    queryKey: ["onboarding"],
-    queryFn: () => api("/onboarding")
-  });
-  const steps = ["System", "Workspace", "Integrations", "Ready"];
-  return (
-    <div className="page onboarding-page">
-      <span className="eyebrow">Step {step + 1} of 4</span>
-      <h1>Set up Omnix</h1>
-      <ol className="onboarding-progress">
-        {steps.map((name, index) => (
-          <li
-            key={name}
-            aria-current={step === index ? "step" : undefined}
-            className={index <= step ? "active" : ""}
-          >
-            {name}
-          </li>
-        ))}
-      </ol>
-      {step === 0 && (
-        <section className="settings-card">
-          <h2>System checks · required</h2>
-          {status.error ? (
-            <p className="error">{status.error.message}</p>
-          ) : status.data ? (
-            <>
-              <p>Database connected. Authentication configured.</p>
-              <p>
-                {user.is_admin
-                  ? "Your administrator account is ready."
-                  : "Your account is ready."}
-              </p>
-              <button className="primary" onClick={() => setStep(1)}>
-                Continue
-              </button>
-            </>
-          ) : (
-            <p>Checking system…</p>
-          )}
-        </section>
-      )}
-      {step === 1 && <General user={user} onSaved={() => setStep(2)} />}
-      {step === 2 && (
-        <>
-          <h2>Integrations · optional</h2>
-          <p className="muted">
-            Connect mail, calendars and Google Health in Settings → Integrations
-            after setup.
-          </p>
-          <button className="primary" onClick={() => setStep(3)}>
-            Continue
-          </button>
-        </>
-      )}
-      {step === 3 && (
-        <section className="settings-card">
-          <h2>Setup complete</h2>
-          <p className="muted">You can change these settings later.</p>
-          <button
-            className="primary"
-            onClick={async () => {
-              try {
-                const prefs = await api("/settings/preferences");
-                await api("/settings/preferences", {
-                  method: "PUT",
-                  body: JSON.stringify({
-                    ...prefs,
-                    onboarding_completed: true
-                  })
-                });
-                await qc.invalidateQueries({ queryKey: ["preferences"] });
-                await qc.invalidateQueries({ queryKey: ["onboarding"] });
-                navigate("/");
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            Open workspace
-          </button>
-        </section>
-      )}
-      {step > 0 && (
-        <button
-          className="secondary onboarding-back"
-          onClick={() => setStep(step - 1)}
-        >
-          Back
-        </button>
-      )}
-      {error && <p className="error">{error}</p>}
     </div>
   );
 }

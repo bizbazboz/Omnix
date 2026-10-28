@@ -1,3 +1,4 @@
+import Select from "../../components/Select";
 import { Loader2, NotebookPen, Send, X, Paperclip, Trash2 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -20,6 +21,8 @@ export default function Composer({
     const previous = document.activeElement as HTMLElement | null;
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (formRef.current?.querySelector(".select-popup:popover-open"))
+          return;
         event.preventDefault();
         closeRef.current();
         return;
@@ -29,6 +32,11 @@ export default function Composer({
         formRef.current?.querySelectorAll<HTMLElement>(
           "button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled)"
         ) || []
+      ).filter(
+        (element) =>
+          element.tabIndex >= 0 &&
+          element.getClientRects().length > 0 &&
+          element.getAttribute("aria-hidden") !== "true"
       );
       const first = items[0],
         last = items[items.length - 1];
@@ -309,7 +317,7 @@ export default function Composer({
         </div>
         <div className="compose-field">
           <label htmlFor="from">From</label>
-          <select
+          <Select
             id="from"
             value={JSON.stringify([
               data.mailbox,
@@ -343,7 +351,7 @@ export default function Composer({
                 {a.label} &lt;{a.address}&gt;
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="compose-field">
           <label htmlFor="to">To</label>

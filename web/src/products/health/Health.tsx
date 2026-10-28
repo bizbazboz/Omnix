@@ -133,17 +133,6 @@ export default function Health() {
           </div>
         )}
       </header>
-      <nav className="health-view-tabs" aria-label="Health pages">
-        {healthViews.map((page) => (
-          <NavLink
-            key={page.id}
-            to={"/app/health" + (page.id === "overview" ? "" : "/" + page.id)}
-            end
-          >
-            {page.name}
-          </NavLink>
-        ))}
-      </nav>
       <p className="health-page-caption">{view.description}</p>
       {state.isLoading ? (
         <p className="muted">[LOADING]</p>

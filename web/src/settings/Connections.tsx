@@ -1,3 +1,4 @@
+import Select from "../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
@@ -315,7 +316,7 @@ export default function Connections({
                     </p>
                     <label className="form-label">
                       Account data center
-                      <select
+                      <Select
                         value={region}
                         onChange={(e) => setRegion(e.target.value)}
                       >
@@ -323,7 +324,7 @@ export default function Connections({
                         <option value="us">United States · zoho.com</option>
                         <option value="in">India · zoho.in</option>
                         <option value="au">Australia · zoho.com.au</option>
-                      </select>
+                      </Select>
                     </label>
                     {catalog.data?.find((x: any) => x.id === "zoho")
                       ?.configured === false && (
@@ -377,7 +378,7 @@ export default function Connections({
                     ))}
                     <label className="form-label">
                       SMTP transport
-                      <select
+                      <Select
                         value={form.smtp_port}
                         onChange={(e) =>
                           setForm({ ...form, smtp_port: e.target.value })
@@ -385,7 +386,7 @@ export default function Connections({
                       >
                         <option value="465">465 · Implicit TLS</option>
                         <option value="587">587 · Required STARTTLS</option>
-                      </select>
+                      </Select>
                     </label>
                     <button className="primary full-width" disabled={busy}>
                       {busy ? (

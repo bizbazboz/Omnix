@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Link2, Unplug } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
+import CopyField from "../components/CopyField";
 import { api, qc } from "../lib/api";
 import type { HealthStatus } from "../products/health/api";
 const permissions = [
@@ -90,15 +91,10 @@ function Registration({ onSaved }: { onSaved: () => void }) {
           className="settings-form health-registration-form"
           onSubmit={save}
         >
-          <label className="form-label">
-            Callback URL
-            <input
-              aria-label="Google callback URL"
-              readOnly
-              value={registration.data?.redirect_uri || ""}
-              onFocus={(event) => event.currentTarget.select()}
-            />
-          </label>
+          <CopyField
+            value={registration.data?.redirect_uri || ""}
+            name="Google callback URL"
+          />
           <label className="form-label">
             Client ID
             <input
