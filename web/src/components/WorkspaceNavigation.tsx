@@ -1,7 +1,7 @@
+import Select from "./Select";
 import {
   Archive,
   CalendarDays,
-  ChevronDown,
   FileText,
   Folder,
   ArrowLeft,
@@ -201,8 +201,9 @@ export default function WorkspaceNavigation({
                 </button>
                 <div className="mailbox-picker">
                   <label htmlFor="nav-mailbox">MAILBOX</label>
-                  <select
+                  <Select
                     id="nav-mailbox"
+                    aria-label="Mailbox"
                     value={account}
                     onChange={(e) => {
                       const next = new URLSearchParams(location.search);
@@ -221,8 +222,7 @@ export default function WorkspaceNavigation({
                         {a.label}
                       </option>
                     ))}
-                  </select>
-                  <ChevronDown size={12} />
+                  </Select>
                 </div>
                 <nav className="mail-folders" aria-label="Mail folders">
                   {folders.map((f) => (
@@ -311,24 +311,9 @@ export default function WorkspaceNavigation({
                   <Plus size={17} /> Manage calendars
                 </button>
                 <nav aria-label="Calendar navigation">
-                  <NavLink
-                    to="/app/calendar?view=month"
-                    className={() =>
-                      params.get("view") !== "agenda" ? "folder-active" : ""
-                    }
-                    onClick={onClose}
-                  >
-                    <CalendarDays size={17} /> Month
-                  </NavLink>
-                  <NavLink
-                    to="/app/calendar?view=agenda"
-                    className={() =>
-                      params.get("view") === "agenda" ? "folder-active" : ""
-                    }
-                    onClick={onClose}
-                  >
-                    <LayoutGrid size={17} />
-                    Agenda
+                  <NavLink to="/app/calendar" onClick={onClose}>
+                    <CalendarDays size={17} />
+                    Calendar
                   </NavLink>
                 </nav>
               </>

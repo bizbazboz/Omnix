@@ -1,3 +1,4 @@
+import Select from "../components/Select";
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const supported =
   (
@@ -26,7 +27,8 @@ export default function TimezoneSelect({
     groups.set(group, [...(groups.get(group) || []), zone]);
   }
   return (
-    <select
+    <Select
+      searchable
       aria-label="Time zone"
       value={value || browserZone}
       onChange={(event) => onChange(event.target.value)}
@@ -41,6 +43,6 @@ export default function TimezoneSelect({
           ))}
         </optgroup>
       ))}
-    </select>
+    </Select>
   );
 }

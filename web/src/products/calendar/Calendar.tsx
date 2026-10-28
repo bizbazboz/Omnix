@@ -1,3 +1,4 @@
+import Select from "../../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, RefreshCw, MapPin } from "lucide-react";
 import { useState } from "react";
@@ -209,7 +210,7 @@ export default function Calendar({ notify }: ProductProps) {
           {view === "agenda" && (
             <div className="section-title">
               <h2>Upcoming</h2>
-              <select
+              <Select
                 aria-label="Agenda range"
                 value={days}
                 onChange={(e) => setDays(Number(e.target.value))}
@@ -217,7 +218,7 @@ export default function Calendar({ notify }: ProductProps) {
                 <option value={7}>Next 7 days</option>
                 <option value={30}>Next 30 days</option>
                 <option value={90}>Next 90 days</option>
-              </select>
+              </Select>
             </div>
           )}
           {events.error ? (

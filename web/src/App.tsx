@@ -22,7 +22,8 @@ import Composer from "./products/email/Composer";
 import Outbox from "./products/email/Outbox";
 import { productRegistry } from "./products/registry";
 import Authentication from "./settings/Authentication";
-import WorkspaceSettings, { Onboarding } from "./settings/Settings";
+import WorkspaceSettings from "./settings/Settings";
+import Onboarding from "./settings/Onboarding";
 import { useStoredFlag, useStoredWidth } from "./lib/layout";
 export default function App() {
   const me = useQuery<User>({ queryKey: ["me"], queryFn: () => api("/me") });

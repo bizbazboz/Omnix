@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Check, Copy } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { useEffect, useState } from "react";
+import CopyField from "../components/CopyField";
 import { Logo } from "../components/Brand";
 import { api, qc } from "../lib/api";
 export default function Authentication({
@@ -80,7 +81,7 @@ export default function Authentication({
   const form = (
     <>
       <div className="setup-heading">
-        <h1>{initial ? "Connect Pocket ID." : "Authentication"}</h1>
+        {initial ? <h2>Connect Pocket ID.</h2> : <h1>Authentication</h1>}
       </div>
       {initial && window.location.protocol !== "https:" && (
         <p className="notice">
@@ -95,22 +96,21 @@ export default function Authentication({
             <p>
               Restrict its users or groups, then register this exact callback.
             </p>
-            <div className="callback-value">
-              <code>{window.location.origin + "/api/v1/auth/callback"}</code>
-              <button
-                className="icon-button"
-                aria-label="Copy callback URL"
-                onClick={() =>
-                  navigator.clipboard.writeText(
-                    window.location.origin + "/api/v1/auth/callback"
-                  )
-                }
-              >
-                <Copy size={16} />
-              </button>
-            </div>
+            <CopyField
+              value={window.location.origin + "/api/v1/auth/callback"}
+              name="Pocket ID callback URL"
+            />
           </div>
         </div>
+      )}
+      {!initial && (
+        <CopyField
+          value={
+            status.data?.callback_url ||
+            window.location.origin + "/api/v1/auth/callback"
+          }
+          name="Pocket ID callback URL"
+        />
       )}
       <form
         onSubmit={(e) => {
@@ -130,8 +130,10 @@ export default function Authentication({
               required
             />
             <small>
-              Retrieve it from the app container: python -m app.operator
-              setup-token
+              Run on your Docker host:{" "}
+              <code>
+                docker compose exec api python -m app.operator setup-token
+              </code>
             </small>
           </label>
         )}
@@ -229,23 +231,58 @@ export default function Authentication({
     </>
   );
   return initial ? (
-    <div className="setup-page">
+    <div className="setup-page setup-welcome">
       <header>
         <Logo />
-        <span>Omnix setup</span>
+        <span className="setup-wordmark">omnix</span>
+        <span className="setup-header-label">FIRST RUN / 01</span>
       </header>
-      <main>
-        {status.data?.setup_available === false ? (
-          <div className="empty">
-            <h1>Setup is locked.</h1>
-            <a className="primary" href="/api/v1/auth/login">
-              Sign in
-            </a>
-          </div>
-        ) : (
-          form
-        )}
+      <main className="setup-shell">
+        <aside className="setup-intro">
+          <span className="eyebrow">WELCOME TO OMNIX</span>
+          <h1>
+            Your
+            <br />
+            workspace.
+          </h1>
+          <p>Start with your existing Pocket ID account.</p>
+          <ol aria-label="First-run steps">
+            <li aria-current="step">
+              <span>01</span>Connect identity
+            </li>
+            <li>
+              <span>02</span>Make it yours
+            </li>
+          </ol>
+        </aside>
+        <section className="setup-content" aria-label="Identity setup">
+          {status.isLoading ? (
+            <p className="muted" role="status">
+              [CHECKING SETUP]
+            </p>
+          ) : status.error ? (
+            <div role="alert">
+              <p className="error">Could not load setup.</p>
+              <button className="secondary" onClick={() => status.refetch()}>
+                Retry
+              </button>
+            </div>
+          ) : status.data?.setup_available === false ? (
+            <div className="setup-locked">
+              <h2>Setup is complete.</h2>
+              <a className="primary" href="/api/v1/auth/login">
+                Sign in <ArrowRight size={16} />
+              </a>
+            </div>
+          ) : (
+            form
+          )}
+        </section>
       </main>
+      <footer className="setup-welcome-footer">
+        <span>OMNIX / WORKSPACE</span>
+        <span>IDENTITY VIA POCKET ID</span>
+      </footer>
     </div>
   ) : (
     <div className="page auth-page">{form}</div>

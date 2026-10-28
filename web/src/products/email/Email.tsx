@@ -1,3 +1,4 @@
+import Select from "../../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -459,7 +460,7 @@ export default function Email({
               <h3>Filter mail</h3>
               <label>
                 Mailbox
-                <select
+                <Select
                   aria-label="Filter by mailbox"
                   value={account}
                   onChange={(event) => filterMailbox(event.target.value)}
@@ -470,7 +471,7 @@ export default function Email({
                       {a.label} · {a.address}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="filter-check">
                 <input
@@ -744,7 +745,7 @@ export default function Email({
                   >
                     <Trash2 size={17} />
                   </button>
-                  <select
+                  <Select
                     aria-label="Move message"
                     value=""
                     disabled={actionBusy || !canWrite}
@@ -758,7 +759,7 @@ export default function Email({
                           {f.name}
                         </option>
                       ))}
-                  </select>
+                  </Select>
                 </div>
                 <span className="reader-account">
                   <span
