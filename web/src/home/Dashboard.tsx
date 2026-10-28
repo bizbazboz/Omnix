@@ -1,3 +1,4 @@
+import NotesSummary from "../products/notes/NotesSummary";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ArrowUpRight, Mail, Plus, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -198,25 +199,25 @@ export default function Dashboard({
           {
             name: "UNREAD",
             value: data?.unread,
-            path: "/app/email",
+            path: "/email",
             suffix: "INBOX"
           },
           {
             name: "DRAFTS",
             value: data?.drafts,
-            path: "/app/email/drafts",
+            path: "/email/drafts",
             suffix: "SAVED"
           },
           {
             name: "ACCOUNTS",
             value: data?.accounts,
-            path: "/app/settings/connections",
+            path: "/settings/connections",
             suffix: count(data?.healthy) + " CONNECTED"
           },
           {
             name: data?.unknown ? "CHECK SENDS" : "OUTBOX",
             value: data?.unknown || data?.queued,
-            path: "/app/email/outbox",
+            path: "/email/outbox",
             suffix: data?.unknown ? "OUTCOME UNKNOWN" : "QUEUED"
           }
         ].map((metric) => (
@@ -237,13 +238,14 @@ export default function Dashboard({
           </NavLink>
         ))}
       </section>
+      <NotesSummary />
       <HealthSummary zone={zone} />
       <Upcoming zone={zone} hour12={preferences.data?.time_format === "12"} />
       <div className="dashboard-bottom">
         <section className="dashboard-mail">
           <div className="section-title">
             <h2>Recent mail</h2>
-            <NavLink to="/app/email">
+            <NavLink to="/email">
               VIEW ALL <ArrowUpRight size={14} />
             </NavLink>
           </div>
@@ -255,7 +257,7 @@ export default function Dashboard({
               <span>
                 {accounts.length ? "NO MESSAGES" : "CONNECT YOUR FIRST ACCOUNT"}
               </span>
-              <NavLink className="secondary" to="/app/settings/connections">
+              <NavLink className="secondary" to="/settings/connections">
                 <Plus size={15} /> Connect account
               </NavLink>
             </div>
@@ -264,7 +266,7 @@ export default function Dashboard({
               <NavLink
                 key={m.id}
                 className="dashboard-message"
-                to={"/app/email?message=" + m.id + "&account=" + m.mailbox}
+                to={"/email?message=" + m.id + "&account=" + m.mailbox}
               >
                 <Avatar name={m.sender_name || m.sender} />
                 <div>
@@ -285,7 +287,7 @@ export default function Dashboard({
         <section className="dashboard-connections">
           <div className="section-title">
             <h2>Connections</h2>
-            <NavLink to="/app/settings/connections">
+            <NavLink to="/settings/connections">
               <Plus size={16} />
             </NavLink>
           </div>
@@ -310,7 +312,7 @@ export default function Dashboard({
           </div>
           <div className="dashboard-account-list">
             {accounts.slice(0, 4).map((a) => (
-              <NavLink to="/app/settings/connections" key={a.id}>
+              <NavLink to="/settings/connections" key={a.id}>
                 <span>
                   {a.label}
                   <small>{a.address}</small>

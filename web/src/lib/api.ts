@@ -52,9 +52,29 @@ export type Draft = {
   reply_to_message?: string;
 };
 let csrf = "";
+const unsavedWork = new Set<string>();
+export function markUnsaved(key: string, dirty: boolean) {
+  if (dirty) unsavedWork.add(key);
+  else unsavedWork.delete(key);
+}
+window.addEventListener("beforeunload", (event) => {
+  if (unsavedWork.size) {
+    event.preventDefault();
+    event.returnValue = "";
+  }
+});
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string
+  ) {
+    super(message);
+  }
+}
 export async function api<T = any>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  preserveSession = false
 ): Promise<T> {
   const response = await fetch("/api/v1" + path, {
     ...options,
@@ -64,7 +84,12 @@ export async function api<T = any>(
       ...options.headers
     }
   });
-  if (response.status === 401 && path !== "/me") {
+  if (
+    response.status === 401 &&
+    path !== "/me" &&
+    !preserveSession &&
+    !unsavedWork.size
+  ) {
     qc.clear();
     window.location.assign("/");
   }
@@ -72,7 +97,8 @@ export async function api<T = any>(
     const error = await response
       .json()
       .catch(() => ({ detail: "Request failed" }));
-    throw new Error(
+    throw new ApiError(
+      response.status,
       typeof error.detail === "string"
         ? error.detail
         : Array.isArray(error.detail)

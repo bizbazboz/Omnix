@@ -50,7 +50,7 @@ export default function Email({
   const location = useLocation();
   const navigate = useNavigate();
   const folder =
-    params.get("folder") || location.pathname.split("/")[3] || "inbox";
+    params.get("folder") || location.pathname.split("/")[2] || "inbox";
   const account = params.get("account") || "";
   function filterMailbox(value: string) {
     const next = new URLSearchParams(params);
@@ -59,7 +59,7 @@ export default function Email({
     next.delete("message");
     if (next.has("folder") && value !== account) {
       next.delete("folder");
-      navigate("/app/email?" + next);
+      navigate("/email?" + next);
     } else setParams(next);
   }
   const [search, setSearch] = useState("");
@@ -131,11 +131,29 @@ export default function Email({
       ),
     enabled: !!selected
   });
+  const linkedId = params.get("message") || "";
+  const linkedMessage = useQuery<Message>({
+    queryKey: ["message", linkedId],
+    queryFn: () =>
+      api(
+        "/email/mailboxes/" +
+          encodeURIComponent(account) +
+          "/messages/" +
+          encodeURIComponent(linkedId)
+      ),
+    enabled: Boolean(
+      linkedId &&
+      account &&
+      !list.data?.items.some((message) => message.id === linkedId)
+    )
+  });
   useEffect(() => {
-    const id = params.get("message");
-    const match = list.data?.items.find((m) => m.id === id);
-    if (match) setSelected(match);
-  }, [params.get("message"), list.data]);
+    if (!linkedId) return;
+    const match =
+      list.data?.items.find((message) => message.id === linkedId) ||
+      linkedMessage.data;
+    if (match && (!account || match.mailbox === account)) setSelected(match);
+  }, [linkedId, account, list.data, linkedMessage.data]);
   async function refresh() {
     setRefreshing(true);
     try {
@@ -798,7 +816,7 @@ export default function Email({
                 {activeProfile?.data?.needs_reconnect && (
                   <p className="notice">
                     Reconnect Zoho to enable read, star and folder actions.{" "}
-                    <NavLink to="/app/settings/connections">
+                    <NavLink to="/settings/connections">
                       Open integrations
                     </NavLink>
                   </p>

@@ -31,7 +31,7 @@ export default function Upcoming({
     <section className="dashboard-agenda">
       <div className="section-title">
         <h2>Coming up</h2>
-        <NavLink to="/app/calendar">
+        <NavLink to="/calendar">
           CALENDAR <ArrowUpRight size={14} />
         </NavLink>
       </div>
@@ -49,7 +49,7 @@ export default function Upcoming({
         <p className="muted">Loading events…</p>
       ) : events.data?.length ? (
         events.data.slice(0, 4).map((event) => (
-          <NavLink to="/app/calendar" className="upcoming-event" key={event.id}>
+          <NavLink to="/calendar" className="upcoming-event" key={event.id}>
             <time>
               <span>{dayLabel(eventDay(event, zone))}</span>
               {eventTime(event, zone, hour12)}
@@ -62,7 +62,7 @@ export default function Upcoming({
           </NavLink>
         ))
       ) : (
-        <NavLink to="/app/calendar" className="upcoming-empty">
+        <NavLink to="/calendar" className="upcoming-empty">
           <CalendarDays size={22} />
           <span>
             {feeds.data?.length

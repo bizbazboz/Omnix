@@ -242,7 +242,7 @@ export default function Onboarding({ user }: { user: User }) {
                 <button
                   className="text-button"
                   disabled={busy}
-                  onClick={() => finish("/app/settings/connections")}
+                  onClick={() => finish("/settings/connections")}
                 >
                   Set up integrations
                 </button>

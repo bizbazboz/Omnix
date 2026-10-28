@@ -311,5 +311,5 @@ export const healthViews = [
 ];
 export function metricPath(id: string) {
   const view = healthViews.slice(1).find((view) => view.metrics.includes(id));
-  return "/app/health" + (view ? "/" + view.id : "") + "?metric=" + id;
+  return "/health" + (view ? "/" + view.id : "") + "?metric=" + id;
 }

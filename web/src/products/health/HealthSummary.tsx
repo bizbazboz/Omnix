@@ -48,7 +48,7 @@ export default function HealthSummary({ zone }: { zone: string }) {
     <section className="dashboard-health" aria-label="Health overview">
       <div className="section-title">
         <h2>Health</h2>
-        <NavLink to="/app/health">
+        <NavLink to="/health">
           VIEW ALL <ArrowUpRight size={14} />
         </NavLink>
       </div>
@@ -70,7 +70,7 @@ export default function HealthSummary({ zone }: { zone: string }) {
         <div className="health-overview-empty">
           <p className="muted">Your activity, sleep and measurements.</p>
           <NavLink
-            to="/app/settings/connections#google-health"
+            to="/settings/connections#google-health"
             className="text-button"
           >
             Connect in Integrations <ArrowUpRight size={14} />
@@ -79,7 +79,7 @@ export default function HealthSummary({ zone }: { zone: string }) {
       ) : (
         <>
           <div className="health-overview-grid">
-            <NavLink to="/app/health" className="health-overview-steps">
+            <NavLink to="/health" className="health-overview-steps">
               <span className="eyebrow">STEPS</span>
               <strong>{format(steps?.points[today], "steps")}</strong>
               <span className="eyebrow">{message("steps")}</span>
@@ -122,7 +122,7 @@ export default function HealthSummary({ zone }: { zone: string }) {
           {status.data?.status === "reconnect" && (
             <p className="notice">
               Renew your Google Health connection in{" "}
-              <NavLink to="/app/settings/connections#google-health">
+              <NavLink to="/settings/connections#google-health">
                 Integrations
               </NavLink>
               .

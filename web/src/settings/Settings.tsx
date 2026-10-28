@@ -525,7 +525,7 @@ export default function Settings({
 }) {
   const location = useLocation();
   const [navHidden, setNavHidden] = useStoredFlag("omnix.settings.navHidden");
-  const section = location.pathname.split("/")[3] || "general";
+  const section = location.pathname.split("/")[2] || "general";
   useEffect(() => {
     const target = location.hash.slice(1);
     if (target)
@@ -569,7 +569,7 @@ export default function Settings({
         {!navHidden && (
           <nav className="settings-tabs" aria-label="Settings categories">
             {tabs.map(([key, name]) => (
-              <NavLink key={key} to={"/app/settings/" + key}>
+              <NavLink key={key} to={"/settings/" + key}>
                 {name}
               </NavLink>
             ))}
@@ -581,11 +581,9 @@ export default function Settings({
           ) : section === "connections" ? (
             <>
               <nav className="integration-shortcuts" aria-label="Integrations">
-                <NavLink to="/app/settings/connections#mail">Mail</NavLink>
-                <NavLink to="/app/settings/connections#calendars">
-                  Calendar
-                </NavLink>
-                <NavLink to="/app/settings/connections#google-health">
+                <NavLink to="/settings/connections#mail">Mail</NavLink>
+                <NavLink to="/settings/connections#calendars">Calendar</NavLink>
+                <NavLink to="/settings/connections#google-health">
                   Health
                 </NavLink>
               </nav>

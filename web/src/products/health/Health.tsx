@@ -24,7 +24,7 @@ import Workouts from "./Workouts";
 export default function Health() {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
-  const pageId = location.pathname.split("/")[3] || "overview";
+  const pageId = location.pathname.split("/")[2] || "overview";
   const view = healthViews.find((view) => view.id === pageId);
   const metrics = (view || healthViews[0]).metrics.map(
     (id) => metricDefinitions[id]
@@ -108,7 +108,7 @@ export default function Health() {
       setBusy(false);
     }
   }
-  if (!view) return <Navigate to="/app/health" replace />;
+  if (!view) return <Navigate to="/health" replace />;
   return (
     <div className="health-product">
       <header className="health-heading">
@@ -164,7 +164,7 @@ export default function Health() {
               </p>
               <NavLink
                 className="secondary"
-                to="/app/settings/connections#google-health"
+                to="/settings/connections#google-health"
               >
                 Open Integrations <ArrowUpRight size={16} />
               </NavLink>
@@ -197,7 +197,7 @@ export default function Health() {
               ) && (
                 <p className="notice">
                   This category has not been shared.{" "}
-                  <NavLink to="/app/settings/connections#google-health">
+                  <NavLink to="/settings/connections#google-health">
                     Manage access in Integrations
                   </NavLink>
                   .

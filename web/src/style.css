@@ -5564,3 +5564,42 @@ body:has(.resize-handle[data-dragging="true"]) {
   width: 160px;
   flex-shrink: 0;
 }
+
+.dashboard-notes {
+  border-bottom: 1px solid var(--border);
+  padding: 32px 0;
+}
+.dashboard-notes-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+}
+.dashboard-notes-grid > div {
+  display: grid;
+  gap: 16px;
+}
+.dashboard-notes-grid a {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.dashboard-notes-grid a span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dashboard-notes-grid small {
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font: 10px var(--font-mono);
+}
+
+@media (max-width: 600px) {
+  .dashboard-notes-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}

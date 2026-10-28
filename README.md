@@ -2,7 +2,7 @@
   <img src="web/public/omnix-logo.png" width="72" alt="Omnix logo" />
 </p>
 <h1 align="center">Omnix</h1>
-<p align="center">A self-hosted workspace for mail, calendars and health.</p>
+<p align="center">A self-hosted workspace for mail, calendars, health and notes.</p>
 <p align="center">
   <a href="https://github.com/bizbazboz/Omnix/wiki">Documentation</a> ·
   <a href="https://github.com/bizbazboz/Omnix/wiki/Installation">Setup</a> ·
@@ -16,7 +16,10 @@
 - Browse folders, organise mail, save drafts and track send attempts.
 - Aggregate iCal subscriptions into one agenda and see upcoming events on the dashboard.
 - Explore private Google Health activity, sleep, vitals, body, nutrition and workouts.
-- See the time, unread mail and account status at a glance.
+- Organise folders and nested pages with a block editor, page links and remote autosave.
+- Track project issues with a backlog, boards, subtasks, comments and activity.
+- Embed mail, calendar events and issues into notes with slash commands.
+- See mail, events, health and recent notes at a glance.
 - Sign in with Pocket ID and keep each user's mail private.
 - Manage authentication, integrations and preferences in the app.
 - Run with Docker Compose, with images published to GHCR through CI.

@@ -220,7 +220,7 @@ def test_authorize_uses_readonly_pkce_and_one_use_state(
     response = admin_health.get(path)
     assert (
         response.status_code == 303
-        and response.headers["location"] == "/app/health?connect=success"
+        and response.headers["location"] == "/health?connect=success"
     )
     assert admin_health.get(path).status_code == 400
     with Session() as db:
@@ -274,7 +274,7 @@ def test_consent_session_binding_and_cancel(admin_health, monkeypatch):
         "/api/v1/health/google/callback",
         params={"state": params["state"][0], "error": "access_denied"},
     )
-    assert response.headers["location"] == "/app/health?connect=cancelled"
+    assert response.headers["location"] == "/health?connect=cancelled"
 
 
 def test_disconnect_deletes_readings_even_if_revoke_fails(
@@ -414,8 +414,14 @@ def test_partial_permissions_and_failed_refresh_never_fabricate_zero(monkeypatch
     monkeypatch.setattr(
         "app.google_health.rollup", Mock(side_effect=HealthProviderError("permission"))
     )
-    monkeypatch.setattr("app.google_health.observations", Mock(side_effect=HealthProviderError("permission")))
-    monkeypatch.setattr("app.google_health.exercise_records", Mock(side_effect=HealthProviderError("permission")))
+    monkeypatch.setattr(
+        "app.google_health.observations",
+        Mock(side_effect=HealthProviderError("permission")),
+    )
+    monkeypatch.setattr(
+        "app.google_health.exercise_records",
+        Mock(side_effect=HealthProviderError("permission")),
+    )
     previous = {"steps": {"points": {"2026-10-28": 8000}}}
     result, failures = collect_statistics(
         "token",
@@ -572,7 +578,10 @@ def test_old_sync_cannot_overwrite_new_consent_cache(user, monkeypatch):
 def test_google_registration_trims_pasted_credentials(admin_health):
     response = admin_health.put(
         "/api/v1/health/google/registration",
-        json={"client_id": " 123-client.apps.googleusercontent.com\n", "client_secret": " private-google-secret \r\n"},
+        json={
+            "client_id": " 123-client.apps.googleusercontent.com\n",
+            "client_secret": " private-google-secret \r\n",
+        },
     )
     assert response.status_code == 200
     with Session() as db:
@@ -581,13 +590,16 @@ def test_google_registration_trims_pasted_credentials(admin_health):
         assert value["client_id"] == "123-client.apps.googleusercontent.com"
 
 
-@pytest.mark.parametrize("reason,expected", [
-    ("invalid_client", "client ID or secret"),
-    ("invalid_grant", "start a new connection"),
-    ("redirect_uri_mismatch", "exact callback"),
-    ("invalid_scope", "Health permissions"),
-    ("private-unknown-error", "could not complete the token exchange"),
-])
+@pytest.mark.parametrize(
+    "reason,expected",
+    [
+        ("invalid_client", "client ID or secret"),
+        ("invalid_grant", "start a new connection"),
+        ("redirect_uri_mismatch", "exact callback"),
+        ("invalid_scope", "Health permissions"),
+        ("private-unknown-error", "could not complete the token exchange"),
+    ],
+)
 def test_callback_explains_allowlisted_errors_without_leaking_provider_body(
     admin_health, user, monkeypatch, reason, expected
 ):
@@ -599,94 +611,242 @@ def test_callback_explains_allowlisted_errors_without_leaking_provider_body(
         json={"error": reason, "error_description": "private-provider-secret"},
         request=httpx.Request("POST", "https://oauth2.googleapis.com/token"),
     )
+
     class Client:
         async def __aenter__(self):
             return self
+
         async def __aexit__(self, *args):
             pass
+
         async def post(self, *args, **kwargs):
             return response
+
     monkeypatch.setattr("app.health.httpx.AsyncClient", lambda **kwargs: Client())
     result = admin_health.get(
         "/api/v1/health/google/callback",
         params={"state": params["state"][0], "code": "private-authorization-code"},
     )
     assert result.status_code == 502 and expected in result.json()["detail"]
-    for private in ("private-provider-secret", "private-authorization-code", "private-google-secret", "private-unknown-error"):
+    for private in (
+        "private-provider-secret",
+        "private-authorization-code",
+        "private-google-secret",
+        "private-unknown-error",
+    ):
         assert private not in result.text
     with Session() as db:
-        assert db.scalar(select(HealthConnection).where(HealthConnection.owner == user.id)) is None
+        assert (
+            db.scalar(select(HealthConnection).where(HealthConnection.owner == user.id))
+            is None
+        )
 
 
-@pytest.mark.parametrize("key,payload,expected", [
-    ("active_energy", {"activeEnergyBurned": {"kcalSum": 420}}, 420),
-    ("floors", {"floors": {"countSum": "0"}}, 0),
-    ("elevation", {"altitude": {"gainMillimetersSum": "150000"}}, 150),
-    ("body_fat", {"bodyFat": {"bodyFatPercentageAvg": 23.4}}, 23.4),
-    ("glucose", {"bloodGlucose": {"bloodGlucoseMilligramsPerDeciliterAvg": 97}}, 97),
-    ("heart_rate_max", {"heartRate": {"beatsPerMinuteMax": 145}}, 145),
-    ("calories_in", {"nutritionLog": {"energy": {"kcalSum": 1900}}}, 1900),
-    ("carbs", {"nutritionLog": {"totalCarbohydrate": {"gramsSum": 210}}}, 210),
-    ("water", {"hydrationLog": {"amountConsumed": {"millilitersSum": 2300}}}, 2.3),
-    ("protein", {"nutritionLog": {"nutrients": [{"nutrient": "PROTEIN", "quantity": {"gramsSum": 70}}]}}, 70),
-    ("sodium", {"nutritionLog": {"nutrients": [{"nutrient": "SODIUM", "quantity": {"gramsSum": 1.7}}]}}, 1700),
-])
+@pytest.mark.parametrize(
+    "key,payload,expected",
+    [
+        ("active_energy", {"activeEnergyBurned": {"kcalSum": 420}}, 420),
+        ("floors", {"floors": {"countSum": "0"}}, 0),
+        ("elevation", {"altitude": {"gainMillimetersSum": "150000"}}, 150),
+        ("body_fat", {"bodyFat": {"bodyFatPercentageAvg": 23.4}}, 23.4),
+        (
+            "glucose",
+            {"bloodGlucose": {"bloodGlucoseMilligramsPerDeciliterAvg": 97}},
+            97,
+        ),
+        ("heart_rate_max", {"heartRate": {"beatsPerMinuteMax": 145}}, 145),
+        ("calories_in", {"nutritionLog": {"energy": {"kcalSum": 1900}}}, 1900),
+        ("carbs", {"nutritionLog": {"totalCarbohydrate": {"gramsSum": 210}}}, 210),
+        ("water", {"hydrationLog": {"amountConsumed": {"millilitersSum": 2300}}}, 2.3),
+        (
+            "protein",
+            {
+                "nutritionLog": {
+                    "nutrients": [{"nutrient": "PROTEIN", "quantity": {"gramsSum": 70}}]
+                }
+            },
+            70,
+        ),
+        (
+            "sodium",
+            {
+                "nutritionLog": {
+                    "nutrients": [{"nutrient": "SODIUM", "quantity": {"gramsSum": 1.7}}]
+                }
+            },
+            1700,
+        ),
+    ],
+)
 def test_expanded_rollups_use_provider_units(monkeypatch, key, payload, expected):
-    monkeypatch.setattr("app.google_health.request_data", lambda *args, **kwargs: {"rollupDataPoints": [{"civilStartTime": {"date": {"year":2026,"month":10,"day":28}}, **payload}]})
-    assert rollup(None, "token", METRICS[key], date(2026,10,28), date(2026,10,29)) == {"2026-10-28":expected}
+    monkeypatch.setattr(
+        "app.google_health.request_data",
+        lambda *args, **kwargs: {
+            "rollupDataPoints": [
+                {
+                    "civilStartTime": {"date": {"year": 2026, "month": 10, "day": 28}},
+                    **payload,
+                }
+            ]
+        },
+    )
+    assert rollup(
+        None, "token", METRICS[key], date(2026, 10, 28), date(2026, 10, 29)
+    ) == {"2026-10-28": expected}
 
 
-@pytest.mark.parametrize("key,field,value,expected", [
-    ("hrv", "dailyHeartRateVariability", "averageHeartRateVariabilityMilliseconds", 42.7),
-    ("oxygen", "dailyOxygenSaturation", "averagePercentage", 97.2),
-    ("breathing", "dailyRespiratoryRate", "breathsPerMinute", 15.4),
-    ("vo2_max", "dailyVo2Max", "vo2Max", 43.5),
-    ("skin_temperature", "dailySleepTemperatureDerivations", "nightlyTemperatureCelsius", 33.2),
-])
+@pytest.mark.parametrize(
+    "key,field,value,expected",
+    [
+        (
+            "hrv",
+            "dailyHeartRateVariability",
+            "averageHeartRateVariabilityMilliseconds",
+            42.7,
+        ),
+        ("oxygen", "dailyOxygenSaturation", "averagePercentage", 97.2),
+        ("breathing", "dailyRespiratoryRate", "breathsPerMinute", 15.4),
+        ("vo2_max", "dailyVo2Max", "vo2Max", 43.5),
+        (
+            "skin_temperature",
+            "dailySleepTemperatureDerivations",
+            "nightlyTemperatureCelsius",
+            33.2,
+        ),
+    ],
+)
 def test_daily_vitals_use_supported_fields(monkeypatch, key, field, value, expected):
     def request(*args, **kwargs):
         assert "dataPointName" in kwargs["params"]["fields"]
-        assert kwargs["params"]["filter"].startswith(METRICS[key]["type"].replace("-", "_") + ".date")
-        return {"dataPoints": [{field: {"date": {"year":2026,"month":10,"day":28}, value:expected}}]}
+        assert kwargs["params"]["filter"].startswith(
+            METRICS[key]["type"].replace("-", "_") + ".date"
+        )
+        return {
+            "dataPoints": [
+                {
+                    field: {
+                        "date": {"year": 2026, "month": 10, "day": 28},
+                        value: expected,
+                    }
+                }
+            ]
+        }
+
     monkeypatch.setattr("app.google_health.request_data", request)
-    assert observations(None,"token",METRICS[key],date(2026,10,28),date(2026,10,29),"UTC") == {"2026-10-28":expected}
+    assert observations(
+        None, "token", METRICS[key], date(2026, 10, 28), date(2026, 10, 29), "UTC"
+    ) == {"2026-10-28": expected}
 
 
 def test_sleep_stages_preserve_missing_and_deduplicate_sessions(monkeypatch):
-    point={"dataPointName":"sleep-1","sleep":{"interval":{"civilEndTime":{"date":{"year":2026,"month":10,"day":28}}},"summary":{"minutesAsleep":"420","stagesSummary":[{"type":"DEEP","minutes":"90"},{"type":"REM","minutes":"0"}]}}}
-    monkeypatch.setattr("app.google_health.request_data",lambda *args,**kwargs:{"dataPoints":[point,point]})
-    assert observations(None,"token",METRICS["sleep_deep"],date(2026,10,28),date(2026,10,29),"UTC")=={"2026-10-28":1.5}
-    assert observations(None,"token",METRICS["sleep_rem"],date(2026,10,28),date(2026,10,29),"UTC")=={"2026-10-28":0}
-    assert observations(None,"token",METRICS["sleep_light"],date(2026,10,28),date(2026,10,29),"UTC")=={}
+    point = {
+        "dataPointName": "sleep-1",
+        "sleep": {
+            "interval": {
+                "civilEndTime": {"date": {"year": 2026, "month": 10, "day": 28}}
+            },
+            "summary": {
+                "minutesAsleep": "420",
+                "stagesSummary": [
+                    {"type": "DEEP", "minutes": "90"},
+                    {"type": "REM", "minutes": "0"},
+                ],
+            },
+        },
+    }
+    monkeypatch.setattr(
+        "app.google_health.request_data",
+        lambda *args, **kwargs: {"dataPoints": [point, point]},
+    )
+    assert observations(
+        None,
+        "token",
+        METRICS["sleep_deep"],
+        date(2026, 10, 28),
+        date(2026, 10, 29),
+        "UTC",
+    ) == {"2026-10-28": 1.5}
+    assert observations(
+        None,
+        "token",
+        METRICS["sleep_rem"],
+        date(2026, 10, 28),
+        date(2026, 10, 29),
+        "UTC",
+    ) == {"2026-10-28": 0}
+    assert (
+        observations(
+            None,
+            "token",
+            METRICS["sleep_light"],
+            date(2026, 10, 28),
+            date(2026, 10, 29),
+            "UTC",
+        )
+        == {}
+    )
 
 
 def test_expanded_metrics_share_reads_and_respect_deadline(monkeypatch):
     from app.google_health import CachedHealthClient
-    transport=Mock()
-    cached=CachedHealthClient(transport)
-    cached.request("GET","https://health.googleapis.com/test",params={"a":1})
-    cached.request("GET","https://health.googleapis.com/test",params={"a":1})
+
+    transport = Mock()
+    cached = CachedHealthClient(transport)
+    cached.request("GET", "https://health.googleapis.com/test", params={"a": 1})
+    cached.request("GET", "https://health.googleapis.com/test", params={"a": 1})
     transport.request.assert_called_once()
-    cached.deadline=0
+    cached.deadline = 0
     with pytest.raises(HealthProviderError):
-        cached.request("GET","https://health.googleapis.com/test2")
+        cached.request("GET", "https://health.googleapis.com/test2")
 
 
 def test_workout_summaries_are_bounded_and_exclude_private_notes(monkeypatch):
     from app.google_health import exercise_records
-    point={"dataPointName":"workout-1","exercise":{"displayName":"Walking","activeDuration":"1800s","notes":"private-note","interval":{"civilStartTime":{"date":{"year":2026,"month":10,"day":28}},"startTime":"2026-10-28T08:00:00Z","endTime":"2026-10-28T08:30:00Z"},"metricsSummary":{"distanceMillimeters":2500000,"caloriesKcal":150,"averageHeartRateBeatsPerMinute":"100"}}}
-    def request(*args,**kwargs):
-        assert "notes" not in kwargs["params"]["fields"] and "location" not in kwargs["params"]["fields"]
-        return {"dataPoints":[point,point]}
-    monkeypatch.setattr("app.google_health.request_data",request)
-    records=exercise_records(None,"token",date(2026,10,28),date(2026,10,29),"UTC")
-    assert len(records)==1 and records[0]["minutes"]==30 and records[0]["distance"]==2.5
+
+    point = {
+        "dataPointName": "workout-1",
+        "exercise": {
+            "displayName": "Walking",
+            "activeDuration": "1800s",
+            "notes": "private-note",
+            "interval": {
+                "civilStartTime": {"date": {"year": 2026, "month": 10, "day": 28}},
+                "startTime": "2026-10-28T08:00:00Z",
+                "endTime": "2026-10-28T08:30:00Z",
+            },
+            "metricsSummary": {
+                "distanceMillimeters": 2500000,
+                "caloriesKcal": 150,
+                "averageHeartRateBeatsPerMinute": "100",
+            },
+        },
+    }
+
+    def request(*args, **kwargs):
+        assert (
+            "notes" not in kwargs["params"]["fields"]
+            and "location" not in kwargs["params"]["fields"]
+        )
+        return {"dataPoints": [point, point]}
+
+    monkeypatch.setattr("app.google_health.request_data", request)
+    records = exercise_records(
+        None, "token", date(2026, 10, 28), date(2026, 10, 29), "UTC"
+    )
+    assert (
+        len(records) == 1
+        and records[0]["minutes"] == 30
+        and records[0]["distance"] == 2.5
+    )
     assert "private-note" not in json.dumps(records)
 
 
 def test_nutrition_requires_explicit_consent(admin_health):
     register(admin_health)
-    params=authorize(admin_health,["nutrition"])
-    assert params["scope"]==[GROUPS["nutrition"]]
-    response=admin_health.post("/api/v1/health/google/authorize",json={"groups":["activity","sleep","measurements","nutrition"]})
-    assert response.status_code==200
+    params = authorize(admin_health, ["nutrition"])
+    assert params["scope"] == [GROUPS["nutrition"]]
+    response = admin_health.post(
+        "/api/v1/health/google/authorize",
+        json={"groups": ["activity", "sleep", "measurements", "nutrition"]},
+    )
+    assert response.status_code == 200
