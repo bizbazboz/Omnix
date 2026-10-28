@@ -25,6 +25,10 @@ def test_imap_uidvalidity_mime_and_peek(monkeypatch):
 
         def select(self, *args, **kwargs):
             assert kwargs["readonly"] is True
+            return "OK", [b"1"]
+
+        def list(self):
+            return "OK", [b'(\\HasNoChildren) "/" "INBOX"']
 
         def response(self, name):
             return name, [self.validity]
@@ -40,14 +44,16 @@ def test_imap_uidvalidity_mime_and_peek(monkeypatch):
 
     client = FakeIMAP()
     monkeypatch.setattr(providers, "imap_client", lambda config: client)
-    c = SimpleNamespace(provider="imap", credentials=encrypt({}))
-    first = providers.fetch_messages(c, None)[0]
+    c = SimpleNamespace(
+        provider="imap", credentials=encrypt({}), address="alex@example.com"
+    )
+    first = list(providers.fetch_messages(c, None))[0]
     assert first["provider_id"] == "INBOX:99:41"
     assert first["subject"] == "A café in London"
     assert "café" in first["body"]
     assert first["unread"] is False
     client.validity = b"100"
-    assert providers.fetch_messages(c, None)[0]["provider_id"] == "INBOX:100:41"
+    assert list(providers.fetch_messages(c, None))[0]["provider_id"] == "INBOX:100:41"
 
 
 def test_smtp_partial_refusal_keeps_bcc_out_of_headers(monkeypatch):
@@ -91,6 +97,10 @@ def test_zoho_discovers_inbox_and_uses_authorized_account(monkeypatch):
         calls.append((path, kwargs))
         if path == "/folders":
             return [{"folderId": "folder-one", "folderName": "Inbox"}]
+        if path == "":
+            return {}
+        if path == "/messages/search":
+            return []
         return [
             {
                 "messageId": "message-one",
@@ -102,6 +112,9 @@ def test_zoho_discovers_inbox_and_uses_authorized_account(monkeypatch):
 
     monkeypatch.setattr(providers, "zoho_request", request)
     c = SimpleNamespace(provider="zoho", address="alex@example.com")
-    messages = providers.fetch_messages(c, None)
+    messages = list(providers.fetch_messages(c, None))
     assert messages[0]["provider_id"] == "folder-one:message-one"
-    assert calls[1][1]["params"]["folderId"] == "folder-one"
+    assert (
+        next(kw for path, kw in calls if path == "/messages/view")["params"]["folderId"]
+        == "folder-one"
+    )

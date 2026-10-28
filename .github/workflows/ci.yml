@@ -39,9 +39,9 @@ jobs:
       - name: Inspect startup failure
         if: failure()
         run: docker compose logs --tail=80
-      - name: Remove ephemeral CI volumes
+      - name: Stop the ephemeral CI stack
         if: always()
-        run: docker compose down --volumes --remove-orphans
+        run: docker compose down --remove-orphans
   publish:
     needs: [configuration, tests, production, security, platforms]
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))

@@ -3,7 +3,7 @@
 import time
 import httpx
 from fastapi import HTTPException
-from .providers import REGIONS
+from .providers import REGIONS, SCOPES
 
 
 async def exchange(registration, region, code, redirect_uri):
@@ -29,6 +29,9 @@ async def exchange(registration, region, code, redirect_uri):
                 )
             credentials = {key: data[key] for key in ("access_token", "refresh_token")}
             credentials["expires_at"] = time.time() + int(data.get("expires_in", 3600))
+            credentials["scopes"] = (
+                data.get("scope", SCOPES).replace(" ", ",").split(",")
+            )
             credentials["oauth_client"] = {
                 "client_id": registration["client_id"],
                 "client_secret": registration["client_secret"],

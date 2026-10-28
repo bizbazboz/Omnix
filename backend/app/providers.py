@@ -13,7 +13,7 @@ REGIONS = {
     "in": ("https://accounts.zoho.in", "https://mail.zoho.in"),
     "au": ("https://accounts.zoho.com.au", "https://mail.zoho.com.au"),
 }
-SCOPES = "ZohoMail.accounts.READ,ZohoMail.folders.READ,ZohoMail.messages.READ,ZohoMail.messages.CREATE"
+SCOPES = "ZohoMail.accounts.READ,ZohoMail.folders.READ,ZohoMail.folders.CREATE,ZohoMail.messages.READ,ZohoMail.messages.CREATE,ZohoMail.messages.UPDATE"
 
 
 class ProviderError(Exception):
@@ -155,147 +155,91 @@ def zoho_request(c, db, method, path, **kwargs):
     if response.status_code in (401, 403):
         raise ProviderError("Permissions missing; reconnect account")
     response.raise_for_status()
-    return response.json().get("data", {})
-
-
-def fetch_messages(c, db):
-    if c.provider == "zoho":
-        folders = zoho_request(c, db, "GET", "/folders")
-        inbox = next(
-            (
-                str(f["folderId"])
-                for f in folders
-                if f.get("folderName", "").lower() == "inbox"
-            ),
-            None,
+    payload = response.json()
+    if int(payload.get("status", {}).get("code", 200)) >= 400:
+        raise ProviderError(
+            "Zoho rejected the operation. Check permissions and reconnect if needed."
         )
-        if not inbox:
-            raise ProviderError("Inbox folder was not discovered")
-        data = zoho_request(
-            c,
-            db,
-            "GET",
-            "/messages/view",
-            params={"folderId": inbox, "start": 1, "limit": 100},
-        )
-        return [
-            {
-                "provider_id": inbox + ":" + str(m["messageId"]),
-                "sender": m.get("fromAddress", ""),
-                "sender_name": m.get("sender", ""),
-                "recipients": m.get("toAddress", c.address),
-                "subject": m.get("subject", "(No subject)"),
-                "body": m.get("summary", ""),
-                "unread": str(m.get("status", "0")) == "0",
-                "date": __import__("datetime").datetime.fromtimestamp(
-                    int(m.get("receivedTime", 0)) / 1000,
-                    __import__("datetime").timezone.utc,
-                ),
-            }
-            for m in data
-        ]
-    config = decrypt(c.credentials)
-    out = []
-    with imap_client(config) as client:
-        client.select("INBOX", readonly=True)
-        validity = client.response("UIDVALIDITY")[1][0].decode()
-        status, data = client.uid("search", None, "ALL")
-        if status != "OK":
-            raise ProviderError("Unable to list inbox")
-        for item in data[0].split()[-100:]:
-            status, sizes = client.uid("fetch", item, "(RFC822.SIZE)")
-            match = (
-                re.search(
-                    rb"RFC822.SIZE (\d+)",
-                    b" ".join(x for x in sizes if isinstance(x, bytes)),
-                )
-                if status == "OK"
-                else None
-            )
-            if not match or int(match.group(1)) > 2_000_000:
-                continue
-            status, raw = client.uid("fetch", item, "(BODY.PEEK[] FLAGS)")
-            if status != "OK":
-                continue
-            parts = [p for p in raw if isinstance(p, tuple)]
-            if not parts or len(parts[0][1]) > 2_000_000:
-                continue
-            msg = email.message_from_bytes(parts[0][1])
-            body = ""
-            html = ""
-            for part in msg.walk():
-                if part.get_content_disposition() == "attachment":
-                    continue
-                if part.get_content_type() in ("text/plain", "text/html"):
-                    value = (part.get_payload(decode=True) or b"").decode(
-                        part.get_content_charset() or "utf-8", errors="replace"
-                    )
-                    if part.get_content_type() == "text/plain":
-                        body += value
-                    else:
-                        html += value
-            try:
-                date = parsedate_to_datetime(msg.get("Date", ""))
-            except Exception:
-                date = now()
-            out.append(
-                {
-                    "provider_id": "INBOX:" + validity + ":" + item.decode(),
-                    "sender": parseaddr(msg.get("From", ""))[1],
-                    "sender_name": str(
-                        make_header(decode_header(parseaddr(msg.get("From", ""))[0]))
-                    ),
-                    "recipients": msg.get("To", ""),
-                    "subject": str(
-                        make_header(decode_header(msg.get("Subject", "(No subject)")))
-                    ),
-                    "body": body[:200000],
-                    "html": html[:200000],
-                    "date": date,
-                    "unread": b"\\Seen" not in parts[0][0],
-                }
-            )
-    return out
+    return payload.get("data", {})
 
 
 def send_message(c, db, payload, attempt_id):
+    sender = payload.get("from_address") or c.address
     if c.provider == "zoho":
+        outgoing = {
+            "fromAddress": sender,
+            "toAddress": ",".join(payload["to"]),
+            "ccAddress": ",".join(payload.get("cc", [])),
+            "bccAddress": ",".join(payload.get("bcc", [])),
+            "subject": payload["subject"],
+            "content": payload["body"],
+            "mailFormat": "plaintext",
+        }
+        if payload.get("_attachments"):
+            outgoing["attachments"] = payload["_attachments"]
+        path = "/messages"
+        if payload.get("_reply_provider_id"):
+            path += "/" + payload["_reply_provider_id"]
+            outgoing["action"] = "reply"
         response = zoho_request(
             c,
             db,
             "POST",
-            "/messages",
-            json={
-                "fromAddress": c.address,
-                "toAddress": ",".join(payload["to"]),
-                "ccAddress": ",".join(payload.get("cc", [])),
-                "bccAddress": ",".join(payload.get("bcc", [])),
-                "subject": payload["subject"],
-                "content": payload["body"],
-                "mailFormat": "plaintext",
-            },
+            path,
+            json=outgoing,
         )
         return {"accepted": True, "receipt": str(response.get("messageId", "accepted"))}
     config = decrypt(c.credentials)
     msg = EmailMessage()
-    msg["From"] = c.address
+    msg["From"] = sender
     msg["To"] = ", ".join(payload["to"])
     msg["Subject"] = payload["subject"]
     msg["Message-ID"] = "<" + attempt_id + "@omnix.local>"
     if payload.get("cc"):
         msg["Cc"] = ", ".join(payload["cc"])
     msg.set_content(payload["body"])
+    if payload.get("_reply_rfc_id"):
+        msg["In-Reply-To"] = payload["_reply_rfc_id"]
+        msg["References"] = payload["_reply_rfc_id"]
+    for item in payload.get("_attachments", []):
+        import base64
+
+        mime = item["content_type"].split("/", 1)
+        msg.add_attachment(
+            base64.b64decode(item["content"]),
+            maintype=mime[0],
+            subtype=mime[1],
+            filename=item["name"],
+        )
     with smtp_client(config) as client:
         refused = client.send_message(
             msg,
-            from_addr=c.address,
+            from_addr=sender,
             to_addrs=payload["to"] + payload.get("cc", []) + payload.get("bcc", []),
         )
+    sent_copy = "unavailable"
+    try:
+        from .mail_provider import profile
+
+        folder = next(
+            (f for f in profile(c, db)["folders"] if f["key"] == "sent"), None
+        )
+        if folder:
+            with imap_client(config) as client:
+                status, _ = client.append(
+                    '"' + folder["id"].replace('"', '\\"') + '"',
+                    "\\Seen",
+                    None,
+                    msg.as_bytes(),
+                )
+                sent_copy = "saved" if status == "OK" else "failed"
+    except Exception:
+        sent_copy = "failed"
     return {
         "accepted": True,
         "receipt": str(msg["Message-ID"]),
         "refused": list(refused),
-        "sent_copy": "not_configured",
+        "sent_copy": sent_copy,
     }
 
 
@@ -312,7 +256,24 @@ def fetch_body(c, db, message):
     data = zoho_request(
         c, db, "GET", "/folders/" + folder_id + "/messages/" + provider_id + "/content"
     )
-    content = str(data.get("content", ""))[:200000]
-    result = {"body": message.body, "html": content}
+    import html as html_module
+    from .mail_render import plain_text
+
+    content = str(data.get("content", ""))[:1000000]
+    if re.match(r"^\s*&lt;(?:!doctype|html|div|table|p\b)", content, re.I):
+        content = html_module.unescape(content)
+    is_html = bool(
+        re.search(r"<(?:html|body|div|p|table|style|br|span|a)\b", content, re.I)
+    )
+    result = {
+        "body": plain_text(content) if is_html else html_module.unescape(content),
+        "html": content if is_html else "",
+    }
     redis.setex(key, 300, json.dumps(result))
     return result
+
+
+def fetch_messages(c, db):
+    from .mail_provider import fetch_recent
+
+    return fetch_recent(c, db)

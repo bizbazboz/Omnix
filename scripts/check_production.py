@@ -22,6 +22,13 @@ with httpx.Client(
         "/email/drafts",
         "/email/send-attempts",
         "/settings/auth",
+        "/calendar/feeds",
+        "/calendar/events",
+        "/email/mailboxes/nonexistent/profile",
+        "/email/mailboxes/nonexistent/messages/nonexistent/attachments/nonexistent",
+        '/health/status',
+        '/health/statistics',
+        '/health/google/registration',
     ]:
         assert client.get("/api/v1" + path).status_code == 401, path
     status = client.get("/api/v1/setup/status").json()
@@ -44,7 +51,7 @@ with httpx.Client(
             {
                 "production": True,
                 "transport": "http-for-tunnel",
-                "protected_routes": 8,
+                "protected_routes": 15,
                 "setup_token_required": True,
                 "security_headers": True,
                 "oidc_configured": configuration["oidc_configured"],

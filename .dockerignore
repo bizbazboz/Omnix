@@ -11,3 +11,6 @@
 **/*.tsbuildinfo
 dist
 artifacts
+
+data
+backups

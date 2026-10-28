@@ -6,6 +6,7 @@ anyio==4.15.1
 Authlib==1.9.1
 billiard==4.3.1
 bleach==6.4.0
+tinycss2==1.4.0
 celery==5.6.3
 certifi==2026.10.23
 cffi==2.1.1
@@ -35,7 +36,10 @@ pycparser==3.12
 pydantic==2.14.1
 pydantic-settings==2.16.1
 pydantic_core==2.50.1
-python-dateutil==3.0.0
+python-dateutil==2.9.0.post0
+icalendar==7.3.0
+recurring-ical-events==3.8.2
+x-wr-timezone==2.0.1
 python-dotenv==1.2.4
 PyYAML==6.0.3
 redis==8.1.0

@@ -16,3 +16,6 @@ artifacts/
 *.p12
 *.key
 *.pem
+
+/data/
+/backups/

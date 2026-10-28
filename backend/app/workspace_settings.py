@@ -268,7 +268,7 @@ def build_settings_router(authenticated, db_session):
             "queue": "connected",
             "schema": revision,
             "encrypted_settings": True,
-            "storage": "Persistent PostgreSQL and Docker named volumes",
+            "storage": "Host-mounted PostgreSQL and application data",
             "workers": bool(redis.get("heartbeat:worker")),
             "scheduler": bool(redis.get("heartbeat:scheduler")),
         }

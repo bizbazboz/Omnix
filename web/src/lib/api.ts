@@ -33,6 +33,10 @@ export type Message = {
   starred: boolean;
   date: string;
   folder: string;
+  cc?: string;
+  reply_to?: string;
+  attachments?: { id: string; name: string; size: number; cid?: string }[];
+  attachment_notice?: string;
 };
 export type Draft = {
   id?: string;
@@ -43,6 +47,9 @@ export type Draft = {
   bcc: string[];
   subject: string;
   body: string;
+  from_address?: string;
+  attachments?: string[];
+  reply_to_message?: string;
 };
 let csrf = "";
 export async function api<T = any>(
@@ -75,6 +82,7 @@ export async function api<T = any>(
           : "Request failed"
     );
   }
+  if (response.status === 204) return undefined as T;
   return response.json();
 }
 export const qc = new QueryClient({

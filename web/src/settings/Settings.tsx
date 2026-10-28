@@ -4,7 +4,11 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api, qc, type Account, type User } from "../lib/api";
 import Authentication from "./Authentication";
 import Connections from "./Connections";
+import HealthIntegration from "./HealthIntegration";
+import CalendarIntegration from "./CalendarIntegration";
 import TimezoneSelect, { currentTimezone } from "./TimezoneSelect";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useStoredFlag } from "../lib/layout";
 
 export function ZohoRegistration() {
   const query = useQuery({
@@ -423,8 +427,7 @@ function System() {
         ))}
       </dl>
       <p className="muted">
-        Database and encryption keys are managed by Docker. Back up all
-        persistent volumes together before upgrades.
+        Back up the host data directory and database together before upgrades.
       </p>
     </section>
   );
@@ -515,7 +518,13 @@ export default function Settings({
   notify: (s: string) => void;
 }) {
   const location = useLocation();
+  const [navHidden, setNavHidden] = useStoredFlag("omnix.settings.navHidden");
   const section = location.pathname.split("/")[3] || "general";
+  useEffect(() => {
+    const target = location.hash.slice(1);
+    if (target)
+      document.getElementById(target)?.scrollIntoView({ block: "start" });
+  }, [location.pathname, location.hash]);
   const tabs = [
     ["general", "General"],
     ["connections", "Integrations"],
@@ -531,22 +540,55 @@ export default function Settings({
   ];
   return (
     <div className="page settings-hub">
-      <h1>Settings</h1>
-      <div className="settings-layout">
-        <nav className="settings-tabs" aria-label="Settings categories">
-          {tabs.map(([key, name]) => (
-            <NavLink key={key} to={"/app/settings/" + key}>
-              {name}
-            </NavLink>
-          ))}
-        </nav>
+      <div className="settings-heading">
+        <h1>Settings</h1>
+        <button
+          className="secondary"
+          aria-expanded={!navHidden}
+          onClick={() => setNavHidden(!navHidden)}
+        >
+          {navHidden ? (
+            <PanelLeftOpen size={16} />
+          ) : (
+            <PanelLeftClose size={16} />
+          )}{" "}
+          {navHidden ? "Show categories" : "Hide categories"}
+        </button>
+      </div>
+      <div
+        className={
+          "settings-layout " + (navHidden ? "settings-nav-hidden" : "")
+        }
+      >
+        {!navHidden && (
+          <nav className="settings-tabs" aria-label="Settings categories">
+            {tabs.map(([key, name]) => (
+              <NavLink key={key} to={"/app/settings/" + key}>
+                {name}
+              </NavLink>
+            ))}
+          </nav>
+        )}
         <div className="settings-content">
           {section === "general" ? (
             <General user={user} />
           ) : section === "connections" ? (
             <>
-              {user.is_admin && <ZohoRegistration />}
-              <Connections accounts={accounts} notify={notify} />
+              <nav className="integration-shortcuts" aria-label="Integrations">
+                <NavLink to="/app/settings/connections#mail">Mail</NavLink>
+                <NavLink to="/app/settings/connections#calendars">
+                  Calendar
+                </NavLink>
+                <NavLink to="/app/settings/connections#google-health">
+                  Health
+                </NavLink>
+              </nav>
+              <div id="mail">
+                {user.is_admin && <ZohoRegistration />}
+                <Connections accounts={accounts} notify={notify} />
+              </div>
+              <CalendarIntegration />
+              <HealthIntegration notify={notify} />
             </>
           ) : section === "security" ? (
             <Sessions />
@@ -617,10 +659,9 @@ export function Onboarding({ user }: { user: User }) {
       {step === 2 && (
         <>
           <h2>Integrations · optional</h2>
-          {user.is_admin && <ZohoRegistration />}
           <p className="muted">
-            Connect mail accounts in Settings → Integrations. You can complete
-            this later.
+            Connect mail, calendars and Google Health in Settings → Integrations
+            after setup.
           </p>
           <button className="primary" onClick={() => setStep(3)}>
             Continue
@@ -645,7 +686,7 @@ export function Onboarding({ user }: { user: User }) {
                 });
                 await qc.invalidateQueries({ queryKey: ["preferences"] });
                 await qc.invalidateQueries({ queryKey: ["onboarding"] });
-                navigate("/app");
+                navigate("/");
               } catch (e) {
                 setError((e as Error).message);
               }

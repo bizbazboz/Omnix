@@ -88,6 +88,9 @@ class Message(Base):
     sender: Mapped[str] = mapped_column(String)
     sender_name: Mapped[str] = mapped_column(String, default="")
     recipients: Mapped[str] = mapped_column(Text)
+    cc: Mapped[str] = mapped_column(Text, default="", server_default="")
+    reply_to: Mapped[str] = mapped_column(Text, default="", server_default="")
+    rfc_id: Mapped[str] = mapped_column(Text, default="", server_default="")
     subject: Mapped[str] = mapped_column(String)
     body: Mapped[str] = mapped_column(Text, default="")
     html: Mapped[str] = mapped_column(Text, default="")
@@ -150,5 +153,49 @@ class PipelineRun(Base):
         DateTime(timezone=True), default=now, index=True
     )
     finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class CalendarFeed(Base):
+    __tablename__ = "calendar_feeds"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    label: Mapped[str] = mapped_column(String)
+    url: Mapped[str] = mapped_column(Text)
+    events: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String, default="pending")
+    error: Mapped[str] = mapped_column(String, default="")
+    last_sync: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_attempt: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class MailUpload(Base):
+    __tablename__ = "mail_uploads"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    mailbox: Mapped[str] = mapped_column(ForeignKey("connections.id"), index=True)
+    name: Mapped[str] = mapped_column(String)
+    content_type: Mapped[str] = mapped_column(String)
+    size: Mapped[int] = mapped_column()
+    content: Mapped[str] = mapped_column(Text)
+
+
+class HealthConnection(Base):
+    __tablename__ = "health_connections"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    credentials: Mapped[str] = mapped_column(Text)
+    statistics: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String, default="pending")
+    error: Mapped[str] = mapped_column(String, default="")
+    last_sync: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_attempt: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

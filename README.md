@@ -2,7 +2,7 @@
   <img src="web/public/omnix-logo.png" width="72" alt="Omnix logo" />
 </p>
 <h1 align="center">Omnix</h1>
-<p align="center">A self-hosted workspace for your mail.</p>
+<p align="center">A self-hosted workspace for mail, calendars and health.</p>
 <p align="center">
   <a href="https://github.com/bizbazboz/Omnix/wiki">Documentation</a> ·
   <a href="https://github.com/bizbazboz/Omnix/wiki/Installation">Setup</a> ·
@@ -12,7 +12,10 @@
 ## What it does
 
 - Read Zoho Mail and IMAP accounts in one inbox.
-- Compose messages, save drafts and track send attempts.
+- Send from confirmed Zoho aliases, reply, forward and attach files.
+- Browse folders, organise mail, save drafts and track send attempts.
+- Aggregate iCal subscriptions into one agenda and see upcoming events on the dashboard.
+- Explore private Google Health activity, sleep, vitals, body, nutrition and workouts.
 - See the time, unread mail and account status at a glance.
 - Sign in with Pocket ID and keep each user's mail private.
 - Manage authentication, integrations and preferences in the app.

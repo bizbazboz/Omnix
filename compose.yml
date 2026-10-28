@@ -14,9 +14,30 @@
         "app.bootstrap_keys"
       ],
       "volumes": [
-        "app-data:/data",
-        "db-secret:/secrets/db",
-        "redis-secret:/secrets/redis"
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/app",
+          "target": "/data",
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/db",
+          "target": "/secrets/db",
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/redis",
+          "target": "/secrets/redis",
+          "bind": {
+            "create_host_path": true
+          }
+        }
       ],
       "restart": "no",
       "logging": {
@@ -31,8 +52,23 @@
     "postgres": {
       "image": "postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b",
       "volumes": [
-        "postgres-data:/var/lib/postgresql/data",
-        "db-secret:/run/db:ro"
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/postgres",
+          "target": "/var/lib/postgresql/data",
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/db",
+          "target": "/run/db",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        }
       ],
       "depends_on": {
         "init": {
@@ -42,7 +78,7 @@
       "healthcheck": {
         "test": [
           "CMD-SHELL",
-          "pg_isready -U omnix -d omnix"
+          "pg_isready -h 127.0.0.1 -U omnix -d omnix"
         ],
         "interval": "5s",
         "timeout": "5s",
@@ -72,8 +108,23 @@
         "/run/redis/redis.conf"
       ],
       "volumes": [
-        "redis-data:/data",
-        "redis-secret:/run/redis:ro"
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/redis",
+          "target": "/data",
+          "bind": {
+            "create_host_path": true
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/redis",
+          "target": "/run/redis",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        }
       ],
       "depends_on": {
         "init": {
@@ -108,9 +159,33 @@
         "target": "production"
       },
       "volumes": [
-        "app-data:/data:ro",
-        "db-secret:/run/db:ro",
-        "redis-secret:/run/redis:ro"
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/app",
+          "target": "/data",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/db",
+          "target": "/run/db",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/redis",
+          "target": "/run/redis",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        }
       ],
       "read_only": true,
       "tmpfs": [
@@ -154,9 +229,33 @@
         "target": "production"
       },
       "volumes": [
-        "app-data:/data:ro",
-        "db-secret:/run/db:ro",
-        "redis-secret:/run/redis:ro"
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/app",
+          "target": "/data",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/db",
+          "target": "/run/db",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/redis",
+          "target": "/run/redis",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        }
       ],
       "read_only": true,
       "tmpfs": [
@@ -207,9 +306,33 @@
         "target": "production"
       },
       "volumes": [
-        "app-data:/data:ro",
-        "db-secret:/run/db:ro",
-        "redis-secret:/run/redis:ro"
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/app",
+          "target": "/data",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/db",
+          "target": "/run/db",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/redis",
+          "target": "/run/redis",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        }
       ],
       "read_only": true,
       "tmpfs": [
@@ -264,9 +387,33 @@
         "target": "production"
       },
       "volumes": [
-        "app-data:/data:ro",
-        "db-secret:/run/db:ro",
-        "redis-secret:/run/redis:ro"
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/app",
+          "target": "/data",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/db",
+          "target": "/run/db",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        },
+        {
+          "type": "bind",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets/redis",
+          "target": "/run/redis",
+          "bind": {
+            "create_host_path": true
+          },
+          "read_only": true
+        }
       ],
       "read_only": true,
       "tmpfs": [
@@ -313,13 +460,6 @@
         "default"
       ]
     }
-  },
-  "volumes": {
-    "app-data": {},
-    "db-secret": {},
-    "redis-secret": {},
-    "postgres-data": {},
-    "redis-data": {}
   },
   "networks": {
     "data": {

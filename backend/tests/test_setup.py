@@ -143,7 +143,7 @@ def test_configuration_encrypted_and_first_login_locks_setup(
     assert callback.status_code == 303
     assert (
         "Secure" in callback.headers["set-cookie"]
-        and callback.headers["location"] == "/app"
+        and callback.headers["location"] == "/"
     )
     me = client.get("/api/v1/me").json()
     assert me["is_admin"] is True

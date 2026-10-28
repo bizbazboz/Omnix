@@ -55,7 +55,14 @@ async def security(request, call_next):
         size = 0
         async for chunk in request.stream():
             size += len(chunk)
-            if size > 1048576:
+            limit = (
+                10 * 1024 * 1024
+                if request.method == "POST"
+                and request.url.path.startswith("/api/v1/email/mailboxes/")
+                and request.url.path.endswith("/uploads")
+                else 1048576
+            )
+            if size > limit:
                 return JSONResponse({"detail": "request_too_large"}, status_code=413)
             chunks.append(chunk)
         request._body = b"".join(chunks)
@@ -90,7 +97,7 @@ async def security(request, call_next):
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https: http:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     )
     response.headers["Cache-Control"] = (
         "no-store" if request.url.path.startswith("/api") else "no-cache"
@@ -131,7 +138,7 @@ def session_response(user_id, old_sid=None):
         1800,
         json.dumps({"user": user_id, "csrf": csrf, "expires": time.time() + 43200}),
     )
-    response = RedirectResponse("/app", status_code=303)
+    response = RedirectResponse("/", status_code=303)
     response.set_cookie(
         SESSION_COOKIE,
         sid,
@@ -181,6 +188,8 @@ def connection_json(c):
 
 
 def message_json(m, c):
+    import html
+
     return {
         "id": m.id,
         "mailbox": m.mailbox,
@@ -188,7 +197,9 @@ def message_json(m, c):
         "address": c.address,
         "sender": m.sender,
         "sender_name": m.sender_name,
-        "recipients": m.recipients,
+        "recipients": html.unescape(m.recipients),
+        "cc": html.unescape(m.cc),
+        "reply_to": m.reply_to,
         "subject": m.subject,
         "preview": m.body[:180],
         "unread": m.unread,
@@ -424,10 +435,22 @@ async def callback(
 PRODUCTS = [
     {
         "id": "email",
-        "name": "Email",
+        "name": "Mail",
         "path": "/app/email",
         "capabilities": ["mail.read", "mail.send"],
-    }
+    },
+    {
+        "id": "calendar",
+        "name": "Calendar",
+        "path": "/app/calendar",
+        "capabilities": ["calendar.read"],
+    },
+    {
+        "id": "health",
+        "name": "Health",
+        "path": "/app/health",
+        "capabilities": ["health.read"],
+    },
 ]
 
 
@@ -832,6 +855,7 @@ def select_mailboxes(
     db.execute(
         text("SELECT pg_advisory_xact_lock(hashtext(:owner))"), {"owner": user.id}
     )
+    connected_ids = []
     for aid in dict.fromkeys(body.account_ids):
         a = valid[aid]
         address = a.get("primaryEmailAddress", a.get("mailboxAddress", ""))
@@ -848,6 +872,7 @@ def select_mailboxes(
         if c:
             c.credentials, c.status, c.error = data["credentials"], "ready", ""
             c.can_read = c.can_send = True
+            connected_ids.append(c.id)
             continue
         c = Connection(
             owner=user.id,
@@ -860,7 +885,10 @@ def select_mailboxes(
         )
         db.add(c)
         db.flush()
+        connected_ids.append(c.id)
     db.commit()
+    if connected_ids:
+        redis.delete(*["mail-profile:" + id for id in connected_ids])
     redis.delete("discovery:" + token)
     return {"ok": True}
 
@@ -868,8 +896,12 @@ def select_mailboxes(
 @app.get("/api/v1/email/mailboxes/{id}/folders")
 def folders(id: str, user=Depends(authenticated), db=Depends(db_session)):
     c = mailbox(db, user, id)
-    # The current release indexes the provider Inbox.
-    return ["inbox"]
+    from .mail_provider import profile
+
+    try:
+        return profile(c, db)["folders"]
+    except Exception:
+        raise HTTPException(503, "Could not load provider folders.") from None
 
 
 @app.post("/api/v1/email/mailboxes/{id}/sync")
@@ -898,9 +930,16 @@ def messages(
         .where(
             Connection.owner == user.id,
             Connection.status != "disconnected",
-            Message.folder == folder,
         )
     )
+    if folder == "all":
+        statement = statement.where(
+            Message.folder.notin_(["trash", "spam", "provider-drafts"])
+        )
+    elif folder == "starred":
+        statement = statement.where(Message.starred == True)
+    else:
+        statement = statement.where(Message.folder == folder)
     if account:
         statement = statement.where(Message.mailbox == account)
     if q:
@@ -909,6 +948,8 @@ def messages(
                 Message.subject.ilike("%" + q[:200] + "%"),
                 Message.sender.ilike("%" + q[:200] + "%"),
                 Message.sender_name.ilike("%" + q[:200] + "%"),
+                Message.recipients.ilike("%" + q[:200] + "%"),
+                Message.body.ilike("%" + q[:200] + "%"),
             )
         )
     if unread:
@@ -944,7 +985,7 @@ def messages(
     return {
         "items": [message_json(m, c) for m, c in rows[:size]],
         "next_cursor": next_cursor,
-        "search_scope": "Indexed recent messages · up to 100 per account",
+        "search_scope": "Synced messages",
     }
 
 
@@ -957,41 +998,16 @@ def read_message(
     if not m or m.mailbox != c.id:
         raise HTTPException(404)
     try:
-        content = fetch_body(c, db, m)
+        from .mail_client import render_message
+
+        content = render_message(c, db, m)
     except Exception:
         raise HTTPException(
             503,
             "Message body is temporarily unavailable. Check the account connection and retry.",
         )
     data = message_json(m, c)
-    data.update(
-        body=content["body"],
-        html=bleach.clean(
-            content["html"],
-            tags=[
-                "p",
-                "br",
-                "b",
-                "strong",
-                "em",
-                "i",
-                "ul",
-                "ol",
-                "li",
-                "blockquote",
-                "h1",
-                "h2",
-                "h3",
-                "table",
-                "tr",
-                "td",
-                "a",
-            ],
-            attributes={"a": ["href"]},
-            protocols=["https", "mailto"],
-            strip=True,
-        ),
-    )
+    data.update(content)
     return data
 
 
@@ -1003,6 +1019,9 @@ class Compose(BaseModel):
     subject: str = Field(default="", max_length=998)
     body: str = Field(default="", max_length=200000)
     version: int = 1
+    from_address: str = Field(default="", max_length=320)
+    attachments: list[str] = Field(default_factory=list, max_length=10)
+    reply_to_message: str = Field(default="", max_length=100)
 
 
 @app.get("/api/v1/email/drafts")
@@ -1084,6 +1103,21 @@ def send_mail(
         if existing.payload_hash != digest:
             raise HTTPException(409, "idempotency_payload_conflict")
         return {"id": existing.id, "status": existing.status}
+    from .mail_client import validate_sender, upload_rows
+
+    try:
+        validate_sender(c, db, body.from_address)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            503, "Could not verify sender addresses. Check the account connection."
+        ) from None
+    upload_rows(c, db, body.attachments)
+    if body.reply_to_message:
+        original = db.get(Message, body.reply_to_message)
+        if not original or original.mailbox != c.id:
+            raise HTTPException(422, "Reply message unavailable.")
     rate("send:" + user.id, 10)
     a = SendAttempt(
         owner=user.id,
@@ -1153,6 +1187,15 @@ def send_history(user=Depends(authenticated), db=Depends(db_session)):
 
 app.include_router(build_router(authenticated, db_session, rate))
 app.include_router(build_settings_router(authenticated, db_session))
+from .calendars import build_calendar_router
+
+app.include_router(build_calendar_router(authenticated, db_session))
+from .mail_client import build_mail_router
+
+app.include_router(build_mail_router(authenticated, db_session, mailbox))
+from .health import build_health_router
+
+app.include_router(build_health_router(authenticated, db_session, rate))
 
 
 STATIC_DIR = Path(os.getenv("STATIC_DIR", "/app/static")).resolve()

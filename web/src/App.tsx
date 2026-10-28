@@ -2,14 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   ChevronRight,
-  FileText,
-  Inbox,
-  LayoutGrid,
-  LogOut,
   Menu,
-  Plus,
-  Send,
-  Settings,
+  PanelLeftOpen,
   X
 } from "lucide-react";
 import { Suspense, useState } from "react";
@@ -20,21 +14,16 @@ import {
   Routes,
   useLocation
 } from "react-router-dom";
-import { Avatar, Logo } from "./components/Brand";
+import { Logo } from "./components/Brand";
+import WorkspaceNavigation from "./components/WorkspaceNavigation";
 import Dashboard from "./home/Dashboard";
-import {
-  api,
-  qc,
-  setCsrf,
-  type Account,
-  type Draft,
-  type User
-} from "./lib/api";
+import { api, setCsrf, type Account, type Draft, type User } from "./lib/api";
 import Composer from "./products/email/Composer";
 import Outbox from "./products/email/Outbox";
 import { productRegistry } from "./products/registry";
 import Authentication from "./settings/Authentication";
 import WorkspaceSettings, { Onboarding } from "./settings/Settings";
+import { useStoredFlag, useStoredWidth } from "./lib/layout";
 export default function App() {
   const me = useQuery<User>({ queryKey: ["me"], queryFn: () => api("/me") });
   const config = useQuery({
@@ -42,6 +31,8 @@ export default function App() {
     queryFn: () => api("/config")
   });
   const location = useLocation();
+  if (location.pathname === "/app" || location.pathname === "/app/")
+    return <Navigate to={"/" + location.search + location.hash} replace />;
   if (me.data) {
     setCsrf(me.data.csrf);
     return <Workspace user={me.data} />;
@@ -52,36 +43,59 @@ export default function App() {
   )
     return <Authentication initial />;
   return (
-    <div className="signin-page">
-      <main className="signin-panel">
-        <div className="signin-brand">
+    <div className="login">
+      <div className="login-art">
+        <div className="login-id">
           <Logo />
-          <span>omnix</span>
+          <span>OMNIX / WORKSPACE</span>
         </div>
-        <h1>Sign in to Omnix</h1>
-        <p className="muted">Use your Pocket ID account to access your mail.</p>
-        {config.isLoading ? (
-          <p role="status">Loading�</p>
-        ) : config.error ? (
-          <p className="error">
-            Could not reach the application. Try refreshing the page.
-          </p>
-        ) : config.data?.oidc_configured ? (
-          <a className="primary" href="/api/v1/auth/login">
-            Continue with Pocket ID <ArrowUpRight size={16} />
-          </a>
-        ) : (
-          <p className="notice">Sign-in has not been configured.</p>
-        )}
-      </main>
+        <div className="login-display">
+          EVERYTHING.
+          <br />
+          CONNECTED.
+        </div>
+        <div className="login-grid" />
+        <span className="art-footer">
+          [ SYSTEM 01 ]<span>PRIVATE WORKSPACE</span>
+        </span>
+      </div>
+      <div className="login-form">
+        <div className="wordmark">
+          <Logo /> omnix
+        </div>
+        <div>
+          <span className="eyebrow">WORKSPACE ACCESS</span>
+          <h1>Sign in.</h1>
+          {config.isLoading ? (
+            <p className="inline-status">[ LOADING ]</p>
+          ) : config.error ? (
+            <p className="error">
+              Could not reach the application. Try refreshing the page.
+            </p>
+          ) : config.data?.oidc_configured ? (
+            <a className="primary login-button" href="/api/v1/auth/login">
+              Continue with Pocket ID <ArrowUpRight size={16} />
+            </a>
+          ) : (
+            <p className="notice">Sign-in is not configured.</p>
+          )}
+        </div>
+        <span className="login-foot">SECURE SESSION / OIDC</span>
+      </div>
     </div>
   );
 }
 function Workspace({ user }: { user: User }) {
   const [mobile, setMobile] = useState(false),
-    [collapsed, setCollapsed] = useState(false),
     [compose, setCompose] = useState<Draft | null>(null),
     [status, setStatus] = useState("");
+  const [collapsed, setCollapsed] = useStoredFlag("omnix.sidebar.collapsed");
+  const [sidebarWidth, setSidebarWidth] = useStoredWidth(
+    "omnix.sidebar.width",
+    244,
+    210,
+    380
+  );
   const location = useLocation();
   const preferences = useQuery({
     queryKey: ["preferences"],
@@ -96,10 +110,13 @@ function Workspace({ user }: { user: User }) {
     queryKey: ["products"],
     queryFn: () => api("/products")
   });
+  const activeProduct = productRegistry.find((p) =>
+    location.pathname.startsWith(p.routePrefix)
+  );
   const current = location.pathname.includes("settings")
     ? "Settings"
-    : location.pathname.includes("email")
-      ? "Email"
+    : activeProduct
+      ? activeProduct.name
       : location.pathname.includes("onboarding")
         ? "Setup"
         : "Overview";
@@ -114,120 +131,22 @@ function Workspace({ user }: { user: User }) {
       body: ""
     });
   }
-  const folders = [
-    { folder: "inbox", label: "Inbox", Icon: Inbox },
-    { folder: "outbox", label: "Outbox", Icon: Send },
-    { folder: "drafts", label: "Drafts", Icon: FileText }
-  ];
   return (
-    <div className="workspace">
-      <aside
-        aria-label="Workspace navigation"
-        className={
-          "sidebar " +
-          (mobile ? "mobile-open " : "") +
-          (collapsed ? "collapsed" : "")
-        }
-      >
-        <div className="sidebar-brand">
-          <Logo /> omnix
-          <button
-            className="icon-button mobile-close"
-            onClick={() => setMobile(false)}
-            aria-label="Close navigation"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <button
-          className="compose-button"
-          onClick={createDraft}
-          disabled={!accounts.data?.some((a) => a.can_send)}
-        >
-          <Plus size={18} /> Compose
-        </button>
-        <div className="nav-section-label">WORKSPACE</div>
-        <nav onClick={() => setMobile(false)}>
-          <NavLink to="/app" end>
-            <LayoutGrid size={17} />
-            Overview
-          </NavLink>
-        </nav>
-        <div className="nav-section-label">EMAIL</div>
-        <nav onClick={() => setMobile(false)}>
-          {folders.map(({ folder, label, Icon }) => (
-            <NavLink
-              key={folder}
-              to={"/app/email" + (folder === "inbox" ? "" : "/" + folder)}
-              end
-            >
-              <Icon size={17} />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="nav-section-label accounts-label">
-          ACCOUNTS
-          <NavLink to="/app/settings/connections" title="Add an account">
-            <Plus size={15} />
-          </NavLink>
-        </div>
-        <div className="account-nav">
-          {accounts.data?.map((a, i) => (
-            <NavLink
-              key={a.id}
-              to={"/app/email?account=" + a.id}
-              onClick={() => setMobile(false)}
-            >
-              <span className={"account-dot dot-" + i} />
-              <div>
-                {a.label}
-                <small>{a.address}</small>
-              </div>
-              <span
-                className={
-                  "connection-dot " + (a.status === "ready" ? "" : "degraded")
-                }
-              />
-            </NavLink>
-          ))}
-        </div>
-        <div className="sidebar-footer">
-          <div className="sidebar-profile">
-            <Avatar name={preferences.data?.display_name || user.name} />
-            <div className="sidebar-identity">
-              <strong>{preferences.data?.display_name || user.name}</strong>
-              <span>{user.email}</span>
-            </div>
-            <NavLink
-              className="icon-button profile-settings"
-              to="/app/settings"
-              title="Settings"
-              aria-label="Settings"
-              onClick={() => setMobile(false)}
-            >
-              <Settings size={18} />
-            </NavLink>
-            <button
-              className="icon-button"
-              title="Sign out"
-              aria-label="Sign out"
-              onClick={async () => {
-                try {
-                  await api("/auth/logout", { method: "POST" });
-                  setCsrf("");
-                  qc.clear();
-                  window.location.assign("/");
-                } catch (e) {
-                  setStatus((e as Error).message);
-                }
-              }}
-            >
-              <LogOut size={17} />
-            </button>
-          </div>
-        </div>
-      </aside>
+    <div className={"workspace " + (collapsed ? "sidebar-hidden" : "")}>
+      <WorkspaceNavigation
+        user={user}
+        displayName={preferences.data?.display_name || user.name}
+        accounts={accounts.data || []}
+        available={(products.data || []).map((p) => p.id)}
+        mobile={mobile}
+        collapsed={collapsed}
+        width={sidebarWidth}
+        onResize={setSidebarWidth}
+        onCollapse={() => setCollapsed(true)}
+        onClose={() => setMobile(false)}
+        onCompose={createDraft}
+        notify={setStatus}
+      />
       <main className="main">
         <header className="topbar">
           <button
@@ -238,16 +157,19 @@ function Workspace({ user }: { user: User }) {
           >
             <Menu size={19} />
           </button>
-          <button
-            className="icon-button desktop-toggle"
-            title="Toggle sidebar"
-            aria-expanded={!collapsed}
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            <Menu size={17} />
-          </button>
+          {collapsed && (
+            <button
+              className="icon-button desktop-toggle"
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <PanelLeftOpen size={17} />
+            </button>
+          )}
           <div className="breadcrumb">
-            <NavLink to="/app">OMNIX</NavLink>
+            <NavLink to="/">OMNIX</NavLink>
             <ChevronRight size={12} />
             <span>{current}</span>
           </div>
@@ -285,34 +207,49 @@ function Workspace({ user }: { user: User }) {
           <Route path="/app/onboarding" element={<Onboarding user={user} />} />
           <Route path="/app/email/outbox" element={<Outbox />} />
           <Route
-            path="/app"
+            path="/"
             element={
               preferences.data && !preferences.data.onboarding_completed ? (
                 <Navigate to="/app/onboarding" replace />
               ) : (
                 <Dashboard
+                  user={{
+                    ...user,
+                    name: preferences.data?.display_name || user.name
+                  }}
                   accounts={accounts.data || []}
                   onCompose={createDraft}
                 />
               )
             }
           />
-          {(products.data || []).map((product) => {
-            const module = productRegistry.find((m) => m.id === product.id);
-            if (!module) return null;
+          {productRegistry.map((module) => {
             const Entry = module.Entry;
             return (
               <Route
                 key={module.id}
                 path={module.routePrefix + "/*"}
                 element={
-                  <Suspense fallback={<div className="empty">Loading�</div>}>
-                    <Entry
-                      accounts={accounts.data || []}
-                      onCompose={setCompose}
-                      notify={setStatus}
-                    />
-                  </Suspense>
+                  products.isLoading ? (
+                    <div className="empty">Loading…</div>
+                  ) : products.error ? (
+                    <div className="empty">
+                      Could not load products.{" "}
+                      <button onClick={() => products.refetch()}>Retry</button>
+                    </div>
+                  ) : !products.data?.some((p) => p.id === module.id) ? (
+                    <div className="empty">Product unavailable.</div>
+                  ) : (
+                    <Suspense
+                      fallback={<div className="empty">Loading...</div>}
+                    >
+                      <Entry
+                        accounts={accounts.data || []}
+                        onCompose={setCompose}
+                        notify={setStatus}
+                      />
+                    </Suspense>
+                  )
                 }
               />
             );
@@ -327,7 +264,7 @@ function Workspace({ user }: { user: User }) {
               />
             }
           />
-          <Route path="*" element={<Navigate to="/app" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       {compose && (

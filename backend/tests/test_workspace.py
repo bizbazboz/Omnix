@@ -155,7 +155,11 @@ def test_pagination_filter_binding(signed_client):
 def test_secret_and_products(signed_client):
     for item in signed_client.get("/api/v1/connections").json():
         assert "credentials" not in item
-    assert [p["id"] for p in signed_client.get("/api/v1/products").json()] == ["email"]
+    assert [p["id"] for p in signed_client.get("/api/v1/products").json()] == [
+        "email",
+        "calendar",
+        "health",
+    ]
     value = encrypt({"secret": "not-plaintext"})
     assert "not-plaintext" not in value and decrypt(value)["secret"] == "not-plaintext"
 

@@ -1,7 +1,8 @@
-import { Loader2, NotebookPen, Send, X } from "lucide-react";
+import { Loader2, NotebookPen, Send, X, Paperclip, Trash2 } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 import { api, qc, type Account, type Draft } from "../../lib/api";
+import { useMailProfiles } from "./useMailProfiles";
 export default function Composer({
   draft,
   accounts,
@@ -14,12 +15,13 @@ export default function Composer({
   notify: (s: string) => void;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const closeRef = useRef(onClose);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const keydown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        closeRef.current();
         return;
       }
       if (event.key !== "Tab") return;
@@ -45,6 +47,36 @@ export default function Composer({
     };
   }, []);
   const [data, setData] = useState<Draft>(draft);
+  const baseline = useRef(JSON.stringify(draft));
+  const profiles = useMailProfiles(accounts);
+  const identities = accounts
+    .filter((a) => a.can_send)
+    .flatMap((a) =>
+      (
+        profiles.find((p) => p.account.id === a.id)?.data?.identities || [
+          { address: a.address, name: a.label, primary: true }
+        ]
+      ).map((i) => ({ ...i, mailbox: a.id, label: a.label }))
+    );
+  const [files, setFiles] = useState<
+    Record<string, { name: string; size: number }>
+  >({});
+  const [uploading, setUploading] = useState(false);
+  const removed = useRef<string[]>([]);
+  useEffect(() => {
+    Promise.all(
+      (draft.attachments || []).map(async (id) => {
+        const item = await api(
+          "/email/mailboxes/" + draft.mailbox + "/uploads/" + id
+        );
+        setFiles((old) => ({ ...old, [id]: item }));
+      })
+    ).catch(() =>
+      setError(
+        "Some saved attachments are unavailable. Remove them before sending."
+      )
+    );
+  }, []);
   const [recipients, setRecipients] = useState(draft.to.join(", "));
   const [cc, setCc] = useState(draft.cc.join(", "));
   const [bcc, setBcc] = useState(draft.bcc.join(", "));
@@ -62,7 +94,109 @@ export default function Composer({
       .map((x) => x.trim())
       .filter(Boolean);
   function payload() {
-    return { ...data, to: split(recipients), cc: split(cc), bcc: split(bcc) };
+    return {
+      ...data,
+      from_address:
+        data.from_address ||
+        accounts.find((a) => a.id === data.mailbox)?.address ||
+        "",
+      to: split(recipients),
+      cc: split(cc),
+      bcc: split(bcc)
+    };
+  }
+  closeRef.current = () => {
+    if (busy || uploading) {
+      setError("Wait for the current operation to finish.");
+      return;
+    }
+    if (
+      (JSON.stringify({
+        ...data,
+        to: split(recipients),
+        cc: split(cc),
+        bcc: split(bcc)
+      }) !== baseline.current ||
+        (!data.id &&
+          (data.subject ||
+            data.body.trim() ||
+            recipients ||
+            data.attachments?.length))) &&
+      !window.confirm("Close without saving your changes?")
+    )
+      return;
+    if (!attemptRef.current)
+      for (const id of data.attachments || [])
+        if (!draft.attachments?.includes(id))
+          api("/email/mailboxes/" + data.mailbox + "/uploads/" + id, {
+            method: "DELETE"
+          }).catch(() => {});
+    onClose();
+  };
+  async function cleanup() {
+    for (const id of removed.current)
+      await api("/email/mailboxes/" + data.mailbox + "/uploads/" + id, {
+        method: "DELETE"
+      }).catch(() => {});
+    removed.current = [];
+  }
+  async function attach(items: FileList | null) {
+    if (!items) return;
+    setUploading(true);
+    setError("");
+    try {
+      let count = data.attachments?.length || 0;
+      let total = (data.attachments || []).reduce(
+        (n, id) => n + (files[id]?.size || 0),
+        0
+      );
+      for (const file of Array.from(items)) {
+        if (
+          count >= 10 ||
+          file.size > 10 * 1024 * 1024 ||
+          total + file.size > 20 * 1024 * 1024
+        )
+          throw new Error(
+            "Use up to 10 attachments, 10 MiB per file and 20 MiB total."
+          );
+        const item = await api(
+          "/email/mailboxes/" +
+            data.mailbox +
+            "/uploads?" +
+            new URLSearchParams({ name: file.name }),
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": file.type || "application/octet-stream"
+            },
+            body: file
+          }
+        );
+        setFiles((old) => ({ ...old, [item.id]: item }));
+        setData((old) => ({
+          ...old,
+          attachments: [...(old.attachments || []), item.id]
+        }));
+        count++;
+        total += file.size;
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+  async function discard() {
+    if (!window.confirm("Discard this draft?")) return;
+    try {
+      if (data.id) await api("/email/drafts/" + data.id, { method: "DELETE" });
+      removed.current.push(...(data.attachments || []));
+      await cleanup();
+      qc.invalidateQueries({ queryKey: ["drafts"] });
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    }
   }
   async function save() {
     setError("");
@@ -73,6 +207,14 @@ export default function Composer({
         { method: data.id ? "PATCH" : "POST", body: JSON.stringify(payload()) }
       );
       setData({ ...data, ...saved });
+      baseline.current = JSON.stringify({
+        ...data,
+        ...saved,
+        to: split(recipients),
+        cc: split(cc),
+        bcc: split(bcc)
+      });
+      await cleanup();
       qc.invalidateQueries({ queryKey: ["drafts"] });
       notify("Draft saved");
     } catch (e) {
@@ -95,6 +237,8 @@ export default function Composer({
           : "Accepted by the provider. Delivery is not confirmed."
       );
       if (data.id) await api("/email/drafts/" + data.id, { method: "DELETE" });
+      removed.current.push(...(data.attachments || []));
+      await cleanup();
       qc.invalidateQueries({ queryKey: ["messages"] });
       qc.invalidateQueries({ queryKey: ["drafts"] });
       onClose();
@@ -141,7 +285,14 @@ export default function Composer({
   }
   return (
     <div className="modal-backdrop">
-      <form className="composer" onSubmit={submit} aria-label="Compose email">
+      <form
+        ref={formRef}
+        className="composer"
+        onSubmit={submit}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Compose email"
+      >
         <div className="modal-title">
           <div>
             <NotebookPen size={18} />
@@ -150,7 +301,7 @@ export default function Composer({
           <button
             type="button"
             className="icon-button"
-            onClick={onClose}
+            onClick={() => closeRef.current()}
             aria-label="Close composer"
           >
             <X size={20} />
@@ -160,21 +311,38 @@ export default function Composer({
           <label htmlFor="from">From</label>
           <select
             id="from"
-            value={data.mailbox}
+            value={JSON.stringify([
+              data.mailbox,
+              data.from_address ||
+                accounts.find((a) => a.id === data.mailbox)?.address ||
+                ""
+            ])}
             onChange={(e) => {
-              setData({ ...data, mailbox: e.target.value });
+              const [mailbox, address] = JSON.parse(e.target.value);
+              if (mailbox !== data.mailbox && data.attachments?.length) {
+                setError("Remove attachments before switching accounts.");
+                return;
+              }
+              setData({
+                ...data,
+                mailbox,
+                from_address: address,
+                reply_to_message:
+                  mailbox === data.mailbox ? data.reply_to_message : ""
+              });
               key.current = crypto.randomUUID();
             }}
             required
             disabled={!!attemptRef.current}
           >
-            {accounts
-              .filter((a) => a.can_send)
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label} &lt;{a.address}&gt;
-                </option>
-              ))}
+            {identities.map((a) => (
+              <option
+                key={a.mailbox + a.address}
+                value={JSON.stringify([a.mailbox, a.address])}
+              >
+                {a.label} &lt;{a.address}&gt;
+              </option>
+            ))}
           </select>
         </div>
         <div className="compose-field">
@@ -202,6 +370,7 @@ export default function Composer({
               <input
                 id="cc"
                 value={cc}
+                disabled={!!attemptRef.current}
                 onChange={(e) => setCc(e.target.value)}
               />
             </div>
@@ -210,6 +379,7 @@ export default function Composer({
               <input
                 id="bcc"
                 value={bcc}
+                disabled={!!attemptRef.current}
                 onChange={(e) => setBcc(e.target.value)}
               />
             </div>
@@ -234,6 +404,42 @@ export default function Composer({
           onChange={(e) => setData({ ...data, body: e.target.value })}
           disabled={!!attemptRef.current}
         />
+        {!!data.attachments?.length && (
+          <div className="compose-attachments">
+            {data.attachments.map((id) => (
+              <div key={id}>
+                <Paperclip size={14} />
+                <span>
+                  {files[id]?.name || "Attachment"}
+                  <small>
+                    {files[id] ? Math.ceil(files[id].size / 1024) + " KB" : ""}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={"Remove " + (files[id]?.name || "attachment")}
+                  disabled={busy || uploading || !!attemptRef.current}
+                  onClick={() => {
+                    removed.current.push(id);
+                    setData({
+                      ...data,
+                      attachments: data.attachments!.filter((a) => a !== id)
+                    });
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {profiles.some((p) => p.error) && (
+          <p className="notice">
+            Some sender aliases could not be loaded. Check the account
+            connection.
+          </p>
+        )}
         {error && (
           <div role="alert" className="error compose-error">
             {error}
@@ -243,7 +449,7 @@ export default function Composer({
           <button
             className="primary"
             type="submit"
-            disabled={busy || !data.mailbox}
+            disabled={busy || uploading || !data.mailbox}
           >
             {busy ? <Loader2 className="spin" size={16} /> : <Send size={16} />}{" "}
             {busy
@@ -256,11 +462,40 @@ export default function Composer({
             type="button"
             className="secondary"
             onClick={save}
-            disabled={busy || !!attemptRef.current}
+            disabled={busy || uploading || !!attemptRef.current}
           >
             Save draft
           </button>
-          <span></span>
+          <label
+            className={
+              "attachment-picker " +
+              (busy || uploading || !!attemptRef.current ? "disabled" : "")
+            }
+            title="Attach files"
+          >
+            <Paperclip size={18} />
+            <span>{uploading ? "Uploading…" : "Attach"}</span>
+            <input
+              type="file"
+              multiple
+              aria-label="Attach files"
+              disabled={busy || uploading || !!attemptRef.current}
+              onChange={(e) => {
+                attach(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            className="icon-button"
+            title="Discard draft"
+            aria-label="Discard draft"
+            disabled={busy || uploading || !!attemptRef.current}
+            onClick={discard}
+          >
+            <Trash2 size={17} />
+          </button>
         </div>
       </form>
     </div>

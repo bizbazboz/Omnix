@@ -1,6 +1,6 @@
 import os, json
 from celery import Celery
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from .core import Session, Connection, Message, SendAttempt, now, redis, REDIS_URL
 from .providers import fetch_messages, send_message
 from .pipeline_history import execution, prune_history
@@ -17,8 +17,72 @@ celery.conf.update(
         "sync-dispatch": {"task": "app.tasks.dispatch_sync", "schedule": 60.0},
         "outbox-dispatch": {"task": "app.tasks.dispatch_outbox", "schedule": 15.0},
         "recovery": {"task": "app.tasks.recover", "schedule": 60.0},
+        "calendar-dispatch": {"task": "app.tasks.dispatch_calendars", "schedule": 60.0},
+        "health-dispatch": {"task": "app.tasks.dispatch_health", "schedule": 60.0},
     },
 )
+
+
+@celery.task(name="app.tasks.health_sync")
+def health_sync(id):
+    from .health import sync_health
+
+    with execution("health-sync", id):
+        if not sync_health(id):
+            raise RuntimeError("Health refresh failed; check the connection.")
+
+
+@celery.task(name="app.tasks.dispatch_health")
+def dispatch_health():
+    from datetime import timedelta
+    from .core import HealthConnection
+
+    with (
+        redis.lock("scheduler:health", timeout=50, blocking_timeout=1),
+        Session() as db,
+    ):
+        ids = list(
+            db.scalars(
+                select(HealthConnection.id).where(
+                    HealthConnection.status != "reconnect",
+                    or_(
+                        HealthConnection.last_attempt.is_(None),
+                        HealthConnection.last_attempt < now() - timedelta(minutes=30),
+                    ),
+                )
+            )
+        )
+        for id in ids:
+            health_sync.delay(id)
+
+
+@celery.task(name="app.tasks.calendar_sync")
+def calendar_sync(feed_id):
+    from .calendars import sync_feed
+
+    with execution("calendar-sync", feed_id):
+        if not sync_feed(feed_id):
+            raise RuntimeError("Calendar refresh failed; check its subscription.")
+
+
+@celery.task(name="app.tasks.dispatch_calendars")
+def dispatch_calendars():
+    from datetime import timedelta
+    from .core import CalendarFeed
+
+    with (
+        redis.lock("scheduler:calendars", timeout=50, blocking_timeout=1),
+        Session() as db,
+    ):
+        for id in db.scalars(
+            select(CalendarFeed.id).where(
+                or_(
+                    CalendarFeed.last_attempt.is_(None),
+                    CalendarFeed.last_attempt <= now() - timedelta(minutes=15),
+                )
+            )
+        ):
+            calendar_sync.delay(id)
 
 
 @celery.task(
@@ -45,6 +109,16 @@ def sync(connection_id):
                             Message.provider_id == item["provider_id"],
                         )
                     )
+                    if not existing and c.provider == "zoho":
+                        existing = db.scalar(
+                            select(Message).where(
+                                Message.mailbox == c.id,
+                                Message.provider_id.endswith(
+                                    ":" + item["provider_id"].split(":", 1)[1],
+                                    autoescape=True,
+                                ),
+                            )
+                        )
                     if existing:
                         for key, value in item.items():
                             setattr(existing, key, value)
@@ -65,9 +139,54 @@ def sync(connection_id):
                 ) from None
 
 
+@celery.task(name="app.tasks.sync_older")
+def sync_older(connection_id, folder):
+    from .mail_provider import fetch_recent
+    from sqlalchemy import func
+
+    with (
+        execution("mail-history", connection_id),
+        redis.lock("sync:" + connection_id, timeout=300, blocking_timeout=1),
+        Session() as db,
+    ):
+        c = db.get(Connection, connection_id)
+        if not c or c.status == "disconnected" or not c.can_read:
+            return
+        count = db.scalar(
+            select(func.count())
+            .select_from(Message)
+            .where(Message.mailbox == c.id, Message.folder == folder)
+        )
+        for item in fetch_recent(c, db, only=folder, start=max(1, count - 49)):
+            existing = db.scalar(
+                select(Message).where(
+                    Message.mailbox == c.id, Message.provider_id == item["provider_id"]
+                )
+            )
+            if not existing and c.provider == "zoho":
+                existing = db.scalar(
+                    select(Message).where(
+                        Message.mailbox == c.id,
+                        Message.provider_id.endswith(
+                            ":" + item["provider_id"].split(":", 1)[1], autoescape=True
+                        ),
+                    )
+                )
+            if existing:
+                for k, v in item.items():
+                    setattr(existing, k, v)
+            else:
+                db.add(Message(mailbox=c.id, **item))
+        db.commit()
+
+
 @celery.task(name="app.tasks.send", acks_late=True, reject_on_worker_lost=False)
 def send(attempt_id):
-    with execution("mail-send", attempt_id), Session() as db:
+    with (
+        execution("mail-send", attempt_id),
+        redis.lock("send-prepare:" + attempt_id, timeout=300, blocking_timeout=1),
+        Session() as db,
+    ):
         a = db.scalar(
             select(SendAttempt).where(SendAttempt.id == attempt_id).with_for_update()
         )
@@ -79,10 +198,18 @@ def send(attempt_id):
             a.receipt = "sender_unavailable"
             db.commit()
             return
+        from .mail_client import prepare_send
+
+        try:
+            payload = prepare_send(c, db, json.loads(a.payload))
+        except Exception:
+            a.status = "failed"
+            a.receipt = "Sender or attachments could not be verified. Check the account before trying again."
+            db.commit()
+            return
         a.status = "sending"
         db.commit()
         try:
-            payload = json.loads(a.payload)
             result = send_message(c, db, payload, a.id)
         except Exception:
             # Submission may have succeeded. Never retry the provider automatically.
