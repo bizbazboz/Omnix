@@ -62,6 +62,14 @@ async def security(request, call_next):
                 and request.url.path.endswith("/uploads")
                 else 1048576
             )
+            if (
+                request.method == "POST"
+                and request.url.path.startswith("/api/v1/notes/pages/")
+                and request.url.path.endswith("/assets")
+            ):
+                limit = 5 * 1024 * 1024
+            if request.method == "POST" and request.url.path == "/api/v1/notes/import":
+                limit = 32 * 1024 * 1024
             if size > limit:
                 return JSONResponse({"detail": "request_too_large"}, status_code=413)
             chunks.append(chunk)
@@ -99,6 +107,14 @@ async def security(request, call_next):
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https: http:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     )
+    if request.url.path == "/notebook/runtime.html":
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self'; worker-src blob:; sandbox allow-scripts; frame-ancestors 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+        )
+    elif request.url.path.startswith("/notebook/python/"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     response.headers["Cache-Control"] = (
         "no-store" if request.url.path.startswith("/api") else "no-cache"
     )
@@ -436,20 +452,26 @@ PRODUCTS = [
     {
         "id": "email",
         "name": "Mail",
-        "path": "/app/email",
+        "path": "/email",
         "capabilities": ["mail.read", "mail.send"],
     },
     {
         "id": "calendar",
         "name": "Calendar",
-        "path": "/app/calendar",
+        "path": "/calendar",
         "capabilities": ["calendar.read"],
     },
     {
         "id": "health",
         "name": "Health",
-        "path": "/app/health",
+        "path": "/health",
         "capabilities": ["health.read"],
+    },
+    {
+        "id": "notes",
+        "name": "Notes & Projects",
+        "path": "/notes",
+        "capabilities": ["notes.read", "notes.write", "projects.write"],
     },
 ]
 
@@ -815,7 +837,7 @@ async def zoho_callback(
             }
         ),
     )
-    return RedirectResponse("/app/settings/connections?discovery=" + discovery)
+    return RedirectResponse("/settings/connections?discovery=" + discovery)
 
 
 @app.get("/api/v1/connections/zoho/discovery/{token}")
@@ -1198,11 +1220,22 @@ from .health import build_health_router
 app.include_router(build_health_router(authenticated, db_session, rate))
 
 
+from .notes import build_notes_router
+
+app.include_router(build_notes_router(authenticated, db_session))
+
 STATIC_DIR = Path(os.getenv("STATIC_DIR", "/app/static")).resolve()
 
 
 @app.get("/{path:path}", include_in_schema=False)
-def frontend(path: str):
+def frontend(path: str, request: Request):
+    if path == "app" or path.startswith("app/"):
+        from .workspace_urls import canonical_workspace_url
+
+        target = canonical_workspace_url("/" + path)
+        if request.url.query:
+            target += "?" + request.url.query
+        return RedirectResponse(target, status_code=308)
     if path == "api" or path.startswith("api/"):
         raise HTTPException(404)
     candidate = (STATIC_DIR / path).resolve()

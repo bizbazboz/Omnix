@@ -1,6 +1,12 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 import type { Account, Draft } from "../lib/api";
-import { Mail, CalendarDays, HeartPulse, type LucideIcon } from "lucide-react";
+import {
+  Mail,
+  CalendarDays,
+  HeartPulse,
+  NotebookPen,
+  type LucideIcon
+} from "lucide-react";
 export type ProductProps = {
   accounts: Account[];
   onCompose: (draft: Draft) => void;
@@ -18,7 +24,7 @@ export const productRegistry: ProductModule[] = [
   {
     id: "email",
     name: "Mail",
-    routePrefix: "/app/email",
+    routePrefix: "/email",
     requiredCapabilities: ["mail.read"],
     Icon: Mail,
     Entry: lazy(() => import("./email/Email"))
@@ -26,7 +32,7 @@ export const productRegistry: ProductModule[] = [
   {
     id: "calendar",
     name: "Calendar",
-    routePrefix: "/app/calendar",
+    routePrefix: "/calendar",
     requiredCapabilities: ["calendar.read"],
     Icon: CalendarDays,
     Entry: lazy(() => import("./calendar/Calendar"))
@@ -34,9 +40,17 @@ export const productRegistry: ProductModule[] = [
   {
     id: "health",
     name: "Health",
-    routePrefix: "/app/health",
+    routePrefix: "/health",
     requiredCapabilities: ["health.read"],
     Icon: HeartPulse,
     Entry: lazy(() => import("./health/Health"))
+  },
+  {
+    id: "notes",
+    name: "Notes & Projects",
+    routePrefix: "/notes",
+    requiredCapabilities: ["notes.read"],
+    Icon: NotebookPen,
+    Entry: lazy(() => import("./notes/Notes"))
   }
 ];

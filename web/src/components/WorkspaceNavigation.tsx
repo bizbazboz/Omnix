@@ -1,3 +1,4 @@
+import PageTree from "../products/notes/PageTree";
 import Select from "./Select";
 import {
   Archive,
@@ -65,10 +66,10 @@ export default function WorkspaceNavigation({
   const showApps = !activeApp || listForPath === location.pathname;
   const params = new URLSearchParams(location.search);
   const account = params.get("account") || "";
-  const email = location.pathname.startsWith("/app/email");
-  const calendar = location.pathname.startsWith("/app/calendar");
+  const email = location.pathname.startsWith("/email");
+  const calendar = location.pathname.startsWith("/calendar");
   const folder =
-    params.get("folder") || location.pathname.split("/")[3] || "inbox";
+    params.get("folder") || location.pathname.split("/")[2] || "inbox";
   const profiles = useMailProfiles(email ? accounts : []);
   const custom = profiles.flatMap((p) =>
     (p.data?.folders || [])
@@ -87,7 +88,7 @@ export default function WorkspaceNavigation({
     { id: "outbox", name: "Outbox", Icon: Send }
   ];
   const href = (id: string, mailbox = account) =>
-    "/app/email" +
+    "/email" +
     (id === "inbox" ? "" : "/" + id) +
     (mailbox ? "?account=" + encodeURIComponent(mailbox) : "");
   async function createFolder() {
@@ -212,7 +213,7 @@ export default function WorkspaceNavigation({
                       next.delete("message");
                       if (next.has("folder")) {
                         next.delete("folder");
-                        navigate("/app/email?" + next);
+                        navigate("/email?" + next);
                       } else navigate(location.pathname + "?" + next);
                     }}
                   >
@@ -256,7 +257,7 @@ export default function WorkspaceNavigation({
                       <NavLink
                         key={f.account.id + f.id}
                         to={
-                          "/app/email/folder?" +
+                          "/email/folder?" +
                           new URLSearchParams({
                             folder: f.key,
                             account: f.account.id
@@ -292,7 +293,7 @@ export default function WorkspaceNavigation({
                 {!accounts.length && (
                   <NavLink
                     className="sidebar-connect"
-                    to="/app/settings/connections"
+                    to="/settings/connections"
                     onClick={onClose}
                   >
                     <Plus size={15} /> Connect account
@@ -304,27 +305,28 @@ export default function WorkspaceNavigation({
                 <button
                   className="primary new-message"
                   onClick={() => {
-                    navigate("/app/settings/connections#calendars");
+                    navigate("/settings/connections#calendars");
                     onClose();
                   }}
                 >
                   <Plus size={17} /> Manage calendars
                 </button>
                 <nav aria-label="Calendar navigation">
-                  <NavLink to="/app/calendar" onClick={onClose}>
+                  <NavLink to="/calendar" onClick={onClose}>
                     <CalendarDays size={17} />
                     Calendar
                   </NavLink>
                 </nav>
               </>
+            ) : activeApp.id === "notes" ? (
+              <PageTree onClose={onClose} />
             ) : activeApp.id === "health" ? (
               <nav aria-label="Health navigation">
                 {healthViews.map((view) => (
                   <NavLink
                     key={view.id}
                     to={
-                      "/app/health" +
-                      (view.id === "overview" ? "" : "/" + view.id)
+                      "/health" + (view.id === "overview" ? "" : "/" + view.id)
                     }
                     end
                     onClick={onClose}
@@ -354,7 +356,7 @@ export default function WorkspaceNavigation({
           </div>
           <NavLink
             className="icon-button profile-settings"
-            to="/app/settings"
+            to="/settings"
             aria-label="Settings"
             title="Settings"
             onClick={onClose}

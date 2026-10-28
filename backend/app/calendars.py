@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy import select
 from sqlalchemy.orm import load_only
 from .core import CalendarFeed, User, Session, encrypt, decrypt, now, redis
+from .calendar_identity import event_identity
 from .calendar_fetch import normalize_url, fetch_calendar
 from .workspace_settings import preferences
 
@@ -183,13 +184,13 @@ def build_calendar_router(authenticated, db_session):
             )
             for feed in db.scalars(query):
                 if feed.events:
-                    for index, event in enumerate(decrypt(feed.events)):
+                    for event in decrypt(feed.events):
                         if event["start_ts"] < stop and (
                             event["end_ts"] > start or event["start_ts"] >= start
                         ):
                             yield {
                                 **event,
-                                "id": feed.id + ":" + str(index),
+                                "id": event_identity(feed.id, event),
                                 "feed_id": feed.id,
                                 "calendar": feed.label,
                             }

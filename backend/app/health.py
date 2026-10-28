@@ -274,7 +274,7 @@ def build_health_router(authenticated, db_session, rate):
         ):
             raise HTTPException(400, "Google connection changed. Try connecting again.")
         if error:
-            return RedirectResponse("/app/health?connect=cancelled", status_code=303)
+            return RedirectResponse("/health?connect=cancelled", status_code=303)
         if not code:
             raise HTTPException(400, "Missing Google authorization code.")
         try:
@@ -328,15 +328,18 @@ def build_health_router(authenticated, db_session, rate):
             message = messages.get(reason if isinstance(reason, str) else "")
             raise HTTPException(
                 502,
-                message or "Google could not complete the token exchange. Check Google OAuth availability and app setup, then connect again.",
+                message
+                or "Google could not complete the token exchange. Check Google OAuth availability and app setup, then connect again.",
             ) from None
         except httpx.RequestError:
             raise HTTPException(
-                502, "Omnix could not reach Google's token service. Check server connectivity, then connect again."
+                502,
+                "Omnix could not reach Google's token service. Check server connectivity, then connect again.",
             ) from None
         except (ValueError, TypeError, AttributeError):
             raise HTTPException(
-                502, "Google returned an incomplete token response. Return to Health and connect again."
+                502,
+                "Google returned an incomplete token response. Return to Health and connect again.",
             ) from None
         db.scalar(select(User).where(User.id == user.id).with_for_update())
         current_registration = load_setting("google_health", {})
@@ -378,7 +381,7 @@ def build_health_router(authenticated, db_session, rate):
             health_sync.delay(connection.id)
         except Exception:
             pass  # The durable scheduled dispatcher recovers a pending connection.
-        return RedirectResponse("/app/health?connect=success", status_code=303)
+        return RedirectResponse("/health?connect=success", status_code=303)
 
     @router.post("/refresh", status_code=202)
     def refresh(user=Depends(authenticated), db=Depends(db_session)):

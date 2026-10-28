@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, MapPin, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   type CalendarEvent,
   dateKey,
@@ -7,7 +8,8 @@ import {
   eventsOnDay,
   eventTime,
   eventDay,
-  dayLabel
+  dayLabel,
+  calendarLinkDate
 } from "./api";
 
 export default function CalendarMonth({
@@ -23,6 +25,8 @@ export default function CalendarMonth({
   zone: string;
   hour12: boolean;
 }) {
+  const [params, setParams] = useSearchParams();
+  const focused = useRef("");
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: zone,
     year: "numeric",
@@ -37,6 +41,32 @@ export default function CalendarMonth({
   useEffect(() => {
     if (detail) dialog.current?.showModal();
   }, [detail]);
+  useEffect(() => {
+    const id = params.get("event");
+    if (!id || focused.current === id) return;
+    const event = events.find((event) => event.id === id);
+    if (event) {
+      focused.current = id;
+      setSelected(eventDay(event, zone));
+      setDetail(event);
+    }
+  }, [params.get("event"), events, zone]);
+  useEffect(() => {
+    const date = calendarLinkDate(params.get("date"));
+    if (date) setSelected(dateKey(date));
+  }, [params.get("date")]);
+  function closeDetail() {
+    setDetail(null);
+    if (params.has("event"))
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete("event");
+          return next;
+        },
+        { replace: true }
+      );
+  }
   const days = monthDays(month);
   const offset =
     (month.getFullYear() - new Date().getFullYear()) * 12 +
@@ -168,7 +198,7 @@ export default function CalendarMonth({
           aria-labelledby="event-title"
           onCancel={(event) => {
             event.preventDefault();
-            setDetail(null);
+            closeDetail();
           }}
         >
           <div className="section-title">
@@ -176,7 +206,7 @@ export default function CalendarMonth({
             <button
               className="icon-button"
               aria-label="Close event"
-              onClick={() => setDetail(null)}
+              onClick={closeDetail}
             >
               <X size={18} />
             </button>

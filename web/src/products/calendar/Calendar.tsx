@@ -1,7 +1,7 @@
 import Select from "../../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, RefreshCw, MapPin } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import { api, qc } from "../../lib/api";
 import { useStoredFlag } from "../../lib/layout";
@@ -15,7 +15,8 @@ import {
   eventTime,
   dayLabel,
   dateKey,
-  monthDays
+  monthDays,
+  calendarLinkDate
 } from "./api";
 
 export default function Calendar({ notify }: ProductProps) {
@@ -23,9 +24,20 @@ export default function Calendar({ notify }: ProductProps) {
   const [hidden, setHidden] = useState<string[]>([]);
   const [days, setDays] = useState(30);
   const view = params.get("view") === "agenda" ? "agenda" : "month";
-  const [month, setMonth] = useState(
-    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1, 12)
-  );
+  const [month, setMonth] = useState(() => {
+    const date = calendarLinkDate(params.get("date")) || new Date();
+    return new Date(date.getFullYear(), date.getMonth(), 1, 12);
+  });
+  useEffect(() => {
+    const date = calendarLinkDate(params.get("date"));
+    if (date)
+      setMonth((current) =>
+        current.getFullYear() === date.getFullYear() &&
+        current.getMonth() === date.getMonth()
+          ? current
+          : new Date(date.getFullYear(), date.getMonth(), 1, 12)
+      );
+  }, [params.get("date")]);
   const [sourcesOpen, setSourcesOpen] = useStoredFlag(
     "omnix.calendar.sourcesOpen",
     true
@@ -249,7 +261,7 @@ export default function Calendar({ notify }: ProductProps) {
               {!feeds.data?.length && (
                 <NavLink
                   className="secondary"
-                  to="/app/settings/connections#calendars"
+                  to="/settings/connections#calendars"
                 >
                   Open Integrations
                 </NavLink>

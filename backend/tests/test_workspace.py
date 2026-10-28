@@ -159,6 +159,7 @@ def test_secret_and_products(signed_client):
         "email",
         "calendar",
         "health",
+        "notes",
     ]
     value = encrypt({"secret": "not-plaintext"})
     assert "not-plaintext" not in value and decrypt(value)["secret"] == "not-plaintext"

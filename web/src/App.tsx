@@ -1,3 +1,4 @@
+import { canonicalWorkspaceUrl } from "./lib/routes";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
@@ -32,8 +33,11 @@ export default function App() {
     queryFn: () => api("/config")
   });
   const location = useLocation();
-  if (location.pathname === "/app" || location.pathname === "/app/")
-    return <Navigate to={"/" + location.search + location.hash} replace />;
+  const canonical = canonicalWorkspaceUrl(
+    location.pathname + location.search + location.hash
+  );
+  if (canonical !== location.pathname + location.search + location.hash)
+    return <Navigate to={canonical} replace />;
   if (me.data) {
     setCsrf(me.data.csrf);
     return <Workspace user={me.data} />;
@@ -190,28 +194,15 @@ function Workspace({ user }: { user: User }) {
         <Routes>
           <Route
             path="/settings"
-            element={<Navigate to="/app/settings/general" replace />}
+            element={<Navigate to="/settings/general" replace />}
           />
-          <Route
-            path="/settings/*"
-            element={
-              <Navigate
-                to={"/app" + location.pathname + location.search}
-                replace
-              />
-            }
-          />
-          <Route
-            path="/app/settings"
-            element={<Navigate to="/app/settings/general" replace />}
-          />
-          <Route path="/app/onboarding" element={<Onboarding user={user} />} />
-          <Route path="/app/email/outbox" element={<Outbox />} />
+          <Route path="/onboarding" element={<Onboarding user={user} />} />
+          <Route path="/email/outbox" element={<Outbox />} />
           <Route
             path="/"
             element={
               preferences.data && !preferences.data.onboarding_completed ? (
-                <Navigate to="/app/onboarding" replace />
+                <Navigate to="/onboarding" replace />
               ) : (
                 <Dashboard
                   user={{
@@ -256,7 +247,7 @@ function Workspace({ user }: { user: User }) {
             );
           })}
           <Route
-            path="/app/settings/*"
+            path="/settings/*"
             element={
               <WorkspaceSettings
                 user={user}
