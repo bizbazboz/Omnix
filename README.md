@@ -29,6 +29,12 @@
 Follow the [setup guide](https://github.com/bizbazboz/Omnix/wiki/Installation).
 The wiki covers deployment, Pocket ID, mail connections, backups and upgrades.
 
+## Install the TUI
+
+```bash
+curl -fsSL https://bizbazboz.github.io/Omnix/install.sh | sudo bash
+```
+
 ## Contributing
 
 Bug reports, fixes and documentation improvements are welcome.
