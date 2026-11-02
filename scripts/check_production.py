@@ -22,6 +22,7 @@ with httpx.Client(
         "/email/drafts",
         "/email/send-attempts",
         "/settings/auth",
+        "/settings/api-tokens",
         "/calendar/feeds",
         "/calendar/events",
         "/email/mailboxes/nonexistent/profile",
@@ -39,6 +40,20 @@ with httpx.Client(
         "/health/google/registration",
     ]:
         assert client.get("/api/v1" + path).status_code == 401, path
+    assert (
+        client.post(
+            "/mcp/", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/mcp/",
+            headers={"Authorization": "Bearer invalid"},
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        ).status_code
+        == 401
+    )
     status = client.get("/api/v1/setup/status").json()
     if status["setup_available"]:
         payload = {
@@ -59,7 +74,8 @@ with httpx.Client(
             {
                 "production": True,
                 "transport": "http-for-tunnel",
-                "protected_routes": 23,
+                "protected_routes": 24,
+                "mcp_token_required": True,
                 "setup_token_required": True,
                 "security_headers": True,
                 "oidc_configured": configuration["oidc_configured"],

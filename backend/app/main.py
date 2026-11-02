@@ -6,6 +6,7 @@ import httpx, bleach
 from fastapi import FastAPI, Depends, HTTPException, Request, Response, Header
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from fastapi.exceptions import RequestValidationError
+from starlette.concurrency import run_in_threadpool
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select, or_, func, text
@@ -15,6 +16,7 @@ from authlib.jose import JsonWebToken
 from .core import *
 from .providers import REGIONS, SCOPES, validate_protocol, fetch_body
 from .tasks import sync, send
+from .api_tokens import authorize_request, build_token_router
 from .workspace_settings import (
     load_zoho,
     load_setting,
@@ -74,7 +76,17 @@ async def security(request, call_next):
                 return JSONResponse({"detail": "request_too_large"}, status_code=413)
             chunks.append(chunk)
         request._body = b"".join(chunks)
-    if request.method in (
+    bearer_api = request.url.path.startswith("/api/") and "authorization" in request.headers
+    if bearer_api:
+        try:
+            def check_token():
+                with Session() as db:
+                    authorize_request(request, db)
+
+            await run_in_threadpool(check_token)
+        except HTTPException as error:
+            return JSONResponse({"detail": error.detail}, status_code=error.status_code, headers=error.headers)
+    if not bearer_api and request.method in (
         "POST",
         "PATCH",
         "PUT",
@@ -116,7 +128,7 @@ async def security(request, call_next):
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
     response.headers["Cache-Control"] = (
-        "no-store" if request.url.path.startswith("/api") else "no-cache"
+        "no-store" if request.url.path.startswith(("/api", "/mcp")) else "no-cache"
     )
     return response
 
@@ -127,6 +139,8 @@ def db_session():
 
 
 def authenticated(request: Request, db=Depends(db_session)):
+    if "authorization" in request.headers:
+        return authorize_request(request, db)
     sid = request.cookies.get(SESSION_COOKIE, "")
     raw = redis.get("session:" + sid)
     if not raw:
@@ -1223,6 +1237,11 @@ app.include_router(build_health_router(authenticated, db_session, rate))
 from .notes import build_notes_router
 
 app.include_router(build_notes_router(authenticated, db_session))
+app.include_router(build_token_router(authenticated, db_session))
+
+from .mcp_server import mount_mcp
+
+mount_mcp(app)
 
 STATIC_DIR = Path(os.getenv("STATIC_DIR", "/app/static")).resolve()
 
