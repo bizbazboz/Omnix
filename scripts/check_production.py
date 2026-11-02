@@ -54,6 +54,13 @@ with httpx.Client(
         ).status_code
         == 401
     )
+    for path in ("/mcp", "/mcp/"):
+        response = client.post(
+            path,
+            params={"accesstoken": "invalid"},
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        )
+        assert response.status_code == 401 and "location" not in response.headers
     status = client.get("/api/v1/setup/status").json()
     if status["setup_available"]:
         payload = {

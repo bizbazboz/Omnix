@@ -78,11 +78,16 @@ export default function ApiAccess() {
         <CopyField
           label="Streamable HTTP endpoint"
           name="MCP endpoint"
-          value={window.location.origin + "/mcp/"}
+          value={
+            window.location.origin +
+            "/mcp?accesstoken=" +
+            (secret ? encodeURIComponent(secret) : "YOUR_API_TOKEN")
+          }
         />
         <p className="muted">
-          Use the token as a Bearer token in your client's Authorization header.
-          Tools are generated from the workspace OpenAPI specification.
+          Paste the URL with your token into your MCP client. No authentication
+          headers are needed. Tools are generated from the workspace OpenAPI
+          specification.
         </p>
       </section>
       <section className="settings-card">
@@ -91,6 +96,15 @@ export default function ApiAccess() {
           <div className="api-token-secret">
             <p>Copy this token now. It will not be shown again.</p>
             <CopyField label="API token" name="API token" value={secret} />
+            <CopyField
+              label="MCP connection URL"
+              name="MCP connection URL"
+              value={
+                window.location.origin +
+                "/mcp?accesstoken=" +
+                encodeURIComponent(secret)
+              }
+            />
             <button className="secondary" onClick={() => setSecret("")}>
               Done
             </button>

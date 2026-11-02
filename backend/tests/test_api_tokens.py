@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 import hashlib
 import json
+import re
 import secrets
 
 from app.core import (
@@ -34,9 +35,9 @@ def bearer(raw):
 
 def rpc(client, raw, method, params=None):
     return client.post(
-        "/mcp/",
+        "/mcp",
+        params={"accesstoken": raw},
         headers={
-            **bearer(raw),
             "Accept": "application/json, text/event-stream",
             "MCP-Protocol-Version": "2025-06-18",
         },
@@ -50,7 +51,8 @@ def rpc(client, raw, method, params=None):
 
 
 def tool_name(path, method="get"):
-    return app.openapi()["paths"][path][method]["operationId"]
+    operation = app.openapi()["paths"][path][method]["operationId"]
+    return re.sub(r"_+", "_", operation.split("__")[0])[:56]
 
 
 def call(client, raw, path, arguments=None, method="get"):
@@ -141,6 +143,50 @@ def test_no_cookie_fallback_no_csrf_bypass(signed_client):
     assert rpc(client, "invalid", "initialize").status_code == 401
 
 
+def test_mcp_requires_one_query_token_and_never_redirects(signed_client):
+    client = signed_client
+    raw = create_token(client)["token"]
+    bob, _, _, _ = other_workspace()
+    body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+    headers = {"Accept": "application/json, text/event-stream"}
+    for path in ("/mcp", "/mcp/"):
+        for params in (
+            {},
+            {"accesstoken": ""},
+            {"accesstoken": "invalid"},
+            [("accesstoken", raw), ("accesstoken", bob)],
+        ):
+            response = client.post(
+                path, params=params, headers={**headers, **bearer(raw)}, json=body
+            )
+            assert response.status_code == 401
+            assert "location" not in response.headers
+            assert "www-authenticate" not in response.headers
+            assert raw not in response.text and bob not in response.text
+        response = client.post(
+            path, params={"accesstoken": raw}, headers=headers, json=body
+        )
+        assert response.status_code == 200, response.text
+        assert "location" not in response.headers
+        assert raw not in response.text
+    own = client.post(PAGES, json={"title": "Query owner's page"}).json()
+    response = client.post(
+        "/mcp",
+        params={"accesstoken": raw},
+        headers={**headers, **bearer(bob)},
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": tool_name(PAGES + "/{id}"),
+                "arguments": {"id": own["id"]},
+            },
+        },
+    )
+    assert response.status_code == 200 and "Query owner's page" in response.text
+
+
 def test_read_write_expiry_and_admin_boundary(signed_client, user):
     client = signed_client
     read = create_token(client)
@@ -160,6 +206,7 @@ def test_read_write_expiry_and_admin_boundary(signed_client, user):
         db.get(ApiToken, read["id"]).expires_at = now() - timedelta(seconds=1)
         db.commit()
     assert client.get(PAGES, headers=bearer(read["token"])).status_code == 401
+    assert rpc(client, read["token"], "tools/list").status_code == 401
     for path in (
         "/api/v1/settings/users",
         "/api/v1/settings/oidc",
@@ -208,8 +255,9 @@ def test_mcp_generated_tools_and_two_users(signed_client):
         ]
         for future in futures:
             future.result()
-    assert call(client, alice, PAGES + "/{id}", {"id": bob_page})["isError"]
-    assert call(client, bob, PAGES + "/{id}", {"id": alice_page["id"]})["isError"]
+    for raw, page_id in ((alice, bob_page), (bob, alice_page["id"])):
+        denied = call(client, raw, PAGES + "/{id}", {"id": page_id})
+        assert denied["isError"] and "404" in json.dumps(denied)
     assert (
         client.get(
             f"/api/v1/email/mailboxes/{mailbox}/messages/{message}",
