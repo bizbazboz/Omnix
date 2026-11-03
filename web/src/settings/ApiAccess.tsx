@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, qc } from "../lib/api";
 import CopyField from "../components/CopyField";
 import Select from "../components/Select";
+import "./ApiAccess.css";
 
 type Token = {
   id: string;
@@ -25,10 +26,18 @@ export default function ApiAccess() {
   const [days, setDays] = useState("30");
   const [secret, setSecret] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "create" | "revoke" | null
+  >(null);
+  const busy = pendingAction !== null;
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const active = query.data?.filter(
+    (token) => !token.revoked_at && Date.parse(token.expires_at) > Date.now()
+  ).length;
+  const endpoint = window.location.origin + "/mcp";
   async function create(event: React.FormEvent) {
     event.preventDefault();
-    setBusy(true);
+    setPendingAction("create");
     setError("");
     try {
       const result = await api("/settings/api-tokens", {
@@ -45,67 +54,79 @@ export default function ApiAccess() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setPendingAction(null);
     }
   }
   async function revoke(token: Token) {
-    if (
-      !window.confirm(
-        `Revoke “${token.name}”? Connected clients will lose access immediately.`
-      )
-    )
-      return;
-    setBusy(true);
+    setPendingAction("revoke");
     setError("");
     try {
       await api(`/settings/api-tokens/${token.id}`, { method: "DELETE" });
       setSecret("");
+      setConfirmId(null);
       await qc.invalidateQueries({ queryKey: ["api-tokens"] });
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setPendingAction(null);
     }
   }
   return (
-    <>
-      <section className="settings-card">
-        <h2>API & MCP access</h2>
-        <p className="muted">
-          Connect an MCP client to your workspace. Each token can access only
-          your data.
+    <div className="api-access">
+      <header className="api-access-heading">
+        <div>
+          <span className="api-access-label">Personal access</span>
+          <h2>API access</h2>
+          <p>Connect your tools to your workspace.</p>
+        </div>
+        <span className="api-access-count">
+          {active === undefined ? "—" : String(active).padStart(2, "0")} active
+          tokens
+        </span>
+      </header>
+      {error && (
+        <p className="error api-access-error" role="alert">
+          {error}
         </p>
-        <CopyField
-          label="Streamable HTTP endpoint"
-          name="MCP endpoint"
-          value={
-            window.location.origin +
-            "/mcp?accesstoken=" +
-            (secret ? encodeURIComponent(secret) : "YOUR_API_TOKEN")
-          }
-        />
-        <p className="muted">
-          Paste the URL with your token into your MCP client. No authentication
-          headers are needed. Tools are generated from the workspace OpenAPI
-          specification.
-        </p>
-      </section>
-      <section className="settings-card">
-        <h2>Create token</h2>
+      )}
+      <div className="api-access-endpoint">
+        <span className="api-access-label">Endpoint</span>
+        <code>{endpoint}</code>
+        <span className="api-access-label">Streamable HTTP</span>
+      </div>
+      <section
+        className="api-access-section"
+        aria-labelledby="api-create-heading"
+      >
+        <div className="api-access-section-heading">
+          <h3 id="api-create-heading">
+            {secret ? "Token ready" : "Create a token"}
+          </h3>
+          <p>
+            {secret
+              ? "Copy the connection URL now. It won’t be shown again."
+              : "Access stays within your account. Read-only by default."}
+          </p>
+        </div>
         {secret ? (
           <div className="api-token-secret">
-            <p>Copy this token now. It will not be shown again.</p>
-            <CopyField label="API token" name="API token" value={secret} />
             <CopyField
               label="MCP connection URL"
               name="MCP connection URL"
-              value={
-                window.location.origin +
-                "/mcp?accesstoken=" +
-                encodeURIComponent(secret)
-              }
+              value={endpoint + "?accesstoken=" + encodeURIComponent(secret)}
             />
-            <button className="secondary" onClick={() => setSecret("")}>
+            <details className="api-token-value">
+              <summary>Token value</summary>
+              <CopyField label="API token" name="API token" value={secret} />
+            </details>
+            <button
+              className="secondary"
+              onClick={() => {
+                setSecret("");
+                setPermission("read");
+                setDays("30");
+              }}
+            >
               Done
             </button>
           </div>
@@ -117,96 +138,160 @@ export default function ApiAccess() {
                 required
                 maxLength={80}
                 value={name}
+                disabled={busy}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Desktop assistant"
+                placeholder="e.g. Desktop assistant"
                 autoComplete="off"
               />
             </label>
-            <label>
-              Access
-              <Select
-                value={permission}
-                onChange={(e) => setPermission(e.target.value)}
-              >
-                <option value="read">Read only</option>
-                <option value="write">Read & write</option>
-              </Select>
-            </label>
-            <label>
-              Expires after
-              <Select value={days} onChange={(e) => setDays(e.target.value)}>
-                <option value="7">7 days</option>
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-                <option value="365">1 year</option>
-              </Select>
-            </label>
+            <div className="api-token-controls">
+              <label>
+                Access
+                <Select
+                  aria-label="Token access"
+                  value={permission}
+                  disabled={busy}
+                  onChange={(e) => setPermission(e.target.value)}
+                >
+                  <option value="read">Read only</option>
+                  <option value="write">Read & write</option>
+                </Select>
+              </label>
+              <label>
+                Expires after
+                <Select
+                  aria-label="Token expiry"
+                  value={days}
+                  disabled={busy}
+                  onChange={(e) => setDays(e.target.value)}
+                >
+                  <option value="7">7 days</option>
+                  <option value="30">30 days</option>
+                  <option value="90">90 days</option>
+                  <option value="365">1 year</option>
+                </Select>
+              </label>
+            </div>
             {permission === "write" && (
-              <p className="muted">
-                Read & write allows changes, including sending mail and deleting
-                content.
+              <p className="api-access-note">
+                Allows sending mail, editing content and deleting data.
               </p>
             )}
-            <button disabled={busy || !name.trim()}>
-              {busy ? "Creating…" : "Create token"}
-            </button>
+            <div className="api-token-form-footer">
+              <button
+                className="primary"
+                type="submit"
+                disabled={busy || !name.trim()}
+              >
+                {pendingAction === "create" ? "Creating…" : "Create token"}
+              </button>
+            </div>
           </form>
         )}
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
       </section>
-      <section className="settings-card">
-        <h2>Your tokens</h2>
+      <section
+        className="api-access-section"
+        aria-labelledby="api-tokens-heading"
+      >
+        <div className="api-access-section-heading">
+          <h3 id="api-tokens-heading">Your tokens</h3>
+          <p>Revoking a token disconnects its clients immediately.</p>
+        </div>
         {query.isPending ? (
-          <p role="status">Loading tokens…</p>
+          <p className="api-access-label" role="status">
+            [ Loading tokens… ]
+          </p>
         ) : query.error ? (
-          <p className="error">{query.error.message}</p>
+          <p className="error" role="alert">
+            {query.error.message}
+          </p>
         ) : !query.data?.length ? (
-          <p className="muted">No tokens created.</p>
+          <p className="api-access-empty">No tokens yet.</p>
         ) : (
           <ul className="api-token-list">
             {query.data.map((token) => {
-              const inactive =
-                !!token.revoked_at ||
-                Date.parse(token.expires_at) <= Date.now();
+              const state = token.revoked_at
+                ? "revoked"
+                : Date.parse(token.expires_at) <= Date.now()
+                  ? "expired"
+                  : "active";
               return (
                 <li key={token.id}>
-                  <div>
-                    <strong>{token.name}</strong>
-                    <span className="muted">
-                      {token.prefix}… ·{" "}
+                  <div className="api-token-row-heading">
+                    <div className="api-token-identity">
+                      <strong>{token.name}</strong>
+                      <span className="api-token-state" data-state={state}>
+                        <i aria-hidden="true" />
+                        {state}
+                      </span>
+                    </div>
+                    {state === "active" &&
+                      (confirmId === token.id ? (
+                        <div
+                          className="api-token-confirm"
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") setConfirmId(null);
+                          }}
+                        >
+                          <button
+                            className="secondary"
+                            autoFocus
+                            disabled={busy}
+                            onClick={() => setConfirmId(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            className="secondary api-token-destructive"
+                            disabled={busy}
+                            onClick={() => revoke(token)}
+                          >
+                            {pendingAction === "revoke"
+                              ? "Revoking…"
+                              : "Revoke token"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="api-token-revoke"
+                          disabled={busy}
+                          aria-label={"Revoke " + token.name}
+                          onClick={() => {
+                            setConfirmId(token.id);
+                            setError("");
+                          }}
+                        >
+                          Revoke
+                        </button>
+                      ))}
+                  </div>
+                  <div className="api-token-metadata">
+                    <code>{token.prefix}…</code>
+                    <span className="api-token-permission">
                       {token.permission === "write"
                         ? "Read & write"
                         : "Read only"}
                     </span>
-                    <small className="muted">
+                    <span>
                       {token.revoked_at
-                        ? "Revoked"
-                        : `Expires ${new Date(token.expires_at).toLocaleDateString()}`}{" "}
-                      ·{" "}
+                        ? "Revoked " +
+                          new Date(token.revoked_at).toLocaleDateString()
+                        : "Expires " +
+                          new Date(token.expires_at).toLocaleDateString()}
+                    </span>
+                    <span>
                       {token.last_used_at
-                        ? `Last used ${new Date(token.last_used_at).toLocaleString()}`
+                        ? "Used " +
+                          new Date(token.last_used_at).toLocaleString()
                         : "Never used"}
-                    </small>
+                    </span>
                   </div>
-                  {!inactive && (
-                    <button
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => revoke(token)}
-                    >
-                      Revoke
-                    </button>
-                  )}
                 </li>
               );
             })}
           </ul>
         )}
       </section>
-    </>
+    </div>
   );
 }
