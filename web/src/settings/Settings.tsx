@@ -5,6 +5,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { api, qc, type Account, type User } from "../lib/api";
 import CopyField from "../components/CopyField";
 import Authentication from "./Authentication";
+import ApiAccess from "./ApiAccess";
 import Connections from "./Connections";
 import HealthIntegration from "./HealthIntegration";
 import CalendarIntegration from "./CalendarIntegration";
@@ -535,6 +536,7 @@ export default function Settings({
     ["general", "General"],
     ["connections", "Integrations"],
     ["security", "Sessions"],
+    ["api-access", "API access"],
     ...(user.is_admin
       ? [
           ["auth", "Authentication"],
@@ -594,6 +596,8 @@ export default function Settings({
               <CalendarIntegration />
               <HealthIntegration notify={notify} />
             </>
+          ) : section === "api-access" ? (
+            <ApiAccess />
           ) : section === "security" ? (
             <Sessions />
           ) : user.is_admin && section === "auth" ? (

@@ -5603,3 +5603,12 @@ body:has(.resize-handle[data-dragging="true"]) {
     gap: 28px;
   }
 }
+/* Personal API access uses the shared settings controls. */
+.api-token-form { display: grid; gap: 20px; max-width: 560px; }
+.api-token-form label { display: grid; gap: 10px; }
+.api-token-form button[type="submit"], .api-token-form > button { justify-self: start; }
+.api-token-list { list-style: none; padding: 0; margin: 24px 0 0; }
+.api-token-list li { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0; border-top: 1px solid var(--border, #292929); }
+.api-token-list li > div { display: grid; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.api-token-list li > button { flex-shrink: 0; }
+.api-token-secret { margin-top: 24px; }

@@ -32,7 +32,7 @@ The wiki covers deployment, Pocket ID, mail connections, backups and upgrades.
 ## Install the TUI
 
 ```bash
-curl -fsSL https://bizbazboz.github.io/Omnix/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/bizbazboz/Omnix/refs/heads/main/installer/install.sh | sudo bash
 ```
 
 ## Contributing

@@ -62,7 +62,7 @@ export default function CopyField({
         {state === "copied"
           ? "Copied"
           : state === "failed"
-            ? "Copy unavailable. Select the URL and copy it manually."
+            ? "Copy unavailable. Select the value and copy it manually."
             : ""}
       </span>
     </div>

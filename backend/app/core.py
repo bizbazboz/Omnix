@@ -66,6 +66,20 @@ class User(Base):
     __table_args__ = (UniqueConstraint("issuer", "subject"),)
 
 
+class ApiToken(Base):
+    __tablename__ = "api_tokens"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    prefix: Mapped[str] = mapped_column(String(14))
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    permission: Mapped[str] = mapped_column(String(10), default="read")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Connection(Base):
     __tablename__ = "connections"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
