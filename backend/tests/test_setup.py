@@ -268,3 +268,40 @@ def test_callback_origin_cannot_differ_from_browser_origin(
     assert result.status_code == 403
     with Session() as db:
         assert db.get(SystemSetting, "oidc") is None
+
+
+@pytest.mark.parametrize(
+    "destination,expected",
+    [
+        (
+            "/notes/projects/example?view=board#issue-3",
+            "/notes/projects/example?view=board#issue-3",
+        ),
+        ("/health/sleep?range=30", "/health/sleep?range=30"),
+        ("/app/email?folder=inbox#message", "/email?folder=inbox#message"),
+        ("https://attacker.invalid/steal", "/"),
+    ],
+)
+def test_oidc_return_destination_is_bound_to_one_use_state(
+    client, identity, operator_token, destination, expected
+):
+    assert configure(client, operator_token).status_code == 200
+    pending = client.get("/api/v1/auth/login", params={"return_to": destination})
+    query = parse_qs(urlsplit(pending.headers["location"]).query)
+    assert query["redirect_uri"] == [PUBLIC_URL + "/api/v1/auth/callback"]
+    state = query["state"][0]
+    identity["nonce"] = query["nonce"][0]
+    transaction = json.loads(redis.get("oidc:" + state))
+    assert transaction["return_to"] == expected
+    result = client.get(
+        "/api/v1/auth/callback",
+        params={"state": state, "code": "fixture", "return_to": "/settings/auth"},
+    )
+    assert result.status_code == 303 and result.headers["location"] == expected
+    assert not redis.exists("oidc:" + state)
+    assert (
+        client.get(
+            "/api/v1/auth/callback", params={"state": state, "code": "replay"}
+        ).status_code
+        == 400
+    )

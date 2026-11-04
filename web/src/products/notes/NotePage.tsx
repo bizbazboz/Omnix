@@ -17,6 +17,7 @@ import {
 import ActionMenu from "./ActionMenu";
 import Select from "../../components/Select";
 import CopyField from "../../components/CopyField";
+import { signInUrl } from "../../lib/routes";
 import DocumentEditor from "./DocumentEditor";
 import { type NoteBlock, type NotesEditor } from "./schema";
 import {
@@ -310,7 +311,7 @@ function Loaded({ initial }: { initial: Note }) {
               </button>
               <a
                 className="text-button"
-                href="/api/v1/auth/login"
+                href={signInUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
               >

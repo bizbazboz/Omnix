@@ -14,11 +14,13 @@ from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from starlette.authentication import AuthCredentials
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
+from fastapi import HTTPException
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from .api_tokens import personal_operation, verify_personal_token
 from .core import Session
+from . import rate_limits
 
 
 class AccountTokenVerifier(TokenVerifier):
@@ -77,12 +79,28 @@ class QueryTokenAuthentication:
             await self.verifier.verify_token(values[0]) if len(values) == 1 else None
         )
         if not token:
+            try:
+                await run_in_threadpool(rate_limits.failed_auth, scope)
+            except HTTPException as error:
+                return await JSONResponse(
+                    {"detail": error.detail},
+                    status_code=error.status_code,
+                    headers=error.headers,
+                )(scope, receive, send)
             response = JSONResponse(
                 {"detail": "invalid_api_token"},
                 status_code=401,
                 headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
             )
             return await response(scope, receive, send)
+        try:
+            await run_in_threadpool(rate_limits.account, scope, token.subject)
+        except HTTPException as error:
+            return await JSONResponse(
+                {"detail": error.detail},
+                status_code=error.status_code,
+                headers=error.headers,
+            )(scope, receive, send)
         scope["auth"] = AuthCredentials(token.scopes)
         scope["user"] = AuthenticatedUser(token)
         # FastMCP's authorization gate requires an internal credential header.
@@ -92,6 +110,13 @@ class QueryTokenAuthentication:
 
 
 class AccountTransport(httpx2.ASGITransport):
+    def __init__(self, app):
+        async def internal(scope, receive, send):
+            # Trusted in-process scope, never a client-controlled HTTP header.
+            await app({**scope, "omnix.mcp_internal": True}, receive, send)
+
+        super().__init__(app=internal)
+
     async def handle_async_request(self, request):
         token = get_access_token()
         if not token or not personal_operation(request.url.path, request.method):

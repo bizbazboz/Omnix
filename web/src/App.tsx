@@ -1,4 +1,4 @@
-import { canonicalWorkspaceUrl } from "./lib/routes";
+import { canonicalWorkspaceUrl, signInUrl } from "./lib/routes";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
@@ -78,7 +78,7 @@ export default function App() {
               Could not reach the application. Try refreshing the page.
             </p>
           ) : config.data?.oidc_configured ? (
-            <a className="primary login-button" href="/api/v1/auth/login">
+            <a className="primary login-button" href={signInUrl(canonical)}>
               Continue with Pocket ID <ArrowUpRight size={16} />
             </a>
           ) : (

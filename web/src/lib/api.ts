@@ -91,9 +91,18 @@ export async function api<T = any>(
     !unsavedWork.size
   ) {
     qc.clear();
-    window.location.assign("/");
+    window.location.reload();
   }
   if (!response.ok) {
+    if (response.status === 429) {
+      const delay = Number(response.headers.get("Retry-After"));
+      throw new ApiError(
+        429,
+        Number.isFinite(delay) && delay > 0
+          ? `Too many requests. Try again in ${Math.ceil(delay)} seconds.`
+          : "Too many requests. Try again shortly."
+      );
+    }
     const error = await response
       .json()
       .catch(() => ({ detail: "Request failed" }));

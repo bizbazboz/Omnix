@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from .core import ApiToken, User, now
+from . import rate_limits
 
 
 def personal_operation(path: str, method: str) -> bool:
@@ -60,10 +61,12 @@ def authorize_request(request: Request, db):
     scheme, _, raw = request.headers.get("authorization", "").partition(" ")
     result = verify_personal_token(db, raw) if scheme.lower() == "bearer" else None
     if not result:
+        rate_limits.failed_auth(request.scope)
         raise HTTPException(
             401, "invalid_api_token", headers={"WWW-Authenticate": "Bearer"}
         )
     token, user = result
+    rate_limits.account(request.scope, user.id, write=request.method != "GET")
     if not personal_operation(request.url.path, request.method):
         raise HTTPException(403, "token_access_not_allowed")
     if request.method != "GET" and token.permission != "write":

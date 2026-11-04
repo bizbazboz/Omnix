@@ -25,3 +25,16 @@ export function isWorkspaceHref(value: string) {
     value
   );
 }
+
+export function signInUrl(
+  destination = window.location.pathname +
+    window.location.search +
+    window.location.hash
+) {
+  return (
+    "/api/v1/auth/login?" +
+    new URLSearchParams({
+      return_to: canonicalWorkspaceUrl(destination)
+    }).toString()
+  );
+}
