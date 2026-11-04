@@ -17,6 +17,9 @@ from .core import *
 from .providers import REGIONS, SCOPES, validate_protocol, fetch_body
 from .tasks import sync, send
 from .api_tokens import authorize_request, build_token_router
+from . import rate_limits
+from .sessions import create_session, read_session, MAX_SECONDS
+from .workspace_urls import sign_in_destination
 from .workspace_settings import (
     load_zoho,
     load_setting,
@@ -52,6 +55,14 @@ async def validation_error(request, error):
 
 @app.middleware("http")
 async def security(request, call_next):
+    try:
+        await run_in_threadpool(rate_limits.inbound, request.scope)
+    except HTTPException as error:
+        return JSONResponse(
+            {"detail": error.detail},
+            status_code=error.status_code,
+            headers=error.headers,
+        )
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
         chunks = []
         size = 0
@@ -76,22 +87,34 @@ async def security(request, call_next):
                 return JSONResponse({"detail": "request_too_large"}, status_code=413)
             chunks.append(chunk)
         request._body = b"".join(chunks)
-    bearer_api = request.url.path.startswith("/api/") and "authorization" in request.headers
+    bearer_api = (
+        request.url.path.startswith("/api/") and "authorization" in request.headers
+    )
     if bearer_api:
         try:
+
             def check_token():
                 with Session() as db:
                     authorize_request(request, db)
 
             await run_in_threadpool(check_token)
         except HTTPException as error:
-            return JSONResponse({"detail": error.detail}, status_code=error.status_code, headers=error.headers)
-    if not bearer_api and request.method in (
-        "POST",
-        "PATCH",
-        "PUT",
-        "DELETE",
-    ) and request.url.path.startswith("/api/"):
+            return JSONResponse(
+                {"detail": error.detail},
+                status_code=error.status_code,
+                headers=error.headers,
+            )
+    if (
+        not bearer_api
+        and request.method
+        in (
+            "POST",
+            "PATCH",
+            "PUT",
+            "DELETE",
+        )
+        and request.url.path.startswith("/api/")
+    ):
         setup_path = request.url.path in (
             "/api/v1/setup/oidc",
             "/api/v1/setup/oidc/probe",
@@ -107,15 +130,24 @@ async def security(request, call_next):
             return JSONResponse({"detail": "origin_mismatch"}, status_code=403)
         if not setup_path:
             sid = request.cookies.get(SESSION_COOKIE, "")
-            raw = redis.get("session:" + sid)
-            if not raw or not secrets.compare_digest(
-                request.headers.get("x-csrf-token", ""), json.loads(raw)["csrf"]
+            try:
+                data = await run_in_threadpool(browser_session, request)
+            except HTTPException as error:
+                return JSONResponse(
+                    {"detail": error.detail},
+                    status_code=error.status_code,
+                    headers=error.headers,
+                )
+            if not secrets.compare_digest(
+                request.headers.get("x-csrf-token", ""), data["csrf"]
             ):
                 return JSONResponse({"detail": "csrf_failed"}, status_code=403)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = (
-        "no-referrer" if request.url.path == "/mcp" or request.url.path.startswith("/mcp/") else "same-origin"
+        "no-referrer"
+        if request.url.path == "/mcp" or request.url.path.startswith("/mcp/")
+        else "same-origin"
     )
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Content-Security-Policy"] = (
@@ -140,44 +172,46 @@ def db_session():
         yield db
 
 
+def browser_session(request, refresh=False):
+    try:
+        return read_session(request.cookies.get(SESSION_COOKIE, ""), refresh=refresh)
+    except HTTPException:
+        rate_limits.failed_auth(request.scope)
+        raise
+
+
 def authenticated(request: Request, db=Depends(db_session)):
     if "authorization" in request.headers:
         return authorize_request(request, db)
     sid = request.cookies.get(SESSION_COOKIE, "")
-    raw = redis.get("session:" + sid)
-    if not raw:
-        raise HTTPException(401, "login_required")
-    data = json.loads(raw)
-    if data["expires"] < time.time():
-        redis.delete("session:" + sid)
-        raise HTTPException(401, "session_expired")
-    redis.expire("session:" + sid, 1800)
+    data = browser_session(request, refresh=True)
     user = db.get(User, data["user"])
     if not user:
+        redis.delete("session:" + sid)
+        rate_limits.failed_auth(request.scope)
         raise HTTPException(401, "login_required")
+    rate_limits.account(
+        request.scope,
+        user.id,
+        write=request.method in ("POST", "PUT", "PATCH", "DELETE"),
+    )
     request.state.session = data
     request.state.sid = sid
     return user
 
 
-def session_response(user_id, old_sid=None):
+def session_response(user_id, old_sid=None, return_to="/"):
     if old_sid:
         redis.delete("session:" + old_sid)
-    sid = secrets.token_urlsafe(40)
-    csrf = secrets.token_urlsafe(32)
-    redis.setex(
-        "session:" + sid,
-        1800,
-        json.dumps({"user": user_id, "csrf": csrf, "expires": time.time() + 43200}),
-    )
-    response = RedirectResponse("/", status_code=303)
+    sid = create_session(user_id)
+    response = RedirectResponse(sign_in_destination(return_to), status_code=303)
     response.set_cookie(
         SESSION_COOKIE,
         sid,
         httponly=True,
         secure=True,
         samesite="lax",
-        max_age=43200,
+        max_age=MAX_SECONDS,
         path="/",
     )
     return response
@@ -193,11 +227,7 @@ def mailbox(db, user, id, send_permission=False):
 
 
 def rate(key, limit=10):
-    count = redis.incr(key)
-    if count == 1:
-        redis.expire(key, 60)
-    if count > limit:
-        raise HTTPException(429, "rate_limited")
+    rate_limits.consume("action", key, limit)
 
 
 def audit(db, user, action, target):
@@ -343,7 +373,7 @@ async def oidc_metadata(registration=None):
 
 
 @app.get("/api/v1/auth/login")
-async def login(request: Request):
+async def login(request: Request, return_to: str = "/"):
     registration = load_oidc()
     metadata = await oidc_metadata(registration)
     state = secrets.token_urlsafe(32)
@@ -369,6 +399,7 @@ async def login(request: Request):
                 "verifier": verifier,
                 "version": registration["version"],
                 "setup_ticket": request.cookies.get(SETUP_COOKIE, ""),
+                "return_to": sign_in_destination(return_to),
             }
         ),
         ex=300,
@@ -458,7 +489,11 @@ async def callback(
         if version == registration["version"]:
             user.is_admin = True
     db.commit()
-    response = session_response(user.id, request.cookies.get(SESSION_COOKIE))
+    response = session_response(
+        user.id,
+        request.cookies.get(SESSION_COOKIE),
+        return_to=transaction.get("return_to", "/"),
+    )
     response.delete_cookie(OIDC_COOKIE, path="/api/v1/auth")
     response.delete_cookie(SETUP_COOKIE, path="/api/v1/auth")
     return response

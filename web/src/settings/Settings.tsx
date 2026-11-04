@@ -495,6 +495,9 @@ function Sessions() {
   return (
     <section className="settings-card">
       <h2>Sessions</h2>
+      <p className="muted">
+        7 days of inactivity · 30 days maximum per sign-in.
+      </p>
       <p>{query.data?.length ?? "…"} active sessions</p>
       <button
         className="secondary"
