@@ -26,7 +26,7 @@ def configured(signed_client):
     value["weather"].update(
         enabled=True, label="London", latitude=51.5, longitude=-0.12
     )
-    value["walks"]["api_key"] = "private-routing-key"
+    value["weather"]["api_key"] = "private-routing-key"
     assert signed_client.put("/api/v1/settings/daily", json=value).status_code == 200
     return value
 
@@ -54,7 +54,7 @@ def test_settings_are_encrypted_redacted_and_private(signed_client, user):
     with Session() as db:
         row = db.get(SystemSetting, "daily:" + user.id)
         assert "private-routing-key" not in row.value
-        assert decrypt(row.value)["walks"]["api_key"] == "private-routing-key"
+        assert decrypt(row.value)["weather"]["api_key"] == "private-routing-key"
         other = User(
             issuer="test", subject="other", name="Other", email="other@example.test"
         )
@@ -70,30 +70,30 @@ def test_settings_are_encrypted_redacted_and_private(signed_client, user):
         ]
         store_setting(db, "daily:" + other.id, hidden)
     result = signed_client.get("/api/v1/settings/daily").json()
-    assert result["walks"]["key_configured"] is True
-    assert "api_key" not in result["walks"]
+    assert result["weather"]["key_configured"] is True
+    assert "api_key" not in result["weather"]
     assert "Other private feed" not in json.dumps(result)
-    assert signed_client.get("/api/v1/daily/walks/gpx").status_code == 404
+    assert signed_client.get("/api/v1/health/walks/gpx").status_code == 404
 
 
 def test_key_retained_cleared_and_not_forwarded_to_changed_source(signed_client):
     value = configured(signed_client)
-    value["walks"]["api_key"] = ""
-    assert signed_client.put("/api/v1/settings/daily", json=value).json()["walks"][
+    value["weather"]["api_key"] = ""
+    assert signed_client.put("/api/v1/settings/daily", json=value).json()["weather"][
         "key_configured"
     ]
-    value["walks"]["endpoint"] = "https://router.example.test/route"
-    assert not signed_client.put("/api/v1/settings/daily", json=value).json()["walks"][
+    value["weather"]["endpoint"] = "https://router.example.test/route"
+    assert not signed_client.put("/api/v1/settings/daily", json=value).json()[
+        "weather"
+    ]["key_configured"]
+    value["weather"]["api_key"] = "new-key"
+    assert signed_client.put("/api/v1/settings/daily", json=value).json()["weather"][
         "key_configured"
     ]
-    value["walks"]["api_key"] = "new-key"
-    assert signed_client.put("/api/v1/settings/daily", json=value).json()["walks"][
-        "key_configured"
-    ]
-    value["clear_keys"] = ["walks"]
-    assert not signed_client.put("/api/v1/settings/daily", json=value).json()["walks"][
-        "key_configured"
-    ]
+    value["clear_keys"] = ["weather"]
+    assert not signed_client.put("/api/v1/settings/daily", json=value).json()[
+        "weather"
+    ]["key_configured"]
 
 
 @pytest.mark.parametrize(
@@ -222,99 +222,6 @@ def test_weather_and_tfl_protocol(monkeypatch):
     assert result["lines"][0]["statuses"][0]["reason"] == "Incident"
 
 
-def test_walk_round_trip_and_gpx_are_private(signed_client, user, monkeypatch):
-    configured(signed_client)
-    coords = [[-0.12, 51.5], [-0.119, 51.501], [-0.118, 51.5], [-0.12, 51.5]]
-
-    def fake(url, **kwargs):
-        assert kwargs["headers"]["Authorization"] == "private-routing-key"
-        assert kwargs["payload"]["options"]["round_trip"]["length"] == 5000
-        return {
-            "features": [
-                {
-                    "geometry": {"type": "LineString", "coordinates": coords},
-                    "properties": {
-                        "summary": {"distance": 5100, "duration": 3700},
-                        "segments": [{"steps": [{"instruction": "Turn left"}]}],
-                    },
-                }
-            ]
-        }
-
-    monkeypatch.setattr(daily, "fetch_json", fake)
-    result = signed_client.post(
-        "/api/v1/daily/walks",
-        json={"latitude": 51.5, "longitude": -0.12, "distance_km": 5},
-    ).json()
-    assert (
-        result["distance_m"] == 5100
-        and result["coordinates"][0] == result["coordinates"][-1]
-    )
-    response = signed_client.get("/api/v1/daily/walks/gpx")
-    assert (
-        response.status_code == 200 and '<trkpt lat="51.5" lon="-0.12"' in response.text
-    )
-    assert "private-routing-key" not in response.text
-    assert (
-        signed_client.get("/api/v1/daily?summary=true").json()["walks"]["coordinates"]
-        == []
-    )
-    assert signed_client.get("/api/v1/daily").json()["walks"]["coordinates"] == coords
-    assert (
-        signed_client.get("/api/v1/daily/walks/gpx?created_at=old-version").status_code
-        == 409
-    )
-    assert (
-        signed_client.post(
-            "/api/v1/daily/walks", json={"latitude": 51.5, "longitude": -0.12}
-        ).status_code
-        == 429
-    )
-    with Session() as db:
-        row = db.get(SystemSetting, "daily-walk:" + user.id)
-        assert "51.5" not in row.value
-
-
-def test_invalid_walks_and_refresh_limit(signed_client):
-    assert (
-        signed_client.post(
-            "/api/v1/daily/walks", json={"latitude": 91, "longitude": 0}
-        ).status_code
-        == 422
-    )
-    assert (
-        signed_client.post(
-            "/api/v1/daily/walks", json={"latitude": 51, "longitude": 0}
-        ).status_code
-        == 422
-    )
-    assert signed_client.post("/api/v1/daily/refresh").status_code == 202
-    assert signed_client.post("/api/v1/daily/refresh").status_code == 429
-
-
-def test_bad_provider_loop_is_rejected(monkeypatch):
-    monkeypatch.setattr(
-        daily,
-        "fetch_json",
-        lambda *a, **k: {
-            "features": [
-                {
-                    "geometry": {
-                        "type": "LineString",
-                        "coordinates": [[0, 0], [0, 1], [1, 1], [1, 0]],
-                    },
-                    "properties": {"summary": {"distance": 5000, "duration": 3000}},
-                }
-            ]
-        },
-    )
-    with pytest.raises(ValueError):
-        daily.generate_walk(
-            {"endpoint": daily.WALKS, "api_key": "test"},
-            daily.WalkInput(latitude=0, longitude=0),
-        )
-
-
 def test_daily_tokens_can_read_data_but_never_provider_keys(signed_client, client):
     configured(signed_client)
     token = signed_client.post(
@@ -324,3 +231,59 @@ def test_daily_tokens_can_read_data_but_never_provider_keys(signed_client, clien
     assert client.get("/api/v1/daily", headers=headers).status_code == 200
     assert client.get("/api/v1/settings/daily", headers=headers).status_code == 403
     assert client.post("/api/v1/daily/refresh", headers=headers).status_code == 403
+
+
+def test_geocoding_and_line_catalog_are_bounded_and_cached(signed_client, monkeypatch):
+    calls = []
+
+    def fake(url, **kwargs):
+        calls.append(url)
+        if "geocoding-api" in url:
+            return {
+                "results": [
+                    {
+                        "id": 1,
+                        "name": "London",
+                        "admin1": "England",
+                        "country": "UK",
+                        "latitude": 51.5,
+                        "longitude": -0.12,
+                    }
+                ]
+            }
+        return [
+            {
+                "id": "central",
+                "name": "Central",
+                "lineStatuses": [
+                    {"statusSeverity": 10, "statusSeverityDescription": "Good service"}
+                ],
+            }
+        ]
+
+    monkeypatch.setattr(daily, "fetch_json", fake)
+    assert (
+        signed_client.get("/api/v1/daily/locations?q=London").json()["items"][0][
+            "label"
+        ]
+        == "London, England, UK"
+    )
+    signed_client.get("/api/v1/daily/locations?q=London")
+    assert len(calls) == 1
+    assert signed_client.get("/api/v1/daily/transport/catalog").json()["items"] == [
+        {"id": "central", "name": "Central"}
+    ]
+    signed_client.get("/api/v1/daily/transport/catalog")
+    assert len(calls) == 2
+
+
+def test_legacy_walking_config_is_never_returned_or_shown_on_home(signed_client, user):
+    value = daily.defaults()
+    value["widgets"] = ["news", "walks"]
+    value["walks"] = {"api_key": "obsolete-key", "endpoint": "https://old.example.test"}
+    with Session() as db:
+        store_setting(db, "daily:" + user.id, value)
+    result = signed_client.get("/api/v1/settings/daily").json()
+    assert "walks" not in result and result["widgets"] == ["news"]
+    result = signed_client.get("/api/v1/daily").json()
+    assert "walks" not in result and result["widgets"] == ["news"]

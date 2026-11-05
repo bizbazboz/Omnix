@@ -352,6 +352,10 @@ export default function WorkspaceNavigation({
                     {view.name}
                   </NavLink>
                 ))}
+                <NavLink to="/health/walks" end onClick={onClose}>
+                  <activeApp.Icon size={17} />
+                  Walking loops
+                </NavLink>
               </nav>
             ) : (
               <nav aria-label={activeApp.name + " navigation"}>

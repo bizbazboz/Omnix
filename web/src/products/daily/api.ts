@@ -3,8 +3,7 @@ import { api } from "../../lib/api";
 export const dailyViews = [
   { id: "news", name: "News" },
   { id: "weather", name: "Weather" },
-  { id: "transport", name: "Transport" },
-  { id: "walks", name: "Walking loops" }
+  { id: "transport", name: "Transport" }
 ] as const;
 export type DailyView = (typeof dailyViews)[number]["id"];
 export type Article = {
@@ -38,15 +37,6 @@ export type Line = {
   mode: string;
   statuses: { severity: number; description: string; reason: string }[];
 };
-export type Walk = {
-  coordinates: number[][];
-  distance_m: number;
-  duration_s: number;
-  steps: string[];
-  created_at: string;
-  requested_km: number;
-  attribution: string;
-};
 type Cached<T> = {
   data: T | null;
   last_sync: string | null;
@@ -56,8 +46,6 @@ type Cached<T> = {
 export type DailyData = {
   widgets: DailyView[];
   configured: boolean;
-  walks_configured: boolean;
-  walks: Walk | null;
   news: Cached<{
     feeds: { id: string; name: string; items: Article[]; error: string }[];
   }>;

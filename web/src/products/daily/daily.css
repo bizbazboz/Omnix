@@ -331,6 +331,22 @@
   text-decoration: underline;
   text-underline-offset: 4px;
 }
+.workspace .walking-page .daily-walk-form {
+  max-width: 760px;
+}
+.workspace .walking-map-label {
+  margin: 0 0 24px;
+}
+.workspace .walking-page .daily-walk-form > .segmented-control,
+.workspace .walking-page .daily-walk-form > .text-button {
+  justify-self: start;
+}
+.workspace .walking-page .daily-walk-form > .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 0;
+}
 .workspace .daily-news-list article,
 .workspace .daily-headlines a {
   min-width: 0;

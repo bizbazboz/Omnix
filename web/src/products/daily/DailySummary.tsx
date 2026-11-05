@@ -129,32 +129,6 @@ export default function DailySummary() {
               <DailyFreshness value={data?.news} />
             </section>
           )}
-          {data?.widgets.includes("walks") && (
-            <section>
-              {heading("Walking loop", "walks")}
-              {data.walks ? (
-                <>
-                  <div className="daily-hero-number">
-                    {(data.walks.distance_m / 1000).toFixed(1)}
-                    <small>km</small>
-                  </div>
-                  <p>
-                    {Math.round(data.walks.duration_s / 60)} min · last
-                    generated route
-                  </p>
-                  <NavLink className="text-button" to="/daily/walks">
-                    View route <ArrowUpRight size={14} />
-                  </NavLink>
-                </>
-              ) : data.walks_configured ? (
-                <NavLink className="secondary" to="/daily/walks">
-                  Generate a walking loop
-                </NavLink>
-              ) : (
-                <DailySetup text="Connect your walking provider" />
-              )}
-            </section>
-          )}
         </>
       )}
     </section>

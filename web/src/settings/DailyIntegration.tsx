@@ -1,9 +1,11 @@
+import LocationSearch from "../components/LocationSearch";
+import MultiSelect from "../components/MultiSelect";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MapPin, Plus, Trash2 } from "lucide-react";
 import { api, qc } from "../lib/api";
 import Select from "../components/Select";
-import { dailyViews, useDaily, type DailyView } from "../products/daily/api";
+import { dailyViews, type DailyView } from "../products/daily/api";
 import "../products/daily/daily.css";
 
 type Provider = {
@@ -25,7 +27,6 @@ type Config = {
     lines: string[];
     all_lines: boolean;
   };
-  walks: Provider;
   widgets: DailyView[];
   clear_keys?: string[];
 };
@@ -34,20 +35,21 @@ export default function DailyIntegration() {
       queryKey: ["daily-settings"],
       queryFn: () => api("/settings/daily")
     }),
-    daily = useDaily();
+    catalog = useQuery<{ items: { id: string; name: string }[] }>({
+      queryKey: ["daily-lines"],
+      queryFn: () => api("/daily/transport/catalog"),
+      staleTime: 600000
+    });
   const [form, setForm] = useState<Config | null>(null),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
-    [error, setError] = useState(""),
-    [lineText, setLineText] = useState("");
+    [error, setError] = useState("");
   function initialise(value: Config) {
-    setLineText(value.transport.lines.join(", "));
     setForm({
       ...value,
       clear_keys: [],
       weather: { ...value.weather, api_key: "" },
-      transport: { ...value.transport, api_key: "" },
-      walks: { ...value.walks, api_key: "" }
+      transport: { ...value.transport, api_key: "" }
     });
   }
   useEffect(() => {
@@ -70,10 +72,7 @@ export default function DailyIntegration() {
       </section>
     );
   const value = form;
-  function provider(
-    name: "weather" | "transport" | "walks",
-    patch: Partial<Provider>
-  ) {
+  function provider(name: "weather" | "transport", patch: Partial<Provider>) {
     setForm((current) =>
       current
         ? {
@@ -100,7 +99,8 @@ export default function DailyIntegration() {
                 weather: {
                   ...current.weather,
                   latitude: Number(p.coords.latitude.toFixed(6)),
-                  longitude: Number(p.coords.longitude.toFixed(6))
+                  longitude: Number(p.coords.longitude.toFixed(6)),
+                  label: "Current location"
                 }
               }
             : current
@@ -109,7 +109,7 @@ export default function DailyIntegration() {
       { timeout: 10000 }
     );
   }
-  function endpoint(name: "weather" | "transport" | "walks", title: string) {
+  function endpoint(name: "weather" | "transport", title: string) {
     return (
       <details className="daily-provider-options">
         <summary>{title} source</summary>
@@ -177,20 +177,12 @@ export default function DailyIntegration() {
           try {
             const saved = await api<Config>("/settings/daily", {
               method: "PUT",
-              body: JSON.stringify({
-                ...value,
-                transport: {
-                  ...value.transport,
-                  lines: lineText
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean)
-                }
-              })
+              body: JSON.stringify(value)
             });
             initialise(saved);
             qc.setQueryData(["daily-settings"], saved);
             await qc.invalidateQueries({ queryKey: ["daily"] });
+            qc.invalidateQueries({ queryKey: ["daily-lines"] });
             setMessage("Sources saved. Refresh queued.");
           } catch (e) {
             setError((e as Error).message);
@@ -311,63 +303,35 @@ export default function DailyIntegration() {
             Enable weather
           </label>
           <div className="daily-location-fields">
-            <label className="form-label">
-              Location name
-              <input
-                required={value.weather.enabled}
-                maxLength={80}
-                value={value.weather.label}
-                placeholder="London"
-                onChange={(e) =>
-                  setForm({
-                    ...value,
-                    weather: { ...value.weather, label: e.target.value }
-                  })
-                }
-              />
-            </label>
-            <label className="form-label">
-              Latitude
-              <input
-                type="number"
-                required={value.weather.enabled}
-                step="any"
-                min="-90"
-                max="90"
-                value={value.weather.latitude ?? ""}
-                onChange={(e) =>
-                  setForm({
-                    ...value,
-                    weather: {
-                      ...value.weather,
-                      latitude:
-                        e.target.value === "" ? null : Number(e.target.value)
-                    }
-                  })
-                }
-              />
-            </label>
-            <label className="form-label">
-              Longitude
-              <input
-                type="number"
-                required={value.weather.enabled}
-                step="any"
-                min="-180"
-                max="180"
-                value={value.weather.longitude ?? ""}
-                onChange={(e) =>
-                  setForm({
-                    ...value,
-                    weather: {
-                      ...value.weather,
-                      longitude:
-                        e.target.value === "" ? null : Number(e.target.value)
-                    }
-                  })
-                }
-              />
-            </label>
+            <LocationSearch
+              label="Weather location"
+              value={value.weather.label}
+              endpoint="/daily/locations"
+              minChars={3}
+              hint="GeoNames / Open-Meteo"
+              onChange={(label) =>
+                setForm({
+                  ...value,
+                  weather: {
+                    ...value.weather,
+                    label,
+                    latitude: null,
+                    longitude: null
+                  }
+                })
+              }
+              onSelect={(point) =>
+                setForm({
+                  ...value,
+                  weather: {
+                    ...value.weather,
+                    label: point.label,
+                    latitude: point.latitude,
+                    longitude: point.longitude
+                  }
+                })
+              }
+            />
             <label className="form-label">
               Temperature
               <Select
@@ -432,68 +396,43 @@ export default function DailyIntegration() {
           </label>
           {!value.transport.all_lines && (
             <>
-              <label className="form-label">
-                Selected line IDs (comma separated)
-                <input
-                  value={lineText}
-                  placeholder="central, victoria"
-                  onChange={(e) => setLineText(e.target.value)}
-                />
-                <small>
-                  Save to load available line choices. An empty selection shows
-                  no lines.
-                </small>
-              </label>
-              {!!daily.data?.transport.data?.available_lines.length && (
-                <div className="daily-widget-options">
-                  {daily.data.transport.data.available_lines.map((line) => (
-                    <label key={line.id}>
-                      <input
-                        type="checkbox"
-                        checked={lineText
-                          .split(",")
-                          .map((s) => s.trim())
-                          .includes(line.id)}
-                        onChange={(e) => {
-                          const selected = lineText
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean);
-                          setLineText(
-                            (e.target.checked
-                              ? [...new Set([...selected, line.id])]
-                              : selected.filter((id) => id !== line.id)
-                            ).join(", ")
-                          );
-                        }}
-                      />
-                      {line.name}
-                    </label>
-                  ))}
-                </div>
+              <MultiSelect
+                label="Train lines"
+                value={value.transport.lines}
+                options={(catalog.data?.items || []).map((line) => ({
+                  value: line.id,
+                  label: line.name
+                }))}
+                disabled={catalog.isLoading}
+                onChange={(lines) =>
+                  setForm({
+                    ...value,
+                    transport: { ...value.transport, lines }
+                  })
+                }
+              />
+              {catalog.error && (
+                <p className="error" role="alert">
+                  Line choices could not load.{" "}
+                  <button type="button" onClick={() => catalog.refetch()}>
+                    Retry
+                  </button>
+                </p>
               )}
             </>
           )}
           {endpoint("transport", "TfL-compatible")}
         </fieldset>
-        <fieldset>
-          <legend>Walking loops</legend>
-          <p className="muted">
-            Use an{" "}
-            <a
-              href="https://openrouteservice.org/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              openrouteservice
-            </a>{" "}
-            API key, or a compatible public HTTPS router. Route generation sends
-            your chosen start point to that source.
-          </p>
-          {endpoint("walks", "Walking router")}
-        </fieldset>
         <div className="settings-actions">
-          <button className="primary" disabled={busy}>
+          <button
+            className="primary"
+            disabled={
+              busy ||
+              (value.weather.enabled &&
+                (value.weather.latitude === null ||
+                  value.weather.longitude === null))
+            }
+          >
             {busy ? "Saving…" : "Save daily sources"}
           </button>
         </div>

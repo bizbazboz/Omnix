@@ -76,6 +76,19 @@ function newest(rows: Record<string, unknown>[]) {
 function source(view: URL, path: string, data: unknown): Partial<ViewStatus> {
   const page = view.pathname;
   if (
+    page.startsWith("/health/walks") &&
+    path === "/health/walks" &&
+    data &&
+    typeof data === "object"
+  ) {
+    const row = data as any;
+    return {
+      kind: row.route ? "saved" : "updated",
+      sourceAt: stamp(row.route?.created_at || row.map?.updated_at),
+      connected: Boolean(row.map?.ready)
+    };
+  }
+  if (
     page.startsWith("/daily") &&
     path === "/daily" &&
     data &&
@@ -83,17 +96,7 @@ function source(view: URL, path: string, data: unknown): Partial<ViewStatus> {
   ) {
     const row = data as Record<string, any>,
       section = page.split("/")[2] || "news";
-    return section === "walks"
-      ? {
-          kind: "updated",
-          sourceAt: stamp(row.walks?.created_at),
-          connected: row.walks_configured
-        }
-      : {
-          kind: "synced",
-          sourceAt: stamp(row[section]?.last_sync),
-          connected: row[section]?.enabled ?? false
-        };
+    return {kind:"synced",sourceAt:stamp(row[section]?.last_sync),connected:row[section]?.enabled ?? false};
   }
   if (
     page.startsWith("/email") &&
@@ -126,7 +129,11 @@ function source(view: URL, path: string, data: unknown): Partial<ViewStatus> {
     };
   if (data && typeof data === "object" && !Array.isArray(data)) {
     const row = data as Record<string, unknown>;
-    if (page.startsWith("/health") && path === "/health/status")
+    if (
+      page.startsWith("/health") &&
+      !page.startsWith("/health/walks") &&
+      path === "/health/status"
+    )
       return {
         kind: "synced",
         sourceAt: stamp(row.last_sync),

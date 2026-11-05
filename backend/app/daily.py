@@ -1,4 +1,4 @@
-"""Private configurable news, weather, TfL status and road-following walking loops."""
+"""Private configurable news, weather, TfL status and weather-location search."""
 
 import copy
 import hashlib
@@ -11,20 +11,18 @@ from email.utils import parsedate_to_datetime
 from html import unescape
 from typing import Literal
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode, urljoin
-from xml.etree.ElementTree import Element, SubElement, tostring
 
 import bleach
 from defusedxml.ElementTree import fromstring
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, SecretStr, model_validator
-from .core import Session, now, redis, uid
+from .core import Session, now, redis, uid, encrypt, decrypt
 from .calendar_fetch import normalize_url
 from .daily_fetch import fetch_json, fetch_public
 from .workspace_settings import load_setting, store_setting
 
 TFL = "https://api.tfl.gov.uk/Line/Mode/tube,dlr,overground,elizabeth-line,tram/Status"
 WEATHER = "https://api.open-meteo.com/v1/forecast"
-WALKS = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson"
 
 
 class NewsSource(BaseModel):
@@ -59,38 +57,39 @@ class TransportSource(BaseModel):
     all_lines: bool = True
 
 
-class WalkSource(BaseModel):
-    endpoint: str = Field(default=WALKS, max_length=4096)
-    api_key: SecretStr = SecretStr("")
-
-
 class DailySettings(BaseModel):
     news: list[NewsSource] = Field(default_factory=list, max_length=12)
     weather: WeatherSource = Field(default_factory=WeatherSource)
     transport: TransportSource = Field(default_factory=TransportSource)
-    walks: WalkSource = Field(default_factory=WalkSource)
-    widgets: list[Literal["news", "weather", "transport", "walks"]] = Field(
-        default_factory=lambda: ["news", "weather", "transport", "walks"], max_length=4
+    widgets: list[Literal["news", "weather", "transport"]] = Field(
+        default_factory=lambda: ["news", "weather", "transport"], max_length=3
     )
-    clear_keys: list[Literal["weather", "transport", "walks"]] = Field(
+    clear_keys: list[Literal["weather", "transport"]] = Field(
         default_factory=list, max_length=3
     )
 
 
 def defaults():
     value = DailySettings().model_dump(exclude={"clear_keys"})
-    for name in ("weather", "transport", "walks"):
+    for name in ("weather", "transport"):
         value[name]["api_key"] = ""
     return value
 
 
 def settings(owner):
-    return load_setting("daily:" + owner, defaults())
+    value = load_setting("daily:" + owner, defaults())
+    value.pop("walks", None)
+    value["widgets"] = [
+        name
+        for name in value.get("widgets", [])
+        if name in ("news", "weather", "transport")
+    ]
+    return value
 
 
 def public_settings(value):
     value = copy.deepcopy(value)
-    for name in ("weather", "transport", "walks"):
+    for name in ("weather", "transport"):
         value[name]["key_configured"] = bool(value[name].pop("api_key", ""))
     return value
 
@@ -358,92 +357,74 @@ def refresh_daily(owner, force=False):
                 store_setting(db, "daily-cache:" + owner, latest)
 
 
-class WalkInput(BaseModel):
-    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
-    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
-    distance_km: float = Field(default=5, ge=1, le=30, allow_inf_nan=False)
-    seed: int = Field(default=1, ge=0, le=2147483647)
-
-
-def generate_walk(config, value):
-    payload = {
-        "coordinates": [[value.longitude, value.latitude]],
-        "instructions": True,
-        "options": {
-            "round_trip": {
-                "length": round(value.distance_km * 1000),
-                "points": 3,
-                "seed": value.seed,
-            }
-        },
-    }
-    data = fetch_json(
-        config["endpoint"],
-        payload=payload,
-        headers={"Authorization": config["api_key"]} if config["api_key"] else {},
-    )
-    feature = data["features"][0]
-    coordinates = feature["geometry"]["coordinates"]
-    summary = feature["properties"]["summary"]
-    if (
-        feature["geometry"]["type"] != "LineString"
-        or not 4 <= len(coordinates) <= 50000
-    ):
-        raise ValueError("Invalid walking geometry")
-    coords = []
-    for point in coordinates:
-        lon, lat = point[:2]
-        if (
-            not isinstance(lon, (int, float))
-            or not isinstance(lat, (int, float))
-            or not math.isfinite(lon)
-            or not math.isfinite(lat)
-            or not -180 <= lon <= 180
-            or not -90 <= lat <= 90
-        ):
-            raise ValueError("Invalid coordinates")
-        coords.append([lon, lat])
-
-    def metres(a, b):
-        lat1, lat2 = math.radians(a[1]), math.radians(b[1])
-        dlat, dlon = lat2 - lat1, math.radians(b[0] - a[0])
-        hav = (
-            math.sin(dlat / 2) ** 2
-            + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-        )
-        return 6371000 * 2 * math.asin(math.sqrt(min(1, hav)))
-
-    # Allow snapping to a nearby path, but never accept a loop elsewhere.
-    if (
-        metres(coords[0], coords[-1]) > 100
-        or metres(coords[0], [value.longitude, value.latitude]) > 500
-    ):
-        raise ValueError("Provider did not return a loop")
-    distance, duration = float(summary["distance"]), float(summary["duration"])
-    if not 0 < distance <= 100000 or not 0 < duration <= 172800:
-        raise ValueError("Invalid walking summary")
-    steps = [
-        text(step.get("instruction"), 500)
-        for segment in feature["properties"].get("segments", [])
-        for step in segment.get("steps", [])
-    ][:500]
-    return {
-        "coordinates": coords,
-        "distance_m": distance,
-        "duration_s": duration,
-        "steps": steps,
-        "created_at": now().isoformat(),
-        "requested_km": value.distance_km,
-        "attribution": text(
-            data.get("metadata", {}).get("attribution")
-            or "openrouteservice · OpenStreetMap contributors",
-            500,
-        ),
-    }
-
-
 def build_daily_router(authenticated, db_session):
     router = APIRouter(prefix="/api/v1")
+
+    @router.get("/daily/locations")
+    def locations(
+        q: str = Query(min_length=3, max_length=100), user=Depends(authenticated)
+    ):
+        key = (
+            "weather-location:"
+            + hashlib.sha256(q.strip().casefold().encode()).hexdigest()
+        )
+        cached = redis.get(key)
+        if cached:
+            return json.loads(cached)
+        try:
+            data = fetch_json(
+                query_url(
+                    "https://geocoding-api.open-meteo.com/v1/search",
+                    {"name": q, "count": 8, "language": "en", "format": "json"},
+                )
+            )
+            items = []
+            for row in data.get("results", [])[:8]:
+                lat, lon = float(row["latitude"]), float(row["longitude"])
+                if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+                    continue
+                label = ", ".join(
+                    dict.fromkeys(
+                        str(row.get(name, ""))
+                        for name in ("name", "admin1", "country")
+                        if row.get(name)
+                    )
+                )
+                items.append(
+                    {
+                        "id": str(row["id"]),
+                        "label": label,
+                        "name": str(row["name"]),
+                        "detail": str(row.get("country", "")),
+                        "latitude": lat,
+                        "longitude": lon,
+                    }
+                )
+        except Exception:
+            raise HTTPException(
+                502, "Location search is unavailable. Try again shortly."
+            ) from None
+        result = {"items": items, "attribution": "GeoNames / Open-Meteo"}
+        redis.set(key, json.dumps(result), ex=86400)
+        return result
+
+    @router.get("/daily/transport/catalog")
+    def transport_catalog(user=Depends(authenticated)):
+        config = settings(user.id)["transport"]
+        key = "tfl-catalog:" + user.id + ":" + fingerprint(config)
+        cached = redis.get(key)
+        if cached:
+            return decrypt(cached)
+        try:
+            rows = load_transport(config)["lines"]
+        except Exception:
+            raise HTTPException(
+                502,
+                "Line choices could not load. Check the transport source and try again.",
+            ) from None
+        result = {"items": [{"id": row["id"], "name": row["name"]} for row in rows]}
+        redis.set(key, encrypt(result), ex=900)
+        return result
 
     @router.get("/settings/daily")
     def get_settings(user=Depends(authenticated)):
@@ -465,7 +446,7 @@ def build_daily_router(authenticated, db_session):
                 result["news"]
             ) or len({feed["url"] for feed in result["news"]}) != len(result["news"]):
                 raise ValueError("Duplicate feeds")
-            for name in ("weather", "transport", "walks"):
+            for name in ("weather", "transport"):
                 result[name]["endpoint"] = normalize_url(result[name]["endpoint"])
                 submitted = getattr(value, name).api_key.get_secret_value()
                 if len(submitted) > 4096 or "\r" in submitted or "\n" in submitted:
@@ -503,10 +484,6 @@ def build_daily_router(authenticated, db_session):
         result = {
             "widgets": config["widgets"],
             "configured": bool(load_setting("daily:" + user.id)),
-            "walks": load_setting("daily-walk:" + user.id),
-            "walks_configured": bool(
-                config["walks"]["api_key"] or config["walks"]["endpoint"] != WALKS
-            ),
         }
         for name in ("news", "weather", "transport"):
             entry = cache.get(name, {})
@@ -533,8 +510,6 @@ def build_daily_router(authenticated, db_session):
                 ]
             result["transport"]["data"] = data
         if summary:
-            if result["walks"]:
-                result["walks"] = {**result["walks"], "coordinates": [], "steps": []}
             if result["news"]["data"]:
                 result["news"]["data"] = copy.deepcopy(result["news"]["data"])
                 for feed in result["news"]["data"]["feeds"]:
@@ -558,52 +533,5 @@ def build_daily_router(authenticated, db_session):
 
         daily_sync.delay(user.id, True)
         return {"queued": True}
-
-    @router.post("/daily/walks")
-    def walk(value: WalkInput, user=Depends(authenticated), db=Depends(db_session)):
-        config = settings(user.id)["walks"]
-        if config["endpoint"] == WALKS and not config["api_key"]:
-            raise HTTPException(422, "Configure your walking provider in Integrations.")
-        if not redis.set("daily-walk-limit:" + user.id, "1", ex=15, nx=True):
-            raise HTTPException(429, "Wait 15 seconds before generating another route.")
-        try:
-            route = generate_walk(config, value)
-        except Exception:
-            raise HTTPException(
-                502,
-                "The walking provider could not generate a loop. Check the source, start point and distance.",
-            ) from None
-        store_setting(db, "daily-walk:" + user.id, route)
-        return route
-
-    @router.get("/daily/walks/gpx")
-    def gpx(created_at: str = "", user=Depends(authenticated)):
-        route = load_setting("daily-walk:" + user.id)
-        if not route:
-            raise HTTPException(404, "Generate a walking route first.")
-        if created_at and created_at != route["created_at"]:
-            raise HTTPException(
-                409, "The saved route changed. Reload before downloading."
-            )
-        root = Element(
-            "gpx",
-            {
-                "version": "1.1",
-                "creator": "Omnix",
-                "xmlns": "http://www.topografix.com/GPX/1/1",
-            },
-        )
-        track = SubElement(root, "trk")
-        SubElement(track, "name").text = "Omnix walking loop"
-        segment = SubElement(track, "trkseg")
-        for lon, lat in route["coordinates"]:
-            SubElement(segment, "trkpt", {"lat": str(lat), "lon": str(lon)})
-        return Response(
-            tostring(root, encoding="utf-8", xml_declaration=True),
-            media_type="application/gpx+xml",
-            headers={
-                "Content-Disposition": 'attachment; filename="omnix-walking-loop.gpx"'
-            },
-        )
 
     return router

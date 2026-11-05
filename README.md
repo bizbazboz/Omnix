@@ -19,7 +19,8 @@
 - Organise folders and nested pages with a block editor, page links and remote autosave.
 - Track project issues with a backlog, boards, subtasks, comments and activity.
 - Embed mail, calendar events and issues into notes with slash commands.
-- Follow custom news feeds, weather and TfL line status, and generate walking loops with GPX export.
+- Follow custom news feeds, autocomplete weather locations and select TfL lines.
+- Generate walking loops under Health using a local OpenStreetMap graph, with distance or speed/time targets and GPX export.
 - See mail, events, health and recent notes at a glance.
 - Sign in with Pocket ID and keep each user's mail private.
 - Manage authentication, integrations and preferences in the app.

@@ -1284,6 +1284,9 @@ app.include_router(build_token_router(authenticated, db_session))
 from .daily import build_daily_router
 
 app.include_router(build_daily_router(authenticated, db_session))
+from .walking import build_walking_router
+
+app.include_router(build_walking_router(authenticated, db_session))
 
 from .mcp_server import mount_mcp
 

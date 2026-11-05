@@ -8,23 +8,19 @@ Add up to 12 HTTPS RSS or Atom feeds with names. Daily merges headlines, removes
 
 ## Weather
 
-Enable weather, name a location and enter its latitude/longitude, or use the browser's **Use current location** button. Choose Celsius or Fahrenheit.
+Enable weather and search for a location. Pick a suggestion to save its name and coordinates together, or use the browser's **Use current location** button. Choose Celsius or Fahrenheit. Location autocomplete uses Open-Meteo/GeoNames.
 
 The default source is [Open-Meteo](https://open-meteo.com/en/docs). Its public endpoint needs no key. A custom endpoint must accept the same query parameters and return Open-Meteo's `current` and `daily` forecast format. A configured weather key is sent as `apikey`. Seven forecast days are requested.
 
 ## Transport
 
-TfL is the default source for Tube, DLR, London Overground, Elizabeth line and tram status. Save your settings to fetch the line catalogue, then choose all lines or select the lines you use. The line list comes from the source, rather than a hard-coded list of names.
+TfL is the default source for Tube, DLR, London Overground, Elizabeth line and tram status. Choose all lines or use the searchable train-line dropdown to select the lines you use. Choices come from the configured source; no line IDs need to be typed.
 
 An optional TfL key is sent as `app_key`. Custom endpoints must return the [TfL line-status format](https://api.tfl.gov.uk/swagger/docs/v1): an array of lines with `id`, `name` and `lineStatuses` containing severity, description and optional reason. Status applies to the selected lines; this is not a national rail departures board.
 
 ## Walking loops
 
-Enter your [openrouteservice](https://openrouteservice.org/) API key in the walking source section, or configure a public HTTPS service compatible with its `foot-walking/geojson` endpoint. The default hosted endpoint requires your own key.
-
-In **Daily → Walking loops**, choose a start point and target distance of 1–30 km. Generation sends this point to your configured routing provider, which calculates a route along its mapped network. The requested distance is a preference; the result shows the actual distance and estimated duration. Subsequent generations use a different seed. See the [round-trip options](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/routing-options).
-
-The route outline, directions and GPX download use the provider's geometry. The latest successful route is saved privately. A failed generation keeps that route. A versioned GPX link refuses to download a different route if another tab has replaced it. Export a route before generating another if you want to retain it.
+Walking is under **Health → Walking loops** and has no homepage card. It uses a local OpenStreetMap graph and Omnix's own algorithm, with no external routing API or key. See the [walking-map guide](./walking.md).
 
 ## Refresh and source rules
 

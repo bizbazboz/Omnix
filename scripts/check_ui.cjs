@@ -22,6 +22,7 @@ let browser;
   let signedIn = true;
   let dailySaved = null,
     badWalk = false;
+  const walkingRequests = [];
   page.on("request", (request) => {
     if (request.resourceType() === "script")
       scripts.push(new URL(request.url()).pathname);
@@ -195,12 +196,7 @@ let browser;
       endpoint: "https://api.tfl.gov.uk/Line/Mode/tube/Status",
       key_configured: false
     },
-    walks: {
-      endpoint:
-        "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
-      key_configured: true
-    },
-    widgets: ["news", "weather", "transport", "walks"]
+    widgets: ["news", "weather", "transport"]
   };
   const walkFixture = {
     coordinates: [
@@ -214,13 +210,11 @@ let browser;
     steps: ["Head north", "Turn left", "Arrive at your start"],
     created_at: stamp,
     requested_km: 5,
-    attribution: "openrouteservice · OpenStreetMap contributors"
+    attribution: "OpenStreetMap contributors / Omnix local routing"
   };
   const dailyFixture = {
     configured: true,
     widgets: dailySettings.widgets,
-    walks_configured: true,
-    walks: walkFixture,
     news: {
       enabled: true,
       error: "",
@@ -363,12 +357,58 @@ let browser;
     } else if (p === "/daily/refresh") {
       status = 202;
       data = { queued: true };
-    } else if (p === "/daily/walks") {
-      if (badWalk) {
-        status = 502;
-        data = { detail: "Walking provider unavailable" };
+    } else if (p === "/health/walks") {
+      if (req.method() === "POST") walkingRequests.push(req.postDataJSON());
+      if (req.method() === "GET")
+        data = {
+          route: walkFixture,
+          map: {
+            ready: true,
+            name: "Test London",
+            nodes: 49,
+            updated_at: stamp
+          }
+        };
+      else if (badWalk) {
+        status = 422;
+        data = { detail: "No suitable loop found." };
       } else data = walkFixture;
-    } else if (p === "/connections") data = [account];
+    } else if (p === "/health/walks/map")
+      data = { ready: true, name: "Test London", nodes: 49, updated_at: stamp };
+    else if (p === "/health/walks/locations")
+      data = {
+        items: [
+          {
+            id: "test-park",
+            name: "Test Park",
+            label: "Test Park",
+            detail: "park",
+            latitude: 51.5,
+            longitude: -0.12
+          }
+        ]
+      };
+    else if (p === "/daily/locations")
+      data = {
+        items: [
+          {
+            id: "london",
+            name: "London",
+            label: "London, England, United Kingdom",
+            detail: "United Kingdom",
+            latitude: 51.5074,
+            longitude: -0.1278
+          }
+        ]
+      };
+    else if (p === "/daily/transport/catalog")
+      data = {
+        items: [
+          { id: "central", name: "Central" },
+          { id: "victoria", name: "Victoria" }
+        ]
+      };
+    else if (p === "/connections") data = [account];
     else if (p === "/overview")
       data = {
         unread: 0,
@@ -678,7 +718,7 @@ let browser;
     "/daily/news",
     "/daily/weather",
     "/daily/transport",
-    "/daily/walks",
+    "/health/walks",
     "/settings/general",
     "/settings/connections",
     "/settings/security",
@@ -688,30 +728,33 @@ let browser;
   for (const route of routes) {
     await page.goto(origin + route);
     await page.locator("main.main").waitFor();
-    const content = route.startsWith("/daily")
-      ? {
-          "/daily/news": ".daily-news-list",
-          "/daily/weather": ".daily-weather-current",
-          "/daily/transport": ".daily-transport-list",
-          "/daily/walks": ".daily-walk-form"
-        }[route]
-      : route.startsWith("/health")
-        ? ".health-product .health-metrics"
-        : route.startsWith("/calendar")
-          ? ".calendar-layout"
-          : route.startsWith("/notes/pages/")
-            ? ".note-editor-surface [contenteditable=true]"
-            : route.startsWith("/notes/projects/project-")
-              ? ".notes-view-bar"
-              : route.startsWith("/notes")
-                ? ".notes-page"
-                : route.startsWith("/settings")
-                  ? ".settings-content > *"
-                  : route === "/"
-                    ? ".dashboard .clock"
-                    : route === "/email/outbox"
-                      ? ".outbox-heading"
-                      : ".email-heading";
+    const content =
+      route === "/health/walks"
+        ? ".walking-page .daily-walk-form"
+        : route.startsWith("/daily")
+          ? {
+              "/daily/news": ".daily-news-list",
+              "/daily/weather": ".daily-weather-current",
+              "/daily/transport": ".daily-transport-list",
+              "/health/walks": ".daily-walk-form"
+            }[route]
+          : route.startsWith("/health")
+            ? ".health-product .health-metrics"
+            : route.startsWith("/calendar")
+              ? ".calendar-layout"
+              : route.startsWith("/notes/pages/")
+                ? ".note-editor-surface [contenteditable=true]"
+                : route.startsWith("/notes/projects/project-")
+                  ? ".notes-view-bar"
+                  : route.startsWith("/notes")
+                    ? ".notes-page"
+                    : route.startsWith("/settings")
+                      ? ".settings-content > *"
+                      : route === "/"
+                        ? ".dashboard .clock"
+                        : route === "/email/outbox"
+                          ? ".outbox-heading"
+                          : ".email-heading";
     await page.locator(content).first().waitFor();
     if (route === "/settings/connections")
       await page.locator(".daily-integration form").waitFor();
@@ -736,7 +779,7 @@ let browser;
           "/daily/news",
           "/daily/weather",
           "/daily/transport",
-          "/daily/walks",
+          "/health/walks",
           "/notes",
           "/notes/projects/project-qa?view=board",
           "/settings/general"
@@ -763,13 +806,11 @@ let browser;
     .locator(".daily-transport-title")
     .getByText("Service closed", { exact: true })
     .waitFor();
-  await page.goto(origin + "/daily/walks");
+  await page.goto(origin + "/health/walks");
   await page
-    .getByRole("spinbutton", { name: "Start latitude", exact: true })
-    .fill("51.5");
-  await page
-    .getByRole("spinbutton", { name: "Start longitude", exact: true })
-    .fill("-0.12");
+    .getByRole("combobox", { name: "Start location", exact: true })
+    .fill("Test Park");
+  await page.getByRole("option", { name: /Test Park/ }).click();
   await page
     .getByRole("button", { name: "Generate loop", exact: true })
     .click();
@@ -777,20 +818,33 @@ let browser;
   assert(
     (
       await page.locator(".daily-walk-result a[download]").getAttribute("href")
-    ).startsWith("/api/v1/daily/walks/gpx?created_at="),
+    ).startsWith("/api/v1/health/walks/gpx?created_at="),
     "Walking GPX link missing"
   );
   badWalk = true;
+  await page
+    .getByRole("group", { name: "Walking target", exact: true })
+    .getByRole("button", { name: "Speed / time", exact: true })
+    .click();
+  await page.getByRole("spinbutton", { name: /Walking speed/ }).fill("4");
+  await page.getByRole("spinbutton", { name: /Walking time/ }).fill("45");
   await page
     .getByRole("button", { name: "Generate loop", exact: true })
     .click();
   await page
     .getByRole("alert")
-    .filter({ hasText: "Walking provider unavailable" })
+    .filter({ hasText: "No suitable loop found." })
     .waitFor();
   assert(
     await page.locator(".daily-route-preview").isVisible(),
     "Failed generation discarded the previous route"
+  );
+  assert(
+    walkingRequests[0].mode === "distance" &&
+      walkingRequests.at(-1).mode === "time" &&
+      walkingRequests.at(-1).speed_kmh === 4 &&
+      walkingRequests.at(-1).duration_minutes === 45,
+    "Walking distance and speed/time targets did not reach the API"
   );
   await page.goto(origin + "/settings/connections#daily");
   const dailyForm = page.locator(".daily-integration");
@@ -806,6 +860,24 @@ let browser;
     .last()
     .fill("https://custom.example.test/rss");
   await dailyForm
+    .getByRole("combobox", { name: "Weather location", exact: true })
+    .fill("Lon");
+  await page.getByRole("option", { name: /London, England/ }).click();
+  await dailyForm
+    .getByRole("combobox", { name: "TfL line selection", exact: true })
+    .click();
+  await page.getByRole("option", { name: "Choose lines", exact: true }).click();
+  await dailyForm
+    .getByRole("button", { name: "Train lines", exact: true })
+    .click();
+  await dailyForm
+    .getByRole("textbox", { name: "Search train lines", exact: true })
+    .fill("Vic");
+  await dailyForm
+    .getByRole("checkbox", { name: "Victoria", exact: true })
+    .check();
+  await page.keyboard.press("Escape");
+  await dailyForm
     .getByRole("group", { name: "Home screen", exact: true })
     .getByRole("checkbox", { name: "Weather", exact: true })
     .uncheck();
@@ -816,6 +888,16 @@ let browser;
     .getByRole("status")
     .filter({ hasText: "Sources saved" })
     .waitFor();
+  assert(
+    dailySaved.weather.latitude === 51.5074 &&
+      dailySaved.weather.longitude === -0.1278,
+    "Weather autocomplete did not save selected coordinates"
+  );
+  assert(
+    dailySaved.transport.lines.length === 1 &&
+      dailySaved.transport.lines[0] === "victoria",
+    "Train-line dropdown selection did not save"
+  );
   assert(
     dailySaved.news.length === 2 && !dailySaved.widgets.includes("weather"),
     "Custom Daily sources or widget choice did not save"
@@ -836,7 +918,14 @@ let browser;
       .isVisible(),
     "News missing from Home"
   );
-  dailySettings.widgets = ["news", "weather", "transport", "walks"];
+  assert(
+    (await page
+      .locator(".daily-summary")
+      .getByRole("heading", { name: /Walking/i })
+      .count()) === 0,
+    "Walking loops must not appear on Home"
+  );
+  dailySettings.widgets = ["news", "weather", "transport"];
   // Notes lists and issue boards should never download the rich editor bundle.
   await page.setViewportSize({ width: 1280, height: 900 });
   scripts.length = 0;
