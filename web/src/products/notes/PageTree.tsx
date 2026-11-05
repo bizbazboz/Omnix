@@ -11,7 +11,8 @@ import {
   Star,
   Trash2
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { pageTreeIndex } from "./pageTreeIndex";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   allPages,
@@ -26,7 +27,7 @@ export default function PageTree({
   onClose?: () => void;
 }) {
   const pages = useQuery({
-      queryKey: ["note-pages"],
+      queryKey: ["note-pages", false, ""],
       queryFn: () => allPages()
     }),
     navigate = useNavigate();
@@ -86,30 +87,17 @@ export default function PageTree({
       setError((error as Error).message);
     }
   }
-  const matches = new Set(
-    (pages.data || [])
-      .filter((page) => page.title.toLowerCase().includes(search.toLowerCase()))
-      .map((page) => page.id)
+  const index = useMemo(
+    () => pageTreeIndex(pages.data || [], search),
+    [pages.data, search]
   );
-  if (search)
-    for (const id of [...matches]) {
-      let parent = pages.data?.find((page) => page.id === id)?.parent_id;
-      for (let depth = 0; parent && depth < 32; depth++) {
-        matches.add(parent);
-        parent = pages.data?.find((page) => page.id === parent)?.parent_id;
-      }
-    }
+  const closedIds = useMemo(() => new Set(closed), [closed]);
   function tree(parent: string | null, depth = 0): React.ReactNode {
     if (depth > 32) return null;
-    return (pages.data || [])
-      .filter(
-        (page) => page.parent_id === parent && (!search || matches.has(page.id))
-      )
-      .sort((a, b) => a.position - b.position || a.title.localeCompare(b.title))
+    return (index.children.get(parent) || [])
+      .filter((page) => !index.searching || index.visible.has(page.id))
       .map((page) => {
-        const children = pages.data?.some(
-          (child) => child.parent_id === page.id
-        );
+        const children = index.children.has(page.id);
         return (
           <div key={page.id}>
             <div
@@ -128,7 +116,7 @@ export default function PageTree({
               <button
                 className="icon-button"
                 aria-label={
-                  (closed.includes(page.id) ? "Expand " : "Collapse ") +
+                  (closedIds.has(page.id) ? "Expand " : "Collapse ") +
                   page.title
                 }
                 disabled={!children}
@@ -140,7 +128,7 @@ export default function PageTree({
                   )
                 }
               >
-                {closed.includes(page.id) ? (
+                {closedIds.has(page.id) ? (
                   <ChevronRight size={12} />
                 ) : (
                   <ChevronDown size={12} />
@@ -162,7 +150,8 @@ export default function PageTree({
                 <Plus size={12} />
               </button>
             </div>
-            {(!closed.includes(page.id) || search) && tree(page.id, depth + 1)}
+            {(!closedIds.has(page.id) || index.searching) &&
+              tree(page.id, depth + 1)}
           </div>
         );
       });
@@ -231,7 +220,7 @@ export default function PageTree({
           <button className="text-button" onClick={() => pages.refetch()}>
             Retry pages
           </button>
-        ) : search && !matches.size ? (
+        ) : index.searching && !index.visible.size ? (
           <p className="notes-tree-empty">No matching pages.</p>
         ) : pages.data?.length ? (
           tree(null)

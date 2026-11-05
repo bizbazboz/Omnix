@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test:ui": "node ../scripts/check_ui.cjs"
+    "test:ui": "node --experimental-strip-types ../scripts/check_ui_models.mjs && node ../scripts/check_ui.cjs"
   },
   "dependencies": {
     "@blocknote/core": "0.56.0",

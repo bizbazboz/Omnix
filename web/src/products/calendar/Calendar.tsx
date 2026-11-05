@@ -1,3 +1,4 @@
+import PageHeader from "../../components/PageHeader";
 import Select from "../../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import SegmentedControl from "../../components/SegmentedControl";
@@ -96,11 +97,11 @@ export default function Calendar({ notify }: ProductProps) {
   });
   return (
     <div className="calendar-product">
-      <header className="calendar-heading">
-        <div>
-          <span className="eyebrow">CALENDAR / {view.toUpperCase()}</span>
-          <h1>Calendar</h1>
-        </div>
+      <PageHeader
+        className="calendar-heading"
+        context="Your schedule"
+        title="Calendar"
+      >
         <div className="calendar-actions">
           <SegmentedControl
             label="Calendar view"
@@ -130,7 +131,7 @@ export default function Calendar({ notify }: ProductProps) {
             )}
           </button>
         </div>
-      </header>
+      </PageHeader>
       <div
         className={"calendar-layout " + (!sourcesOpen ? "sources-hidden" : "")}
       >

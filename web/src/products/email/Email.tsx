@@ -126,6 +126,7 @@ export default function Email({
   });
   const detail = useQuery<Message>({
     queryKey: ["message", selected?.id],
+    staleTime: 60000,
     queryFn: () =>
       api(
         "/email/mailboxes/" + selected!.mailbox + "/messages/" + selected!.id
@@ -135,6 +136,7 @@ export default function Email({
   const linkedId = params.get("message") || "";
   const linkedMessage = useQuery<Message>({
     queryKey: ["message", linkedId],
+    staleTime: 60000,
     queryFn: () =>
       api(
         "/email/mailboxes/" +

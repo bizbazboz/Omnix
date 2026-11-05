@@ -64,7 +64,7 @@ function Loaded({ initial }: { initial: Note }) {
   const editor = useRef<NotesEditor | null>(null),
     upload = useRef<HTMLInputElement>(null);
   const pages = useQuery({
-      queryKey: ["note-pages"],
+      queryKey: ["note-pages", false, ""],
       queryFn: () => allPages()
     }),
     projects = useQuery<ProjectInfo[]>({
