@@ -1,5 +1,6 @@
 import Select from "../../components/Select";
 import { useQuery } from "@tanstack/react-query";
+import SegmentedControl from "../../components/SegmentedControl";
 import { CalendarDays, RefreshCw, MapPin } from "lucide-react";
 import { useState, useEffect } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
@@ -101,28 +102,21 @@ export default function Calendar({ notify }: ProductProps) {
           <h1>Calendar</h1>
         </div>
         <div className="calendar-actions">
-          <div
-            className="calendar-view-toggle"
-            role="group"
-            aria-label="Calendar view"
-          >
-            {(["month", "agenda"] as const).map((mode) => (
-              <button
-                key={mode}
-                className={view === mode ? "active" : ""}
-                aria-pressed={view === mode}
-                onClick={() =>
-                  setParams((previous) => {
-                    const next = new URLSearchParams(previous);
-                    next.set("view", mode);
-                    return next;
-                  })
-                }
-              >
-                {mode === "month" ? "Month" : "Agenda"}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            label="Calendar view"
+            value={view}
+            options={[
+              { value: "month", label: "Month" },
+              { value: "agenda", label: "Agenda" }
+            ]}
+            onChange={(mode) =>
+              setParams((previous) => {
+                const next = new URLSearchParams(previous);
+                next.set("view", mode);
+                return next;
+              })
+            }
+          />
           <button
             className="icon-button"
             aria-label={sourcesOpen ? "Hide calendars" : "Show calendars"}

@@ -1,4 +1,5 @@
 import Select from "../../components/Select";
+import SegmentedControl from "../../components/SegmentedControl";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -143,8 +144,8 @@ export default function Email({
       ),
     enabled: Boolean(
       linkedId &&
-      account &&
-      !list.data?.items.some((message) => message.id === linkedId)
+        account &&
+        !list.data?.items.some((message) => message.id === linkedId)
     )
   });
   useEffect(() => {
@@ -430,23 +431,18 @@ export default function Email({
           aria-label="Message list"
         >
           <div className="inbox-toolbar">
-            <div className="view-tabs">
-              <button
-                className={!unread ? "active" : ""}
-                onClick={() => setUnread(false)}
-              >
-                All messages
-              </button>
-              <button
-                className={unread ? "active" : ""}
-                onClick={() => setUnread(true)}
-              >
-                Unread{" "}
-                <span>
-                  {list.data?.items.filter((x) => x.unread).length || 0}
-                </span>
-              </button>
-            </div>
+            <SegmentedControl
+              label="Message view"
+              value={unread ? "unread" : "all"}
+              onChange={(value) => setUnread(value === "unread")}
+              options={[
+                { value: "all", label: "All messages" },
+                {
+                  value: "unread",
+                  label: `Unread (${list.data?.items.filter((x) => x.unread).length || 0})`
+                }
+              ]}
+            />
             <button
               className="icon-button"
               title="Filter mail"

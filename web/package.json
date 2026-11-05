@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "test:ui": "node ../scripts/check_ui.cjs"
   },
   "dependencies": {
     "@blocknote/core": "0.56.0",
@@ -24,6 +25,7 @@
     "react-router-dom": "7.18.4"
   },
   "devDependencies": {
+    "@playwright/test": "1.56.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",

@@ -163,7 +163,10 @@ export default function WorkspaceNavigation({
                     key={app.id}
                     ref={index === 0 ? firstApp : undefined}
                     to={app.routePrefix}
-                    onClick={() => setListForPath(null)}
+                    onClick={() => {
+                      setListForPath(null);
+                      onClose();
+                    }}
                   >
                     <app.Icon size={19} strokeWidth={1.5} />
                     <span>{app.name}</span>

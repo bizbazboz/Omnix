@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
-import { X, Plus, MessageSquare } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import Select from "../../components/Select";
 import CopyField from "../../components/CopyField";
+import SegmentedControl from "../../components/SegmentedControl";
 import { markUnsaved } from "../../lib/api";
 import {
   notesApi,
@@ -499,21 +500,15 @@ export default function IssueDetails({
           />
           <section className="issue-discussion">
             <div className="notes-view-bar">
-              <div role="group" aria-label="Issue activity view">
-                <button
-                  className={tab === "comments" ? "active" : ""}
-                  onClick={() => setTab("comments")}
-                >
-                  <MessageSquare size={14} />
-                  Comments
-                </button>
-                <button
-                  className={tab === "activity" ? "active" : ""}
-                  onClick={() => setTab("activity")}
-                >
-                  Activity
-                </button>
-              </div>
+              <SegmentedControl
+                label="Issue activity view"
+                value={tab}
+                onChange={setTab}
+                options={[
+                  { value: "comments", label: "Comments" },
+                  { value: "activity", label: "Activity" }
+                ]}
+              />
             </div>
             {discussion.error && (
               <p className="error">

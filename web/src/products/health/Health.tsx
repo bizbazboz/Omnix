@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import SegmentedControl from "../../components/SegmentedControl";
 import {
   ArrowUpRight,
   ChevronLeft,
@@ -285,22 +286,15 @@ export default function Health() {
                           }
                         </h2>
                       </div>
-                      <div
-                        className="health-range"
-                        role="group"
-                        aria-label="Health history range"
-                      >
-                        {[7, 28].map((days) => (
-                          <button
-                            key={days}
-                            className={range === days ? "active" : ""}
-                            aria-pressed={range === days}
-                            onClick={() => setRange(days)}
-                          >
-                            {days} days
-                          </button>
-                        ))}
-                      </div>
+                      <SegmentedControl
+                        label="Health history range"
+                        value={String(range)}
+                        options={[
+                          { value: "7", label: "7 days" },
+                          { value: "28", label: "28 days" }
+                        ]}
+                        onChange={(value) => setRange(Number(value))}
+                      />
                     </header>
                     <div className="history-summary">
                       <div>

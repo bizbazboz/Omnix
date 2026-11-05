@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { trackViewRequest } from "./viewStatus";
 export type User = {
   id: string;
   name: string;
@@ -76,49 +77,60 @@ export async function api<T = any>(
   options: RequestInit = {},
   preserveSession = false
 ): Promise<T> {
-  const response = await fetch("/api/v1" + path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(csrf ? { "X-CSRF-Token": csrf } : {}),
-      ...options.headers
+  const complete = trackViewRequest(path, options.method);
+  try {
+    const response = await fetch("/api/v1" + path, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+        ...options.headers
+      }
+    });
+    if (
+      response.status === 401 &&
+      path !== "/me" &&
+      !preserveSession &&
+      !unsavedWork.size
+    ) {
+      qc.clear();
+      window.location.reload();
     }
-  });
-  if (
-    response.status === 401 &&
-    path !== "/me" &&
-    !preserveSession &&
-    !unsavedWork.size
-  ) {
-    qc.clear();
-    window.location.reload();
-  }
-  if (!response.ok) {
-    if (response.status === 429) {
-      const delay = Number(response.headers.get("Retry-After"));
+    if (!response.ok) {
+      if (response.status === 429) {
+        const delay = Number(response.headers.get("Retry-After"));
+        throw new ApiError(
+          429,
+          Number.isFinite(delay) && delay > 0
+            ? `Too many requests. Try again in ${Math.ceil(delay)} seconds.`
+            : "Too many requests. Try again shortly."
+        );
+      }
+      const error = await response
+        .json()
+        .catch(() => ({ detail: "Request failed" }));
       throw new ApiError(
-        429,
-        Number.isFinite(delay) && delay > 0
-          ? `Too many requests. Try again in ${Math.ceil(delay)} seconds.`
-          : "Too many requests. Try again shortly."
+        response.status,
+        typeof error.detail === "string"
+          ? error.detail
+          : Array.isArray(error.detail)
+            ? error.detail
+                .map((e: any) => e.loc.slice(1).join(".") + ": " + e.msg)
+                .join("; ")
+            : "Request failed"
       );
     }
-    const error = await response
-      .json()
-      .catch(() => ({ detail: "Request failed" }));
-    throw new ApiError(
-      response.status,
-      typeof error.detail === "string"
-        ? error.detail
-        : Array.isArray(error.detail)
-          ? error.detail
-              .map((e: any) => e.loc.slice(1).join(".") + ": " + e.msg)
-              .join("; ")
-          : "Request failed"
-    );
+    if (response.status === 204) {
+      complete(true);
+      return undefined as T;
+    }
+    const data = await response.json();
+    complete(true, data);
+    return data;
+  } catch (error) {
+    complete(false);
+    throw error;
   }
-  if (response.status === 204) return undefined as T;
-  return response.json();
 }
 export const qc = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } }

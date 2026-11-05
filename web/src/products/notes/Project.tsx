@@ -12,6 +12,7 @@ import {
   CheckSquare
 } from "lucide-react";
 import Select from "../../components/Select";
+import SegmentedControl from "../../components/SegmentedControl";
 import { qc } from "../../lib/api";
 import {
   notesApi,
@@ -295,17 +296,14 @@ export default function Project({ id }: { id: string }) {
         }}
       />
       <div className="notes-view-bar">
-        <div role="group" aria-label="Project view">
-          {["board", "backlog", "issues", "overview", "notes"].map((mode) => (
-            <button
-              key={mode}
-              className={view === mode ? "active" : ""}
-              onClick={() => filter("view", mode, false)}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          label="Project view"
+          value={view}
+          options={["board", "backlog", "issues", "overview", "notes"].map(
+            (value) => ({ value, label: value })
+          )}
+          onChange={(mode) => filter("view", mode, false)}
+        />
         <button
           className="primary"
           disabled={busy}
@@ -606,7 +604,7 @@ export default function Project({ id }: { id: string }) {
               );
               refresh();
               setDraft(null);
-              filter("issue", updated.id, Boolean(value.id));
+              filter("issue", value.id ? updated.id : "", true);
             });
             return saved;
           }}

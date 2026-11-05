@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import SegmentedControl from "../../components/SegmentedControl";
 export default function MailBody({
   html,
   body
@@ -8,6 +9,7 @@ export default function MailBody({
 }) {
   const [images, setImages] = useState(false);
   const [mode, setMode] = useState<"original" | "dark" | "text">("original");
+  const [fit, setFit] = useState<"fit" | "actual">("fit");
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(200);
   const bridge = new URL("/mail-frame-resize.js", window.location.origin).href;
@@ -41,21 +43,27 @@ export default function MailBody({
   return (
     <div className="mail-document">
       <div className="mail-display-options">
-        <div role="group" aria-label="Email appearance">
-          {(["original", "dark", "text"] as const).map((value) => (
-            <button
-              key={value}
-              className={mode === value ? "active" : ""}
-              onClick={() => setMode(value)}
-            >
-              {value === "original"
-                ? "Original"
-                : value === "dark"
-                  ? "Dark"
-                  : "Plain text"}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          label="Email appearance"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: "original", label: "Original" },
+            { value: "dark", label: "Dark" },
+            { value: "text", label: "Plain text" }
+          ]}
+        />
+        {html && mode !== "text" && (
+          <SegmentedControl
+            label="Email sizing"
+            value={fit}
+            onChange={setFit}
+            options={[
+              { value: "fit", label: "Fit width" },
+              { value: "actual", label: "Actual size" }
+            ]}
+          />
+        )}
         {remote && (
           <button className="remote-images" onClick={() => setImages(!images)}>
             {images ? "Block images" : "Load remote images"}
@@ -73,15 +81,17 @@ export default function MailBody({
           srcDoc={
             '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="' +
             csp +
-            '"><style>html{color-scheme:light}body{margin:0;padding:24px;font:14px/1.6 Arial,sans-serif;color:#202020;background:#fff;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}a{color:#165cbb}' +
+            '"><style>html{color-scheme:light}body{margin:0;padding:0;font:14px/1.6 Arial,sans-serif;color:#202020;background:#fff;overflow-wrap:anywhere}#omnix-email-root{display:flow-root;box-sizing:border-box;padding:clamp(12px,3vw,24px);transform-origin:top left}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}a{color:#165cbb}' +
             (mode === "dark"
               ? "html{filter:invert(1) hue-rotate(180deg)}img{filter:invert(1) hue-rotate(180deg)}"
               : "") +
-            "</style></head><body>" +
+            '</style></head><body><div id="omnix-email-root">' +
             html +
-            '</body><script src="' +
+            '</div><script data-fit="' +
+            (fit === "fit" ? "true" : "false") +
+            '" src="' +
             bridge +
-            '"></script></html>'
+            '"></script></body></html>'
           }
         />
       ) : (
