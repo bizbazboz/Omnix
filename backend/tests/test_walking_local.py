@@ -1,4 +1,5 @@
 import json
+from xml.etree.ElementTree import fromstring
 import pytest
 from app import walking, walking_map
 from app.core import Session, User, redis, decrypt, SystemSetting
@@ -102,6 +103,26 @@ def test_walking_routes_are_private_and_downloadable(signed_client, user, region
         "/api/v1/health/walks/gpx", params={"created_at": route["created_at"]}
     )
     assert gpx.status_code == 200 and "<trkpt" in gpx.text
+    xml = fromstring(gpx.content)
+    ns = {"g": "http://www.topografix.com/GPX/1/1"}
+    assert xml.attrib == {"version": "1.1", "creator": "Omnix"}
+    assert xml.find("g:metadata/g:name", ns).text == "Walking loop · Test Park"
+    assert xml.find("g:metadata/g:time", ns).text == route["created_at"]
+    assert xml.find("g:wpt/g:name", ns).text == "Start / finish"
+    points = [
+        [float(point.attrib["lon"]), float(point.attrib["lat"])]
+        for point in xml.findall("g:trk/g:trkseg/g:trkpt", ns)
+    ]
+    assert points == route["coordinates"] and points[0] == points[-1]
+    assert gpx.headers["content-type"].startswith("application/gpx+xml")
+    assert 'filename="omnix-walking-loop.gpx"' in gpx.headers["content-disposition"]
+    assert gpx.headers["cache-control"] == "no-store"
+    assert route["start_latitude"] == 51.503 and route["start_longitude"] == -0.127
+    limited = signed_client.post(
+        "/api/v1/health/walks", json={"latitude": 51.503, "longitude": -0.127}
+    )
+    assert limited.status_code == 429
+    assert 1 <= int(limited.headers["retry-after"]) <= 15
     assert (
         signed_client.get("/api/v1/health/walks/gpx?created_at=old").status_code == 409
     )
@@ -109,6 +130,21 @@ def test_walking_routes_are_private_and_downloadable(signed_client, user, region
         row = db.get(SystemSetting, "health-walk:" + user.id)
         assert "Test Park" not in row.value
         assert decrypt(row.value)["start_label"] == "Test Park"
+    with Session() as db:
+        other = User(
+            issuer="https://id.example.test",
+            subject="other-walker",
+            name="Other",
+            email="other@example.test",
+        )
+        db.add(other)
+        db.commit()
+        from app.sessions import create_session
+        from app.core import SESSION_COOKIE
+
+        signed_client.cookies.set(SESSION_COOKIE, create_session(other.id))
+    assert signed_client.get("/api/v1/health/walks").json()["route"] is None
+    assert signed_client.get("/api/v1/health/walks/gpx").status_code == 404
 
 
 def test_missing_map_and_admin_boundary(signed_client, monkeypatch, tmp_path):

@@ -170,11 +170,21 @@ def build_walking_router(authenticated, db_session):
                 503, "Install a regional OpenStreetMap file in Integrations first."
             )
         if not redis.set("health-walk-limit:" + user.id, "1", ex=15, nx=True):
-            raise HTTPException(429, "Wait 15 seconds before generating another loop.")
+            raise HTTPException(
+                429,
+                "Wait before generating another loop.",
+                headers={
+                    "Retry-After": str(
+                        max(1, redis.ttl("health-walk-limit:" + user.id))
+                    )
+                },
+            )
         lock = redis.lock("health-walk-generation", timeout=60, blocking_timeout=0)
         if not lock.acquire(blocking=False):
             raise HTTPException(
-                429, "Another loop is being calculated. Try again shortly."
+                429,
+                "Another loop is being calculated. Try again shortly.",
+                headers={"Retry-After": "5"},
             )
         try:
             try:
@@ -187,7 +197,13 @@ def build_walking_router(authenticated, db_session):
                 )
             except ValueError as error:
                 raise HTTPException(422, str(error)) from None
-            route.update(start_label=value.start_label, target_mode=value.mode)
+            route.update(
+                start_label=value.start_label,
+                start_latitude=value.latitude,
+                start_longitude=value.longitude,
+                target_mode=value.mode,
+                seed=value.seed,
+            )
             store_setting(db, "health-walk:" + user.id, route)
             return route
         finally:
@@ -210,8 +226,35 @@ def build_walking_router(authenticated, db_session):
                 "xmlns": "http://www.topografix.com/GPX/1/1",
             },
         )
+        name = "Walking loop · " + route.get("start_label", "Selected location")
+        description = (
+            f"{route['distance_m'] / 1000:.1f} km · "
+            f"{round(route['duration_s'] / 60)} min · "
+            + route.get("attribution", "© OpenStreetMap contributors · ODbL")
+        )
+        metadata = SubElement(root, "metadata")
+        SubElement(metadata, "name").text = name
+        SubElement(metadata, "desc").text = description
+        SubElement(metadata, "time").text = route["created_at"]
+        coordinates = route["coordinates"]
+        SubElement(
+            metadata,
+            "bounds",
+            {
+                "minlat": str(min(lat for _, lat in coordinates)),
+                "minlon": str(min(lon for lon, _ in coordinates)),
+                "maxlat": str(max(lat for _, lat in coordinates)),
+                "maxlon": str(max(lon for lon, _ in coordinates)),
+            },
+        )
+        lon, lat = coordinates[0]
+        start = SubElement(root, "wpt", {"lat": str(lat), "lon": str(lon)})
+        SubElement(start, "name").text = "Start / finish"
+        SubElement(start, "desc").text = route.get("start_label", "Selected location")
         track = SubElement(root, "trk")
-        SubElement(track, "name").text = "Omnix walking loop"
+        SubElement(track, "name").text = name
+        SubElement(track, "desc").text = description
+        SubElement(track, "type").text = "walking"
         segment = SubElement(track, "trkseg")
         for lon, lat in route["coordinates"]:
             SubElement(segment, "trkpt", {"lat": str(lat), "lon": str(lon)})
@@ -219,7 +262,8 @@ def build_walking_router(authenticated, db_session):
             tostring(root, encoding="utf-8", xml_declaration=True),
             media_type="application/gpx+xml",
             headers={
-                "Content-Disposition": 'attachment; filename="omnix-walking-loop.gpx"'
+                "Content-Disposition": 'attachment; filename="omnix-walking-loop.gpx"',
+                "Cache-Control": "no-store",
             },
         )
 
