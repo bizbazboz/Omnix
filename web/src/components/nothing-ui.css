@@ -61,7 +61,12 @@
 }
 .workspace .app-sidebar-body {
   margin-top: 32px;
-  padding-right: 4px;
+  /* Put the scrollbar beside the resize divider while preserving link alignment. */
+  margin-right: -12px;
+  padding-right: 16px;
+}
+.workspace .app-sidebar > .resize-handle {
+  width: 4px;
 }
 .workspace .app-sidebar nav a {
   min-height: 44px;
