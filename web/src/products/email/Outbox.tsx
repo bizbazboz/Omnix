@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { api } from "../../lib/api";
+import PageHeader from "../../components/PageHeader";
 type Attempt = {
   id: string;
   address: string;
@@ -28,8 +29,7 @@ export default function Outbox() {
   });
   return (
     <div className="page outbox-page">
-      <div className="outbox-heading">
-        <h1>Outbox</h1>
+      <PageHeader className="outbox-heading" context="Mail" title="Outbox">
         <button
           className="icon-button"
           aria-label="Refresh send status"
@@ -37,7 +37,7 @@ export default function Outbox() {
         >
           <RefreshCw size={17} />
         </button>
-      </div>
+      </PageHeader>
       {query.error && (
         <p className="error" role="alert">
           {query.error.message}
@@ -45,7 +45,9 @@ export default function Outbox() {
       )}
       <div className="outbox-list">
         {query.isLoading ? (
-          <div className="empty">Loading�</div>
+          <div className="empty" role="status">
+            [ Loading… ]
+          </div>
         ) : !query.data?.length ? (
           <div className="empty">No messages sent yet.</div>
         ) : (

@@ -75,7 +75,7 @@ export default function Project({ id }: { id: string }) {
     queryFn: () => notesApi(`/projects/${id}/tasks`)
   });
   const pages = useQuery({
-    queryKey: ["note-pages"],
+    queryKey: ["note-pages", false, ""],
     queryFn: () => allPages()
   });
   const search = params.get("q") || "",

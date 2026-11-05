@@ -1,3 +1,4 @@
+import PageHeader from "../../components/PageHeader";
 import { useQuery } from "@tanstack/react-query";
 import SegmentedControl from "../../components/SegmentedControl";
 import {
@@ -112,11 +113,11 @@ export default function Health() {
   if (!view) return <Navigate to="/health" replace />;
   return (
     <div className="health-product">
-      <header className="health-heading">
-        <div>
-          <span className="eyebrow">HEALTH / {view.id.toUpperCase()}</span>
-          <h1>{view.id === "overview" ? "Health" : view.name}</h1>
-        </div>
+      <PageHeader
+        className="health-heading"
+        context={view.id === "overview" ? "Daily summary" : "Health"}
+        title={view.id === "overview" ? "Health" : view.name}
+      >
         {state.data?.connected && (
           <div className="health-header-actions">
             <button
@@ -133,7 +134,7 @@ export default function Health() {
             </button>
           </div>
         )}
-      </header>
+      </PageHeader>
       <p className="health-page-caption">{view.description}</p>
       {state.isLoading ? (
         <p className="muted">[LOADING]</p>

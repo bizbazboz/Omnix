@@ -205,24 +205,6 @@
   margin-bottom: 32px;
   flex-wrap: wrap;
 }
-.notes-view-bar > [role="group"] {
-  display: flex;
-  gap: 20px;
-  overflow-x: auto;
-}
-.notes-view-bar > [role="group"] > button {
-  background: transparent;
-  border: 0;
-  padding: 10px 0;
-  color: var(--text-secondary);
-  font: 11px var(--font-mono);
-  text-transform: uppercase;
-  border-bottom: 1px solid transparent;
-}
-.notes-view-bar > [role="group"] > button.active {
-  color: var(--text-display);
-  border-color: var(--text-display);
-}
 .note-actions {
   display: flex;
   gap: 12px;
@@ -460,10 +442,6 @@
     font-size: 14px;
   }
   .notes-view-bar {
-    gap: 16px;
-  }
-  .notes-view-bar > [role="group"] {
-    max-width: 100%;
     gap: 16px;
   }
   .note-actions {
@@ -1449,17 +1427,6 @@
   }
 }
 
-.issue-discussion .notes-view-bar > [role="group"] {
-  gap: 28px;
-}
-.issue-discussion .notes-view-bar > [role="group"] > button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 10px 4px;
-}
 .issue-discussion form > .secondary {
   display: inline-flex;
   align-items: center;

@@ -7,7 +7,7 @@ import {
   PanelLeftOpen,
   X
 } from "lucide-react";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Navigate,
   NavLink,
@@ -19,15 +19,18 @@ import { Logo } from "./components/Brand";
 import WorkspaceNavigation from "./components/WorkspaceNavigation";
 import DataStatus from "./components/DataStatus";
 import "./components/workspace-ui.css";
-import Dashboard from "./home/Dashboard";
+import "./components/nothing-ui.css";
+import PageLoading from "./components/PageLoading";
 import { api, setCsrf, type Account, type Draft, type User } from "./lib/api";
-import Composer from "./products/email/Composer";
-import Outbox from "./products/email/Outbox";
 import { productRegistry } from "./products/registry";
-import Authentication from "./settings/Authentication";
-import WorkspaceSettings from "./settings/Settings";
-import Onboarding from "./settings/Onboarding";
 import { useStoredFlag, useStoredWidth } from "./lib/layout";
+const Dashboard = lazy(() => import("./home/Dashboard"));
+const Composer = lazy(() => import("./products/email/Composer"));
+const Outbox = lazy(() => import("./products/email/Outbox"));
+const Authentication = lazy(() => import("./settings/Authentication"));
+const WorkspaceSettings = lazy(() => import("./settings/Settings"));
+const Onboarding = lazy(() => import("./settings/Onboarding"));
+
 export default function App() {
   const me = useQuery<User>({ queryKey: ["me"], queryFn: () => api("/me") });
   const config = useQuery({
@@ -48,7 +51,11 @@ export default function App() {
     config.data?.setup_available &&
     (!config.data.oidc_configured || location.pathname === "/setup")
   )
-    return <Authentication initial />;
+    return (
+      <Suspense fallback={<PageLoading label="Loading setup" />}>
+        <Authentication initial />
+      </Suspense>
+    );
   return (
     <div className="login">
       <div className="login-art">
@@ -166,6 +173,9 @@ function Workspace({ user }: { user: User }) {
   }
   return (
     <div className={"workspace " + (collapsed ? "sidebar-hidden" : "")}>
+      <a className="skip-link" href="#workspace-main">
+        Skip to content
+      </a>
       <WorkspaceNavigation
         user={user}
         displayName={preferences.data?.display_name || user.name}
@@ -180,7 +190,12 @@ function Workspace({ user }: { user: User }) {
         onCompose={createDraft}
         notify={setStatus}
       />
-      <main className="main" inert={mobile || undefined}>
+      <main
+        id="workspace-main"
+        className="main"
+        tabIndex={-1}
+        inert={mobile || undefined}
+      >
         <header className="topbar">
           <button
             ref={menuButton}
@@ -221,81 +236,91 @@ function Workspace({ user }: { user: User }) {
             </div>
           )}
         </header>
-        <Routes>
-          <Route
-            path="/settings"
-            element={<Navigate to="/settings/general" replace />}
-          />
-          <Route path="/onboarding" element={<Onboarding user={user} />} />
-          <Route path="/email/outbox" element={<Outbox />} />
-          <Route
-            path="/"
-            element={
-              preferences.data && !preferences.data.onboarding_completed ? (
-                <Navigate to="/onboarding" replace />
-              ) : (
-                <Dashboard
-                  user={{
-                    ...user,
-                    name: preferences.data?.display_name || user.name
-                  }}
-                  accounts={accounts.data || []}
-                  onCompose={createDraft}
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route
+              path="/settings"
+              element={<Navigate to="/settings/general" replace />}
+            />
+            <Route path="/onboarding" element={<Onboarding user={user} />} />
+            <Route path="/email/outbox" element={<Outbox />} />
+            <Route
+              path="/"
+              element={
+                preferences.data && !preferences.data.onboarding_completed ? (
+                  <Navigate to="/onboarding" replace />
+                ) : (
+                  <Dashboard
+                    user={{
+                      ...user,
+                      name: preferences.data?.display_name || user.name
+                    }}
+                    accounts={accounts.data || []}
+                    onCompose={createDraft}
+                  />
+                )
+              }
+            />
+            {productRegistry.map((module) => {
+              const Entry = module.Entry;
+              return (
+                <Route
+                  key={module.id}
+                  path={module.routePrefix + "/*"}
+                  element={
+                    products.isLoading ? (
+                      <PageLoading label="Loading applications" />
+                    ) : products.error ? (
+                      <div className="empty">
+                        Could not load products.{" "}
+                        <button onClick={() => products.refetch()}>
+                          Retry
+                        </button>
+                      </div>
+                    ) : !products.data?.some((p) => p.id === module.id) ? (
+                      <div className="empty">Product unavailable.</div>
+                    ) : (
+                      <Suspense
+                        fallback={
+                          <PageLoading
+                            label={"Loading " + module.name.toLowerCase()}
+                          />
+                        }
+                      >
+                        <Entry
+                          accounts={accounts.data || []}
+                          onCompose={setCompose}
+                          notify={setStatus}
+                        />
+                      </Suspense>
+                    )
+                  }
                 />
-              )
-            }
-          />
-          {productRegistry.map((module) => {
-            const Entry = module.Entry;
-            return (
-              <Route
-                key={module.id}
-                path={module.routePrefix + "/*"}
-                element={
-                  products.isLoading ? (
-                    <div className="empty">Loading…</div>
-                  ) : products.error ? (
-                    <div className="empty">
-                      Could not load products.{" "}
-                      <button onClick={() => products.refetch()}>Retry</button>
-                    </div>
-                  ) : !products.data?.some((p) => p.id === module.id) ? (
-                    <div className="empty">Product unavailable.</div>
-                  ) : (
-                    <Suspense
-                      fallback={<div className="empty">Loading...</div>}
-                    >
-                      <Entry
-                        accounts={accounts.data || []}
-                        onCompose={setCompose}
-                        notify={setStatus}
-                      />
-                    </Suspense>
-                  )
-                }
-              />
-            );
-          })}
-          <Route
-            path="/settings/*"
-            element={
-              <WorkspaceSettings
-                user={user}
-                accounts={accounts.data || []}
-                notify={setStatus}
-              />
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+              );
+            })}
+            <Route
+              path="/settings/*"
+              element={
+                <WorkspaceSettings
+                  user={user}
+                  accounts={accounts.data || []}
+                  notify={setStatus}
+                />
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </main>
       {compose && (
-        <Composer
-          draft={compose}
-          accounts={accounts.data || []}
-          onClose={() => setCompose(null)}
-          notify={setStatus}
-        />
+        <Suspense fallback={<PageLoading label="Loading composer" />}>
+          <Composer
+            draft={compose}
+            accounts={accounts.data || []}
+            onClose={() => setCompose(null)}
+            notify={setStatus}
+          />
+        </Suspense>
       )}
     </div>
   );

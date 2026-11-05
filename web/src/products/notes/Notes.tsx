@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   NavLink,
   Route,
@@ -24,9 +24,12 @@ import {
   type Note,
   type ProjectInfo
 } from "./api";
-import NotePage from "./NotePage";
-import Project from "./Project";
+import PageLoading from "../../components/PageLoading";
+import PageHeader from "../../components/PageHeader";
 import "./notes.css";
+const NotePage = lazy(() => import("./NotePage"));
+const Project = lazy(() => import("./Project"));
+
 function PageRoute() {
   const { id } = useParams();
   return <NotePage key={id} id={id!} />;
@@ -37,15 +40,17 @@ function ProjectRoute() {
 }
 export default function Notes() {
   return (
-    <Routes>
-      <Route index element={<Home />} />
-      <Route path="favorites" element={<Home favorites />} />
-      <Route path="trash" element={<Home trash />} />
-      <Route path="projects" element={<Projects />} />
-      <Route path="pages/:id" element={<PageRoute />} />
-      <Route path="projects/:id" element={<ProjectRoute />} />
-      <Route path="*" element={<Home />} />
-    </Routes>
+    <Suspense fallback={<PageLoading label="Loading notes" />}>
+      <Routes>
+        <Route index element={<Home />} />
+        <Route path="favorites" element={<Home favorites />} />
+        <Route path="trash" element={<Home trash />} />
+        <Route path="projects" element={<Projects />} />
+        <Route path="pages/:id" element={<PageRoute />} />
+        <Route path="projects/:id" element={<ProjectRoute />} />
+        <Route path="*" element={<Home />} />
+      </Routes>
+    </Suspense>
   );
 }
 const templates: { name: string; description: string; document: unknown[] }[] =
@@ -143,11 +148,11 @@ function Home({
   useEffect(() => () => clearTimeout(timer.current), []);
   return (
     <div className="notes-page">
-      <header className="notes-heading">
-        <div>
-          <span className="eyebrow">NOTES & PROJECTS</span>
-          <h1>{trash ? "Trash" : favorites ? "Favorites" : "Your pages."}</h1>
-        </div>
+      <PageHeader
+        className="notes-heading"
+        context="Notes & Projects"
+        title={trash ? "Trash" : favorites ? "Favorites" : "Your pages"}
+      >
         {!trash && (
           <div className="note-actions">
             <button
@@ -168,7 +173,7 @@ function Home({
             </button>
           </div>
         )}
-      </header>
+      </PageHeader>
       <input
         ref={archive}
         type="file"
@@ -379,11 +384,11 @@ function Projects() {
     [creating, setCreating] = useState(false);
   return (
     <div className="notes-page">
-      <header className="notes-heading">
-        <div>
-          <span className="eyebrow">NOTES & PROJECTS</span>
-          <h1>Projects</h1>
-        </div>
+      <PageHeader
+        className="notes-heading"
+        context="Notes & Projects"
+        title="Projects"
+      >
         <button
           className="primary"
           disabled={busy}
@@ -392,7 +397,7 @@ function Projects() {
           <Plus size={16} />
           New project
         </button>
-      </header>
+      </PageHeader>
       {error && <p className="error">{error}</p>}
       {projects.error && <p className="error">{projects.error.message}</p>}
       {creating && (

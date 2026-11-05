@@ -139,3 +139,11 @@ export const qc = new QueryClient({
 export function setCsrf(value: string) {
   csrf = value;
 }
+
+// Shared metadata should not refetch each time a second consumer mounts.
+for (const key of ["me", "config", "products", "preferences"])
+  qc.setQueryDefaults([key], { staleTime: 60000 });
+for (const key of ["health-status", "health-statistics", "calendar-feeds"])
+  qc.setQueryDefaults([key], { staleTime: 30000 });
+
+qc.setQueryDefaults(["note-pages"], { staleTime: 30000 });

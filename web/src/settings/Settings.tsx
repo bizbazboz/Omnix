@@ -1,3 +1,4 @@
+import PageHeader from "../components/PageHeader";
 import Select from "../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -551,21 +552,25 @@ export default function Settings({
   ];
   return (
     <div className="page settings-hub">
-      <div className="settings-heading">
-        <h1>Settings</h1>
+      <PageHeader
+        className="settings-heading"
+        context="Workspace"
+        title="Settings"
+      >
         <button
-          className="secondary"
+          className="icon-button"
           aria-expanded={!navHidden}
+          aria-label={navHidden ? "Show categories" : "Hide categories"}
+          title={navHidden ? "Show categories" : "Hide categories"}
           onClick={() => setNavHidden(!navHidden)}
         >
           {navHidden ? (
             <PanelLeftOpen size={16} />
           ) : (
             <PanelLeftClose size={16} />
-          )}{" "}
-          {navHidden ? "Show categories" : "Hide categories"}
+          )}
         </button>
-      </div>
+      </PageHeader>
       <div
         className={
           "settings-layout " + (navHidden ? "settings-nav-hidden" : "")

@@ -19,6 +19,7 @@ const empty: ViewStatus = {
 const snapshots = new Map<string, ViewStatus>();
 const failures = new Map<string, Set<string>>();
 const providers = new Map<string, unknown>();
+const lastReads = new Map<string, number>();
 const listeners = new Set<() => void>();
 export const subscribeViewStatus = (listener: () => void) => {
   listeners.add(listener);
@@ -39,6 +40,8 @@ export function readViewStatus(view: string) {
     .sort((a, b) => b.updatedAt - a.updatedAt)[0];
   let initial = {
     ...(related || empty),
+    updatedAt:
+      related?.updatedAt || lastReads.get(current.pathname.split("/")[1]) || 0,
     pending: 0,
     writing: 0,
     failed: false
@@ -164,12 +167,17 @@ export function trackViewRequest(path: string, method = "GET") {
     section === ""
       ? resource === "/overview"
       : section === "settings" || section === "onboarding"
-        ? resource.startsWith("/settings/") || resource === "/connectors"
+        ? resource.startsWith("/settings/") ||
+          resource === "/connectors" ||
+          resource === "/onboarding"
         : resource.startsWith("/" + section + "/") ||
           (section === "email" && resource === "/connections");
   if (!relevant)
     return (success: boolean, data?: unknown) => {
-      if (success) rememberProvider(resource, data);
+      if (success) {
+        lastReads.set(resource.split("/")[1], Date.now());
+        rememberProvider(resource, data);
+      }
     };
   const writing = !["GET", "HEAD"].includes(method.toUpperCase());
   const before = readViewStatus(viewKey);
@@ -181,7 +189,10 @@ export function trackViewRequest(path: string, method = "GET") {
   return (success: boolean, data?: unknown) => {
     if (finished) return;
     finished = true;
-    if (success) rememberProvider(resource, data);
+    if (success) {
+      lastReads.set(resource.split("/")[1], Date.now());
+      rememberProvider(resource, data);
+    }
     const current = readViewStatus(viewKey);
     const failed = failures.get(viewKey) || new Set<string>();
     if (success) failed.delete(resource);

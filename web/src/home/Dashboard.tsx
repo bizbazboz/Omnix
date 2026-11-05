@@ -1,7 +1,7 @@
 import NotesSummary from "../products/notes/NotesSummary";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ArrowUpRight, Mail, Plus, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMinuteClock } from "../lib/useMinuteClock";
 import { NavLink } from "react-router-dom";
 import { Avatar } from "../components/Brand";
 import { api, type Account, type Message, type User } from "../lib/api";
@@ -26,11 +26,7 @@ export default function Dashboard({
   accounts: Account[];
   onCompose: () => void;
 }) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const now = useMinuteClock();
   const overview = useQuery<Overview>({
     queryKey: ["overview"],
     queryFn: () => api("/overview"),

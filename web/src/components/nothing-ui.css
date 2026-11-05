@@ -1,0 +1,525 @@
+/* Workspace-wide Nothing hierarchy: canvas, content, then instrument labels. */
+:root {
+  --page-gutter: clamp(24px, 4vw, 56px);
+  --page-space: 40px;
+  --control-height: 44px;
+}
+.workspace .page-header {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 0 0 40px;
+  padding: 0;
+}
+.workspace .page-header-title {
+  min-width: 0;
+}
+.workspace .page-header-title h1 {
+  margin: 12px 0 0;
+  font:
+    400 clamp(32px, 3vw, 44px) / 1.15 "Space Grotesk",
+    sans-serif;
+  letter-spacing: -0.045em;
+  overflow-wrap: anywhere;
+}
+.workspace .page-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 100%;
+}
+.workspace .page,
+.workspace .dashboard,
+.workspace .calendar-product,
+.workspace .health-product,
+.workspace .notes-page {
+  padding: var(--page-space) var(--page-gutter) 64px;
+  scrollbar-color: var(--border-visible) transparent;
+}
+.workspace .topbar {
+  min-height: 60px;
+  padding-inline: var(--page-gutter);
+  border-color: var(--border);
+}
+.workspace .breadcrumb {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.workspace .breadcrumb > a:hover {
+  color: var(--text-display);
+}
+.workspace .view-data-status {
+  font-size: 11px;
+}
+.workspace .app-sidebar.sidebar {
+  background: #080808;
+  padding: 24px 16px 16px;
+}
+.workspace .app-sidebar-body {
+  margin-top: 32px;
+  padding-right: 4px;
+}
+.workspace .app-sidebar nav a {
+  min-height: 44px;
+  height: auto;
+  padding: 12px;
+  border-radius: 6px;
+}
+.workspace .app-sidebar nav a.active,
+.workspace .app-sidebar nav a.folder-active {
+  background: var(--surface-raised);
+}
+.workspace .app-sidebar nav a.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 16px;
+  background: var(--text-display);
+}
+.workspace .application-list {
+  gap: 8px;
+}
+.workspace .application-list > a {
+  min-height: 56px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+.workspace .sidebar-app-title {
+  gap: 12px;
+  margin-block: 24px;
+}
+.workspace .sidebar-app-title h2 {
+  font:
+    400 24px/1.25 "Space Grotesk",
+    sans-serif;
+  letter-spacing: -0.035em;
+}
+.workspace .sidebar-back {
+  min-height: 44px;
+  padding: 0 8px;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+.workspace .sidebar-back > svg {
+  box-sizing: content-box;
+  padding: 9px;
+  border: 1px solid var(--border-visible);
+  border-radius: 50%;
+}
+.workspace .sidebar-back:hover {
+  color: var(--text-display);
+}
+.workspace .sidebar-group-label {
+  margin: 28px 12px 12px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+.workspace .sidebar-footer {
+  padding-top: 20px;
+  margin-top: 20px;
+}
+.workspace .new-message {
+  border-radius: 999px;
+  min-height: 44px;
+}
+.workspace .icon-button {
+  min-width: 40px;
+  min-height: 40px;
+}
+.workspace .primary,
+.workspace .secondary {
+  min-height: var(--control-height);
+  padding: 12px 20px;
+  border-radius: 6px;
+}
+.workspace .primary:hover:not(:disabled) {
+  background: #e8e8e8;
+  border-color: #e8e8e8;
+}
+.workspace .secondary:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--text-secondary);
+}
+.workspace .select-trigger,
+.workspace .form-label > input,
+.workspace .form-label > textarea {
+  min-height: var(--control-height);
+  background: #080808;
+  border: 1px solid var(--border-visible);
+  border-radius: 6px;
+  padding: 12px;
+  color: var(--text-primary);
+}
+.workspace .form-label {
+  gap: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.workspace .form-label small {
+  color: var(--text-secondary);
+  font:
+    13px/1.6 "Space Grotesk",
+    sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.workspace .select-trigger:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+}
+.select-popup:popover-open {
+  border-color: var(--border-visible);
+  border-radius: 8px;
+  box-shadow: none;
+}
+.workspace .settings-layout {
+  gap: 40px;
+  grid-template-columns: 176px minmax(0, 1fr);
+}
+.workspace .settings-layout.settings-nav-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+.workspace .settings-tabs {
+  padding-right: 16px;
+}
+.workspace .settings-tabs a {
+  min-height: 44px;
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 12px;
+}
+.workspace .settings-content {
+  max-width: 960px;
+  min-width: 0;
+}
+.workspace .settings-content > .settings-card,
+.workspace .settings-content > div > .settings-card {
+  margin: 0 0 32px;
+}
+.workspace .settings-card {
+  background: #080808;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 28px;
+}
+.workspace .settings-card h2 {
+  font:
+    400 22px/1.3 "Space Grotesk",
+    sans-serif;
+  margin: 0 0 12px;
+}
+.workspace .settings-card p {
+  line-height: 1.7;
+}
+.workspace .settings-form {
+  gap: 24px;
+}
+.workspace .settings-actions {
+  padding-top: 8px;
+  gap: 12px;
+}
+.workspace .settings-card .copy-field {
+  margin-block: 20px;
+}
+.workspace .integration-shortcuts {
+  margin: 0 0 24px;
+  gap: 8px;
+}
+.workspace .integration-shortcuts a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border: 1px solid var(--border-visible);
+  border-radius: 999px;
+  font: 11px var(--font-mono);
+  text-transform: uppercase;
+}
+.workspace .integration-shortcuts a:hover {
+  border-color: var(--text-primary);
+}
+.workspace .dashboard-heading h1 {
+  margin-top: 12px;
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 400;
+}
+.workspace .clock-section {
+  margin-block: 48px;
+  gap: 48px;
+}
+.workspace .clock {
+  font-size: clamp(76px, 8vw, 144px);
+  line-height: 1.1;
+}
+.workspace .clock-date {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-top: 20px;
+}
+.workspace .metric-strip {
+  margin-bottom: 48px;
+}
+.workspace .metric {
+  padding: 24px;
+}
+.workspace .metric:first-child {
+  padding-left: 0;
+}
+.workspace .metric-label,
+.workspace .metric-suffix {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+.workspace .metric-value {
+  margin-block: 20px 12px;
+}
+.workspace .dashboard .section-title h2 {
+  font-size: 20px;
+  letter-spacing: -0.025em;
+}
+.workspace .dashboard-message,
+.workspace .dashboard-account-list > a {
+  padding-block: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.workspace .dashboard-message:hover {
+  background: #080808;
+}
+.workspace .dashboard-footer {
+  font: 10px var(--font-mono);
+  color: var(--text-secondary);
+}
+.workspace .calendar-feeds {
+  padding-right: 24px;
+  border-right: 1px solid var(--border);
+}
+.workspace .calendar-feed {
+  padding-block: 20px;
+}
+.workspace .calendar-layout {
+  gap: 32px;
+}
+.workspace .agenda-event {
+  padding-block: 20px;
+}
+.workspace .health-page-caption {
+  margin-top: -20px;
+  margin-bottom: 40px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.workspace .health-date-row {
+  align-items: center;
+}
+.workspace .health-metrics > button {
+  padding: 24px;
+}
+.workspace .health-history {
+  margin-top: 40px;
+}
+.workspace .note-templates {
+  gap: 12px;
+}
+.workspace .note-templates button,
+.workspace .note-cards > a {
+  padding: 24px;
+  border-radius: 8px;
+  background: #080808;
+}
+.workspace .note-templates button:hover,
+.workspace .note-cards > a:hover {
+  border-color: var(--text-secondary);
+  background: var(--surface);
+}
+.workspace .note-title {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.045em;
+}
+.workspace .notes-view-bar {
+  gap: 16px;
+  margin-block: 28px;
+}
+.workspace .issue-board {
+  gap: 16px;
+  align-items: start;
+}
+.workspace .issue-board > section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #080808;
+  padding: 12px;
+}
+.workspace .issue-card {
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 16px;
+  gap: 20px;
+}
+.workspace .issue-card:hover {
+  border-color: var(--text-secondary);
+}
+.workspace .note-editor-actions {
+  padding-block: 20px;
+}
+.workspace .reader-body > h2 {
+  font-size: clamp(24px, 2.3vw, 32px);
+  line-height: 1.3;
+  letter-spacing: -0.035em;
+}
+.workspace .message-row.selected {
+  background: var(--surface-raised);
+}
+.workspace .reader-toolbar {
+  min-height: 60px;
+}
+.workspace dialog::backdrop,
+.calendar-modal::backdrop {
+  backdrop-filter: none;
+  background: #000c;
+}
+.page-loading {
+  padding: 48px var(--page-gutter);
+  color: var(--text-secondary);
+  font: 11px/1.6 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  padding: 12px 20px;
+  color: var(--black);
+  background: var(--text-display);
+  transform: translateY(-200%);
+}
+.skip-link:focus {
+  transform: none;
+}
+.login .login-form {
+  padding: clamp(32px, 6vw, 88px);
+}
+.login .login-form h1 {
+  font:
+    400 clamp(40px, 4vw, 56px) / 1.1 "Space Grotesk",
+    sans-serif;
+  letter-spacing: -0.045em;
+  margin-block: 16px 40px;
+}
+.login .login-button {
+  width: 100%;
+  justify-content: space-between;
+  min-height: 52px;
+  border-radius: 999px;
+}
+.workspace .onboarding-stage {
+  background: #080808;
+  border-color: var(--border-visible);
+  border-radius: 8px;
+}
+@media (max-width: 1000px) {
+  .workspace .settings-layout {
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .workspace .settings-card {
+    padding: 24px;
+  }
+}
+@media (max-width: 760px) {
+  :root {
+    --page-gutter: 20px;
+    --page-space: 28px;
+  }
+  .workspace .topbar {
+    padding: 8px 16px;
+  }
+  .workspace .page-header {
+    align-items: flex-start;
+    margin-bottom: 32px;
+  }
+  .workspace .page-header-actions {
+    gap: 8px;
+  }
+  .workspace .view-data-status {
+    font-size: 10px;
+  }
+  .workspace .health-date-row {
+    align-items: flex-start;
+  }
+  .workspace .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .workspace .settings-tabs {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 0 0 16px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    gap: 4px;
+  }
+  .workspace .settings-tabs a {
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+  .workspace .settings-card {
+    padding: 20px;
+  }
+  .workspace .clock-section {
+    gap: 32px;
+    margin-block: 40px;
+  }
+  .workspace .clock {
+    font-size: clamp(64px, 16vw, 112px);
+  }
+  .workspace .metric {
+    padding: 20px 12px;
+  }
+  .workspace .metric:nth-child(odd) {
+    padding-left: 0;
+  }
+  .workspace .metric-value {
+    font-size: 40px;
+  }
+  .workspace .calendar-feeds {
+    padding: 0 0 20px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .workspace .calendar-actions {
+    flex-wrap: wrap;
+  }
+  .workspace .icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .workspace .note-templates button {
+    padding: 20px;
+  }
+  .workspace .note-actions {
+    gap: 8px;
+  }
+  .workspace .integration-shortcuts {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,5 +1,6 @@
 // Synthetic API fixtures only; this audit never writes to the running workspace.
 const path = require("path");
+const fs = require("fs");
 const { chromium } = require(
   require.resolve("playwright", { paths: [path.join(__dirname, "../web")] })
 );
@@ -16,6 +17,20 @@ let browser;
   });
   const page = await context.newPage();
   const errors = [];
+  const scripts = [];
+  const requestCounts = new Map();
+  let signedIn = true;
+  page.on("request", (request) => {
+    if (request.resourceType() === "script")
+      scripts.push(new URL(request.url()).pathname);
+  });
+  async function capture(name) {
+    if (!process.env.OMNIX_UI_SCREENSHOTS) return;
+    fs.mkdirSync(process.env.OMNIX_UI_SCREENSHOTS, { recursive: true });
+    await page.screenshot({
+      path: path.join(process.env.OMNIX_UI_SCREENSHOTS, name + ".png")
+    });
+  }
   page.on("pageerror", (e) => errors.push(e.message));
   const assert = (v, m) => {
     if (!v) throw Error(m);
@@ -115,6 +130,45 @@ let browser;
       }
     ]
   };
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = Array.from({ length: 14 }, (_, i) =>
+    new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10)
+  );
+  const metrics = Object.fromEntries(
+    [
+      "steps",
+      "distance",
+      "calories",
+      "active_minutes",
+      "sleep",
+      "heart_rate",
+      "weight",
+      "water"
+    ].map((id) => [
+      id,
+      {
+        label: id.replaceAll("_", " "),
+        unit: id === "steps" ? "steps" : "",
+        group: "activity",
+        status: "ready",
+        points: Object.fromEntries(
+          dates.map((day, i) => [
+            day,
+            id === "steps" ? 5500 + i * 280 : 6.5 + (i % 3)
+          ])
+        )
+      }
+    ])
+  );
+  const nestedPages = [
+    { ...note, id: "folder-qa", title: "Research", is_folder: true },
+    {
+      ...note,
+      id: "nested-qa",
+      title: "Deeply nested reference",
+      parent_id: "folder-qa"
+    }
+  ];
   await context.addInitScript(() => {
     window.__unsafeMail = false;
     addEventListener("message", (e) => {
@@ -132,6 +186,7 @@ let browser;
     const req = route.request(),
       u = new URL(req.url()),
       p = u.pathname.replace("/api/v1", "");
+    requestCounts.set(p, (requestCounts.get(p) || 0) + 1);
     let data = {},
       status = 200;
     if (p === "/me")
@@ -142,6 +197,18 @@ let browser;
         is_admin: false,
         csrf: "qa-only"
       };
+    if (p === "/me" && !signedIn) {
+      status = 401;
+      data = { detail: "Not authenticated" };
+    } else if (p === "/onboarding")
+      data = {
+        signed_in: true,
+        database: "connected",
+        authentication: "configured",
+        completed: false
+      };
+    else if (p === "/settings/workspace")
+      data = { name: "Omnix", private_mail_hosts: [] };
     else if (p === "/config")
       data = { oidc_configured: true, setup_available: false };
     else if (p === "/products")
@@ -208,7 +275,21 @@ let browser;
           event_count: 0
         }
       ];
-    else if (p === "/calendar/events") data = [];
+    else if (p === "/calendar/events")
+      data = [
+        {
+          id: "event-qa",
+          feed_id: "feed-qa",
+          calendar: "QA calendar",
+          title: "Design review",
+          location: "Studio",
+          start: today + "T14:00:00Z",
+          end: today + "T15:00:00Z",
+          all_day: false,
+          start_ts: Date.parse(today + "T14:00:00Z") / 1000,
+          end_ts: Date.parse(today + "T15:00:00Z") / 1000
+        }
+      ];
     else if (p === "/health/status")
       data = {
         configured: true,
@@ -220,12 +301,14 @@ let browser;
         groups: []
       };
     else if (p === "/health/statistics")
-      data = { dates: [], timezone: "Europe/London", metrics: {} };
+      data = { dates, timezone: "Europe/London", metrics };
     else if (p === "/health/google/registration")
       data = { configured: true, can_configure: false };
     else if (p === "/notes/overview") data = { recent: [note], tasks: [] };
-    else if (p === "/notes/pages") data = { items: [note], next_offset: null };
+    else if (p === "/notes/pages")
+      data = { items: [note, ...nestedPages], next_offset: null };
     else if (p === "/notes/pages/" + note.id) data = note;
+    else if (p.endsWith("/backlinks")) data = { items: [] };
     else if (p.startsWith("/notes/pages/")) data = [];
     else if (p === "/notes/projects") data = [project];
     else if (p === "/notes/projects/" + project.id) data = project;
@@ -262,7 +345,32 @@ let browser;
       body: JSON.stringify(data)
     });
   });
+  await page.clock.install({ time: new Date("2026-11-05T09:10:10Z") });
   await page.goto(origin + "/");
+  await page.locator(".dashboard .clock").waitFor();
+  await page.clock.pauseAt(new Date("2026-11-05T09:10:40Z"));
+  const clockStamp = await page
+    .locator(".dashboard .clock")
+    .getAttribute("datetime");
+  await page.clock.fastForward(10000);
+  assert(
+    (await page.locator(".dashboard .clock").getAttribute("datetime")) ===
+      clockStamp,
+    "Minute clock rerendered during the same minute"
+  );
+  await page.clock.fastForward(11000);
+  await page.clock.resume();
+  await page.waitForFunction(() =>
+    document.querySelector(".dashboard .clock")?.textContent.includes("09:11")
+  );
+  assert(
+    requestCounts.get("/settings/preferences") === 1,
+    "Shared preferences fetched more than once"
+  );
+  assert(
+    !scripts.some((url) => /NotePage-|Settings-|Notes-/.test(url)),
+    "Home eagerly loaded another product"
+  );
   await page
     .getByRole("button", { name: "Open navigation", exact: true })
     .waitFor();
@@ -413,9 +521,48 @@ let browser;
   for (const route of routes) {
     await page.goto(origin + route);
     await page.locator("main.main").waitFor();
-    await page.waitForTimeout(120);
+    const content = route.startsWith("/health")
+      ? ".health-product .health-metrics"
+      : route.startsWith("/calendar")
+        ? ".calendar-layout"
+        : route.startsWith("/notes/pages/")
+          ? ".note-editor-surface [contenteditable=true]"
+          : route.startsWith("/notes/projects/project-")
+            ? ".notes-view-bar"
+            : route.startsWith("/notes")
+              ? ".notes-page"
+              : route.startsWith("/settings")
+                ? ".settings-content > *"
+                : route === "/"
+                  ? ".dashboard .clock"
+                  : route === "/email/outbox"
+                    ? ".outbox-heading"
+                    : ".email-heading";
+    await page.locator(content).first().waitFor();
+    const badContrast = await page
+      .locator('.segmented-control > button[aria-pressed="true"]')
+      .evaluateAll((buttons) =>
+        buttons.some((button) => {
+          const style = getComputedStyle(button);
+          return style.color === style.backgroundColor;
+        })
+      );
+    assert(!badContrast, "Selected view label is invisible on " + route);
     for (const width of [320, 390, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
+      if (
+        [390, 1280].includes(width) &&
+        [
+          "/",
+          "/email",
+          "/calendar?view=month",
+          "/health",
+          "/notes",
+          "/notes/projects/project-qa?view=board",
+          "/settings/general"
+        ].includes(route)
+      )
+        await capture(route.replaceAll(/[^a-z0-9]/gi, "_") + "-" + width);
       const size = await page.evaluate(() => ({
         view: innerWidth,
         scroll: document.documentElement.scrollWidth,
@@ -430,6 +577,79 @@ let browser;
     !overflows.length,
     "Responsive overflow: " + JSON.stringify(overflows)
   );
+  // Notes lists and issue boards should never download the rich editor bundle.
+  scripts.length = 0;
+  const pageReadsBefore = requestCounts.get("/notes/pages") || 0;
+  await page.goto(origin + "/notes");
+  await page
+    .locator(".notes-list")
+    .getByRole("link", { name: /QA page/ })
+    .waitFor();
+  assert(
+    requestCounts.get("/notes/pages") - pageReadsBefore === 1,
+    "Sidebar and notes list fetched duplicate page metadata"
+  );
+  assert(requestCounts.get("/notes/pages") >= 1, "Notes metadata did not load");
+  assert(
+    !scripts.some((url) => /NotePage-|native-/.test(url)),
+    "Notes list downloaded the editor"
+  );
+  await page
+    .getByRole("textbox", { name: "Find a page", exact: true })
+    .fill("Deeply nested");
+  await page
+    .getByRole("link", { name: "Deeply nested reference", exact: true })
+    .waitFor();
+  assert(
+    await page.getByRole("link", { name: "Research", exact: true }).isVisible(),
+    "Search hid the matching page's ancestor"
+  );
+  await page
+    .getByRole("textbox", { name: "Find a page", exact: true })
+    .fill("No matching fixture");
+  await page.getByText("No matching pages.", { exact: true }).waitFor();
+  const readsBeforeFavorites = requestCounts.get("/notes/pages");
+  await page
+    .getByRole("navigation", { name: "Notes navigation" })
+    .getByRole("link", { name: "Favorites", exact: true })
+    .click();
+  await page.getByRole("heading", { name: "Favorites", exact: true }).waitFor();
+  await page.locator(".view-data-status time").waitFor();
+  assert(
+    requestCounts.get("/notes/pages") === readsBeforeFavorites,
+    "Cached Favorites refetched the shared page list"
+  );
+  await page.goto(origin + "/notes/projects/project-qa?view=board");
+  await page.locator(".issue-board").waitFor();
+  assert(
+    !scripts.some((url) => /NotePage-|native-/.test(url)),
+    "Issue board downloaded the editor"
+  );
+  await page.goto(origin + "/onboarding");
+  await page
+    .getByRole("heading", { name: "You're connected.", exact: true })
+    .waitFor();
+  await capture("onboarding");
+  await page
+    .getByRole("button", { name: "Make it yours", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "Make it yours.", exact: true })
+    .waitFor();
+  await page
+    .getByRole("textbox", { name: "Display name", exact: true })
+    .waitFor();
+  await capture("onboarding-preferences");
+  signedIn = false;
+  scripts.length = 0;
+  await page.goto(origin + "/");
+  await page.getByRole("link", { name: /Continue with Pocket ID/ }).waitFor();
+  assert(
+    !scripts.some((url) => /Dashboard-|Settings-|NotePage-|Notes-/.test(url)),
+    "Login eagerly loaded workspace screens"
+  );
+  await capture("login");
+  signedIn = true;
   failedMail = true;
   await page.goto(origin + "/email?account=mail-qa");
   await page
@@ -519,12 +739,18 @@ let browser;
       issueAutoClose: true,
       failedCreateStaysOpen: true,
       syncStatus: true,
+      lazyEditor: true,
+      minuteClock: true,
+      selectedControlContrast: true,
+      nestedPageSearch: true,
+      onboarding: true,
+      loginIsolation: true,
       runtimeErrors: errors.length
     })
   );
   await browser.close();
 })().catch(async (e) => {
-  console.error(e.message);
+  console.error(e.stack);
   if (browser) await browser.close();
   process.exit(1);
 });
