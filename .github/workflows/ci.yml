@@ -36,6 +36,17 @@ jobs:
         run: docker compose up -d --build --wait --wait-timeout 180
       - name: Verify production boundaries
         run: docker run --rm --network omnix-production_default -v "$PWD/scripts/check_production.py:/checks/check.py:ro" omnix:local python /checks/check.py
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install browser audit dependencies
+        run: |
+          npm --prefix web ci
+          npm --prefix web exec -- playwright install --with-deps chromium
+      - name: Verify responsive workspace interactions
+        run: npm --prefix web run test:ui
       - name: Inspect startup failure
         if: failure()
         run: docker compose logs --tail=80

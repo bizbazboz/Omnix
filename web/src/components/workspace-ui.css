@@ -1,0 +1,226 @@
+/* Shared Nothing controls and responsive workspace surfaces. */
+.workspace .segmented-control {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-visible);
+  border-radius: 6px;
+  max-width: 100%;
+}
+.workspace .segmented-control > button {
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font: 11px/1.4 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.workspace .segmented-control > button.active {
+  color: var(--black);
+  background: var(--text-display);
+  border: 0;
+}
+.workspace .segmented-control > button:hover:not(.active) {
+  color: var(--text-display);
+}
+.workspace .view-data-status {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  color: var(--text-secondary);
+  font: 10px/1.5 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.workspace .view-data-status[data-failed="true"] {
+  color: var(--warning);
+}
+.workspace .view-data-status time {
+  color: var(--text-primary);
+}
+.workspace .email-content .reader,
+.workspace .email-content .reader-body,
+.workspace .mail-document {
+  min-width: 0;
+  max-width: 100%;
+}
+.workspace .email-content .reader-body {
+  overscroll-behavior: contain;
+}
+.workspace .mail-document .mail-frame {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.workspace .notes-kanban {
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+}
+.workspace .notes-kanban > section {
+  min-width: 0;
+}
+.workspace .notes-kanban .issue-card-title {
+  overflow-wrap: anywhere;
+}
+.workspace .composer {
+  max-width: 100%;
+}
+.workspace .issue-detail-modal,
+.workspace .project-create-modal,
+.workspace .note-history-dialog {
+  max-width: calc(100vw - 24px);
+}
+@media (max-width: 760px) {
+  .workspace .topbar {
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 12px 16px;
+  }
+  .workspace .topbar .breadcrumb {
+    flex: 1;
+    min-width: 0;
+  }
+  .workspace .topbar .inline-status {
+    max-width: 100%;
+    flex-basis: 100%;
+  }
+  .workspace .view-data-status {
+    font-size: 9px;
+  }
+  .workspace .email-heading {
+    padding: 20px 16px;
+  }
+  .workspace .email-content .reader .reader-body {
+    padding: 20px 12px;
+  }
+  .workspace .reader .reader-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .workspace .reader .reader-mail-actions {
+    flex-wrap: wrap;
+    gap: 2px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .workspace .reader-toolbar .icon-button {
+    min-width: 40px;
+    min-height: 44px;
+  }
+  .workspace .reader-toolbar .select-trigger {
+    min-height: 44px;
+  }
+  .workspace .reader-account {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .workspace .sender-block {
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .workspace .sender-block > div {
+    flex: 1;
+    min-width: 0;
+  }
+  .workspace .sender-block time {
+    flex-basis: 100%;
+    margin-left: 48px;
+    padding: 0;
+  }
+  .workspace .reply-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .workspace .mail-display-options {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .workspace .mail-display-options .remote-images {
+    min-height: 44px;
+    font-size: 11px;
+  }
+  .workspace .segmented-control > button {
+    min-height: 44px;
+  }
+  .workspace .modal-backdrop {
+    padding: 12px;
+    align-items: flex-start;
+    overflow-y: auto;
+  }
+  .workspace .composer {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    border-radius: 8px;
+  }
+  .workspace .compose-field,
+  .workspace .modal-title {
+    padding: 12px 16px;
+  }
+  .workspace .compose-field {
+    min-width: 0;
+    gap: 12px;
+  }
+  .workspace .compose-field > input {
+    min-width: 0;
+  }
+  .workspace .composer .compose-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 16px;
+  }
+  .workspace .composer textarea {
+    min-height: 160px;
+  }
+  .workspace .issue-detail-modal {
+    width: calc(100vw - 24px);
+    padding: 16px;
+    max-height: calc(100dvh - 24px);
+  }
+  .workspace .notes-page {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .workspace .notes-view-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .workspace .note-actions {
+    flex-wrap: wrap;
+  }
+  .workspace input:not([type="checkbox"]):not([type="range"]),
+  .workspace textarea {
+    font-size: 16px;
+  }
+  .workspace .issue-summary-label > input {
+    font-size: 24px;
+  }
+  .workspace .select-trigger {
+    min-height: 44px;
+  }
+  .workspace .primary,
+  .workspace .secondary,
+  .workspace .text-button {
+    min-height: 44px;
+  }
+}
+@media (max-width: 480px) {
+  .workspace .issue-properties {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workspace .issue-detail-grid {
+    gap: 24px;
+  }
+  .workspace .issue-save-bar {
+    gap: 12px;
+  }
+  .workspace .issue-save-bar .muted {
+    flex-basis: 100%;
+  }
+}

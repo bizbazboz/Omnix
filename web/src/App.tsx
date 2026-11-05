@@ -7,7 +7,7 @@ import {
   PanelLeftOpen,
   X
 } from "lucide-react";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import {
   Navigate,
   NavLink,
@@ -17,6 +17,8 @@ import {
 } from "react-router-dom";
 import { Logo } from "./components/Brand";
 import WorkspaceNavigation from "./components/WorkspaceNavigation";
+import DataStatus from "./components/DataStatus";
+import "./components/workspace-ui.css";
 import Dashboard from "./home/Dashboard";
 import { api, setCsrf, type Account, type Draft, type User } from "./lib/api";
 import Composer from "./products/email/Composer";
@@ -91,6 +93,7 @@ export default function App() {
   );
 }
 function Workspace({ user }: { user: User }) {
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [mobile, setMobile] = useState(false),
     [compose, setCompose] = useState<Draft | null>(null),
     [status, setStatus] = useState("");
@@ -106,6 +109,31 @@ function Workspace({ user }: { user: User }) {
     queryKey: ["preferences"],
     queryFn: () => api("/settings/preferences")
   });
+  useEffect(
+    () => setMobile(false),
+    [location.pathname, location.search, location.hash]
+  );
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 761px)");
+    const resized = () => {
+      if (desktop.matches) setMobile(false);
+    };
+    desktop.addEventListener("change", resized);
+    return () => desktop.removeEventListener("change", resized);
+  }, []);
+  useEffect(() => {
+    if (!mobile) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setMobile(false);
+        requestAnimationFrame(() => menuButton.current?.focus());
+      }
+    };
+    document.addEventListener("keydown", escape, true);
+    return () => document.removeEventListener("keydown", escape, true);
+  }, [mobile]);
   const accounts = useQuery<Account[]>({
     queryKey: ["accounts"],
     queryFn: () => api("/connections"),
@@ -152,9 +180,10 @@ function Workspace({ user }: { user: User }) {
         onCompose={createDraft}
         notify={setStatus}
       />
-      <main className="main">
+      <main className="main" inert={mobile || undefined}>
         <header className="topbar">
           <button
+            ref={menuButton}
             className="icon-button mobile-toggle"
             aria-label="Open navigation"
             aria-expanded={mobile}
@@ -178,6 +207,7 @@ function Workspace({ user }: { user: User }) {
             <ChevronRight size={12} />
             <span>{current}</span>
           </div>
+          <DataStatus />
           {status && (
             <div className="inline-status" role="status">
               {status}
