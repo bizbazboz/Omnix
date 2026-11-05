@@ -93,7 +93,7 @@
 }
 .workspace .sidebar-app-title {
   gap: 12px;
-  margin-block: 24px;
+  margin: 16px 12px 24px;
 }
 .workspace .sidebar-app-title h2 {
   font:
@@ -103,18 +103,26 @@
 }
 .workspace .sidebar-back {
   min-height: 44px;
-  padding: 0 8px;
+  padding: 8px 12px;
   gap: 12px;
+  background: transparent;
   color: var(--text-secondary);
 }
 .workspace .sidebar-back > svg {
-  box-sizing: content-box;
-  padding: 9px;
-  border: 1px solid var(--border-visible);
-  border-radius: 50%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
 }
 .workspace .sidebar-back:hover {
   color: var(--text-display);
+}
+.workspace .mailbox-picker {
+  margin: 24px 12px 16px;
+}
+.workspace .mailbox-picker label {
+  margin-bottom: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
 }
 .workspace .sidebar-group-label {
   margin: 28px 12px 12px;
