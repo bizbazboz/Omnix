@@ -20,6 +20,8 @@ let browser;
   const scripts = [];
   const requestCounts = new Map();
   let signedIn = true;
+  let dailySaved = null,
+    badWalk = false;
   page.on("request", (request) => {
     if (request.resourceType() === "script")
       scripts.push(new URL(request.url()).pathname);
@@ -169,6 +171,137 @@ let browser;
       parent_id: "folder-qa"
     }
   ];
+  const dailySettings = {
+    news: [
+      {
+        id: "daily-feed",
+        name: "Daily source",
+        url: "https://news.example.test/feed.xml"
+      }
+    ],
+    weather: {
+      enabled: true,
+      label: "London",
+      latitude: 51.5,
+      longitude: -0.12,
+      endpoint: "https://api.open-meteo.com/v1/forecast",
+      temperature_unit: "celsius",
+      key_configured: false
+    },
+    transport: {
+      enabled: true,
+      all_lines: true,
+      lines: [],
+      endpoint: "https://api.tfl.gov.uk/Line/Mode/tube/Status",
+      key_configured: false
+    },
+    walks: {
+      endpoint:
+        "https://api.openrouteservice.org/v2/directions/foot-walking/geojson",
+      key_configured: true
+    },
+    widgets: ["news", "weather", "transport", "walks"]
+  };
+  const walkFixture = {
+    coordinates: [
+      [-0.12, 51.5],
+      [-0.119, 51.501],
+      [-0.118, 51.5],
+      [-0.12, 51.5]
+    ],
+    distance_m: 5100,
+    duration_s: 3700,
+    steps: ["Head north", "Turn left", "Arrive at your start"],
+    created_at: stamp,
+    requested_km: 5,
+    attribution: "openrouteservice · OpenStreetMap contributors"
+  };
+  const dailyFixture = {
+    configured: true,
+    widgets: dailySettings.widgets,
+    walks_configured: true,
+    walks: walkFixture,
+    news: {
+      enabled: true,
+      error: "",
+      last_sync: stamp,
+      data: {
+        feeds: [
+          {
+            id: "daily-feed",
+            name: "Daily source",
+            error: "",
+            items: [
+              {
+                id: "headline-qa",
+                source_id: "daily-feed",
+                source: "Daily source",
+                title: "A useful daily headline",
+                summary: "Read the latest from your selected source.",
+                url: "https://news.example.test/article",
+                published: stamp
+              }
+            ]
+          }
+        ]
+      }
+    },
+    weather: {
+      enabled: true,
+      error: "",
+      last_sync: stamp,
+      data: {
+        label: "London",
+        unit: "°C",
+        temperature: 12,
+        feels_like: 10,
+        wind: 15,
+        code: 3,
+        days: dates
+          .slice(-7)
+          .map((date) => ({ date, high: 13, low: 6, rain: 20, code: 3 }))
+      }
+    },
+    transport: {
+      enabled: true,
+      error: "",
+      last_sync: stamp,
+      data: {
+        attribution: "Transport for London",
+        available_lines: [
+          { id: "central", name: "Central" },
+          { id: "victoria", name: "Victoria" }
+        ],
+        lines: [
+          {
+            id: "central",
+            name: "Central",
+            mode: "tube",
+            statuses: [
+              {
+                severity: 9,
+                description: "Minor delays",
+                reason: "An earlier incident"
+              }
+            ]
+          },
+          {
+            id: "victoria",
+            name: "Victoria",
+            mode: "tube",
+            statuses: [
+              { severity: 10, description: "Good service", reason: "" },
+              {
+                severity: 20,
+                description: "Service closed",
+                reason: "Closed for the night"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
   await context.addInitScript(() => {
     window.__unsafeMail = false;
     addEventListener("message", (e) => {
@@ -216,9 +349,26 @@ let browser;
         { id: "email", name: "Mail" },
         { id: "calendar", name: "Calendar" },
         { id: "health", name: "Health" },
-        { id: "notes", name: "Notes & Projects" }
+        { id: "notes", name: "Notes & Projects" },
+        { id: "daily", name: "Daily" }
       ];
-    else if (p === "/connections") data = [account];
+    else if (p === "/daily")
+      data = { ...dailyFixture, widgets: dailySettings.widgets };
+    else if (p === "/settings/daily") {
+      if (req.method() === "PUT") {
+        dailySaved = req.postDataJSON();
+        Object.assign(dailySettings, dailySaved);
+      }
+      data = dailySettings;
+    } else if (p === "/daily/refresh") {
+      status = 202;
+      data = { queued: true };
+    } else if (p === "/daily/walks") {
+      if (badWalk) {
+        status = 502;
+        data = { detail: "Walking provider unavailable" };
+      } else data = walkFixture;
+    } else if (p === "/connections") data = [account];
     else if (p === "/overview")
       data = {
         unread: 0,
@@ -525,6 +675,10 @@ let browser;
     "/notes/projects/project-qa?view=board",
     "/notes/projects/project-qa?view=issues",
     "/notes/pages/page-qa",
+    "/daily/news",
+    "/daily/weather",
+    "/daily/transport",
+    "/daily/walks",
     "/settings/general",
     "/settings/connections",
     "/settings/security",
@@ -534,24 +688,33 @@ let browser;
   for (const route of routes) {
     await page.goto(origin + route);
     await page.locator("main.main").waitFor();
-    const content = route.startsWith("/health")
-      ? ".health-product .health-metrics"
-      : route.startsWith("/calendar")
-        ? ".calendar-layout"
-        : route.startsWith("/notes/pages/")
-          ? ".note-editor-surface [contenteditable=true]"
-          : route.startsWith("/notes/projects/project-")
-            ? ".notes-view-bar"
-            : route.startsWith("/notes")
-              ? ".notes-page"
-              : route.startsWith("/settings")
-                ? ".settings-content > *"
-                : route === "/"
-                  ? ".dashboard .clock"
-                  : route === "/email/outbox"
-                    ? ".outbox-heading"
-                    : ".email-heading";
+    const content = route.startsWith("/daily")
+      ? {
+          "/daily/news": ".daily-news-list",
+          "/daily/weather": ".daily-weather-current",
+          "/daily/transport": ".daily-transport-list",
+          "/daily/walks": ".daily-walk-form"
+        }[route]
+      : route.startsWith("/health")
+        ? ".health-product .health-metrics"
+        : route.startsWith("/calendar")
+          ? ".calendar-layout"
+          : route.startsWith("/notes/pages/")
+            ? ".note-editor-surface [contenteditable=true]"
+            : route.startsWith("/notes/projects/project-")
+              ? ".notes-view-bar"
+              : route.startsWith("/notes")
+                ? ".notes-page"
+                : route.startsWith("/settings")
+                  ? ".settings-content > *"
+                  : route === "/"
+                    ? ".dashboard .clock"
+                    : route === "/email/outbox"
+                      ? ".outbox-heading"
+                      : ".email-heading";
     await page.locator(content).first().waitFor();
+    if (route === "/settings/connections")
+      await page.locator(".daily-integration form").waitFor();
     const badContrast = await page
       .locator('.segmented-control > button[aria-pressed="true"]')
       .evaluateAll((buttons) =>
@@ -570,6 +733,10 @@ let browser;
           "/email",
           "/calendar?view=month",
           "/health",
+          "/daily/news",
+          "/daily/weather",
+          "/daily/transport",
+          "/daily/walks",
           "/notes",
           "/notes/projects/project-qa?view=board",
           "/settings/general"
@@ -590,7 +757,88 @@ let browser;
     !overflows.length,
     "Responsive overflow: " + JSON.stringify(overflows)
   );
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(origin + "/daily/transport");
+  await page
+    .locator(".daily-transport-title")
+    .getByText("Service closed", { exact: true })
+    .waitFor();
+  await page.goto(origin + "/daily/walks");
+  await page
+    .getByRole("spinbutton", { name: "Start latitude", exact: true })
+    .fill("51.5");
+  await page
+    .getByRole("spinbutton", { name: "Start longitude", exact: true })
+    .fill("-0.12");
+  await page
+    .getByRole("button", { name: "Generate loop", exact: true })
+    .click();
+  await page.locator(".daily-walk-result").waitFor();
+  assert(
+    (
+      await page.locator(".daily-walk-result a[download]").getAttribute("href")
+    ).startsWith("/api/v1/daily/walks/gpx?created_at="),
+    "Walking GPX link missing"
+  );
+  badWalk = true;
+  await page
+    .getByRole("button", { name: "Generate loop", exact: true })
+    .click();
+  await page
+    .getByRole("alert")
+    .filter({ hasText: "Walking provider unavailable" })
+    .waitFor();
+  assert(
+    await page.locator(".daily-route-preview").isVisible(),
+    "Failed generation discarded the previous route"
+  );
+  await page.goto(origin + "/settings/connections#daily");
+  const dailyForm = page.locator(".daily-integration");
+  await dailyForm
+    .getByRole("button", { name: "Add feed", exact: true })
+    .click();
+  await dailyForm
+    .getByRole("textbox", { name: "Source name", exact: true })
+    .last()
+    .fill("Custom headlines");
+  await dailyForm
+    .getByRole("textbox", { name: "Feed URL", exact: true })
+    .last()
+    .fill("https://custom.example.test/rss");
+  await dailyForm
+    .getByRole("group", { name: "Home screen", exact: true })
+    .getByRole("checkbox", { name: "Weather", exact: true })
+    .uncheck();
+  await dailyForm
+    .getByRole("button", { name: "Save daily sources", exact: true })
+    .click();
+  await dailyForm
+    .getByRole("status")
+    .filter({ hasText: "Sources saved" })
+    .waitFor();
+  assert(
+    dailySaved.news.length === 2 && !dailySaved.widgets.includes("weather"),
+    "Custom Daily sources or widget choice did not save"
+  );
+  await page.goto(origin + "/");
+  await page.locator(".daily-summary").waitFor();
+  assert(
+    (await page
+      .locator(".daily-summary")
+      .getByRole("heading", { name: "Weather", exact: true })
+      .count()) === 0,
+    "Hidden weather widget remained on Home"
+  );
+  assert(
+    await page
+      .locator(".daily-summary")
+      .getByRole("link", { name: /A useful daily headline/ })
+      .isVisible(),
+    "News missing from Home"
+  );
+  dailySettings.widgets = ["news", "weather", "transport", "walks"];
   // Notes lists and issue boards should never download the rich editor bundle.
+  await page.setViewportSize({ width: 1280, height: 900 });
   scripts.length = 0;
   const pageReadsBefore = requestCounts.get("/notes/pages") || 0;
   await page.goto(origin + "/notes");
@@ -758,6 +1006,9 @@ let browser;
       nestedPageSearch: true,
       onboarding: true,
       loginIsolation: true,
+      dailySources: true,
+      walkingLoop: true,
+      homeWidgets: true,
       runtimeErrors: errors.length
     })
   );

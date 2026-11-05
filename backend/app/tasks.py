@@ -19,8 +19,30 @@ celery.conf.update(
         "recovery": {"task": "app.tasks.recover", "schedule": 60.0},
         "calendar-dispatch": {"task": "app.tasks.dispatch_calendars", "schedule": 60.0},
         "health-dispatch": {"task": "app.tasks.dispatch_health", "schedule": 60.0},
+        "daily-dispatch": {"task": "app.tasks.dispatch_daily", "schedule": 60.0},
     },
 )
+
+
+@celery.task(name="app.tasks.daily_sync")
+def daily_sync(owner, force=False):
+    from .daily import refresh_daily
+
+    with execution("daily-sync", owner):
+        refresh_daily(owner, force=force)
+
+
+@celery.task(name="app.tasks.dispatch_daily")
+def dispatch_daily():
+    from .core import SystemSetting
+
+    with redis.lock("scheduler:daily", timeout=50, blocking_timeout=1), Session() as db:
+        for key in db.scalars(
+            select(SystemSetting.key).where(SystemSetting.key.like("daily:%"))
+        ):
+            owner = key.removeprefix("daily:")
+            if redis.set("daily-dispatch:" + owner, "1", ex=55, nx=True):
+                daily_sync.delay(owner)
 
 
 @celery.task(name="app.tasks.health_sync")

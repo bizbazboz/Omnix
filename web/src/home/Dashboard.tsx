@@ -1,4 +1,5 @@
 import NotesSummary from "../products/notes/NotesSummary";
+import DailySummary from "../products/daily/DailySummary";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ArrowUpRight, Mail, Plus, RefreshCw } from "lucide-react";
 import { useMinuteClock } from "../lib/useMinuteClock";
@@ -235,6 +236,7 @@ export default function Dashboard({
         ))}
       </section>
       <NotesSummary />
+      <DailySummary />
       <HealthSummary zone={zone} />
       <Upcoming zone={zone} hour12={preferences.data?.time_format === "12"} />
       <div className="dashboard-bottom">

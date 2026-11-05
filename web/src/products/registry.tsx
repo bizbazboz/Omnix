@@ -5,6 +5,7 @@ import {
   CalendarDays,
   HeartPulse,
   NotebookPen,
+  Newspaper,
   type LucideIcon
 } from "lucide-react";
 export type ProductProps = {
@@ -44,6 +45,14 @@ export const productRegistry: ProductModule[] = [
     requiredCapabilities: ["health.read"],
     Icon: HeartPulse,
     Entry: lazy(() => import("./health/Health"))
+  },
+  {
+    id: "daily",
+    name: "Daily",
+    routePrefix: "/daily",
+    requiredCapabilities: ["daily.read"],
+    Icon: Newspaper,
+    Entry: lazy(() => import("./daily/Daily"))
   },
   {
     id: "notes",

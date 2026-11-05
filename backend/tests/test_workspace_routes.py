@@ -69,6 +69,7 @@ def test_public_product_routes_are_canonical(signed_client):
         "/email",
         "/calendar",
         "/health",
+        "/daily",
         "/notes",
     }
 

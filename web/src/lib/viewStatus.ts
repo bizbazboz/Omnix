@@ -76,6 +76,26 @@ function newest(rows: Record<string, unknown>[]) {
 function source(view: URL, path: string, data: unknown): Partial<ViewStatus> {
   const page = view.pathname;
   if (
+    page.startsWith("/daily") &&
+    path === "/daily" &&
+    data &&
+    typeof data === "object"
+  ) {
+    const row = data as Record<string, any>,
+      section = page.split("/")[2] || "news";
+    return section === "walks"
+      ? {
+          kind: "updated",
+          sourceAt: stamp(row.walks?.created_at),
+          connected: row.walks_configured
+        }
+      : {
+          kind: "synced",
+          sourceAt: stamp(row[section]?.last_sync),
+          connected: row[section]?.enabled ?? false
+        };
+  }
+  if (
     page.startsWith("/email") &&
     !/^\/email\/(drafts|outbox)(?:\/|$)/.test(page) &&
     path === "/connections" &&
@@ -134,22 +154,51 @@ function source(view: URL, path: string, data: unknown): Partial<ViewStatus> {
   return {};
 }
 function rememberProvider(path: string, data: unknown) {
-  if (!["/connections", "/calendar/feeds", "/health/status"].includes(path))
+  if (
+    !["/connections", "/calendar/feeds", "/health/status", "/daily"].includes(
+      path
+    )
+  )
     return;
   // Keep only sync metadata, never provider URLs, addresses or credentials.
-  const compact = Array.isArray(data)
-    ? data.map((row) => ({
-        id: row.id,
-        can_read: row.can_read,
-        status: row.status,
-        last_sync: row.last_sync
-      }))
-    : data && typeof data === "object"
-      ? {
-          connected: (data as Record<string, unknown>).connected,
-          last_sync: (data as Record<string, unknown>).last_sync
-        }
-      : null;
+  const compact =
+    path === "/daily" && data && typeof data === "object"
+      ? Object.fromEntries(
+          Object.entries(data)
+            .filter(([key]) =>
+              [
+                "news",
+                "weather",
+                "transport",
+                "walks",
+                "walks_configured"
+              ].includes(key)
+            )
+            .map(([key, value]) => [
+              key,
+              key === "walks_configured"
+                ? value
+                : key === "walks"
+                  ? { created_at: (value as any)?.created_at }
+                  : {
+                      last_sync: (value as any)?.last_sync,
+                      enabled: (value as any)?.enabled
+                    }
+            ])
+        )
+      : Array.isArray(data)
+        ? data.map((row) => ({
+            id: row.id,
+            can_read: row.can_read,
+            status: row.status,
+            last_sync: row.last_sync
+          }))
+        : data && typeof data === "object"
+          ? {
+              connected: (data as Record<string, unknown>).connected,
+              last_sync: (data as Record<string, unknown>).last_sync
+            }
+          : null;
   providers.set(path, compact);
   for (const [view, current] of snapshots)
     snapshots.set(view, {
@@ -171,6 +220,7 @@ export function trackViewRequest(path: string, method = "GET") {
           resource === "/connectors" ||
           resource === "/onboarding"
         : resource.startsWith("/" + section + "/") ||
+          (section === "daily" && resource === "/daily") ||
           (section === "email" && resource === "/connections");
   if (!relevant)
     return (success: boolean, data?: unknown) => {
