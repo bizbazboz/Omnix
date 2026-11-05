@@ -3,8 +3,6 @@ import { ArrowUpRight } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { api } from "../../lib/api";
 import { type HealthStatus, type Statistics, format } from "./api";
-import HistoryChart from "./HistoryChart";
-import { metricPath } from "./catalog";
 
 export default function HealthSummary({ zone }: { zone: string }) {
   const status = useQuery<HealthStatus>({
@@ -45,14 +43,14 @@ export default function HealthSummary({ zone }: { zone: string }) {
               : "TODAY";
   };
   return (
-    <section className="dashboard-health" aria-label="Health overview">
+    <section className="dashboard-health" aria-label="Today's steps">
       <div className="section-title">
-        <h2>Health</h2>
-        <NavLink to="/health">
-          VIEW ALL <ArrowUpRight size={14} />
+        <h2>Steps</h2>
+        <NavLink to="/health/activity" aria-label="Open steps history">
+          <ArrowUpRight size={14} />
         </NavLink>
       </div>
-      {status.isLoading ? (
+      {status.isLoading || (status.data?.connected && readings.isLoading) ? (
         <p className="muted">[LOADING]</p>
       ) : status.error || readings.error ? (
         <p className="error" role="alert">
@@ -68,64 +66,24 @@ export default function HealthSummary({ zone }: { zone: string }) {
         </p>
       ) : !status.data?.connected ? (
         <div className="health-overview-empty">
-          <p className="muted">Your activity, sleep and measurements.</p>
-          <NavLink
-            to="/settings/connections#google-health"
-            className="text-button"
-          >
-            Connect in Integrations <ArrowUpRight size={14} />
+          <p className="muted">No steps connected.</p>
+          <NavLink to="/health" className="text-button">
+            Open Health <ArrowUpRight size={14} />
           </NavLink>
         </div>
       ) : (
         <>
-          <div className="health-overview-grid">
-            <NavLink to="/health" className="health-overview-steps">
-              <span className="eyebrow">STEPS</span>
-              <strong>{format(steps?.points[today], "steps")}</strong>
-              <span className="eyebrow">{message("steps")}</span>
-            </NavLink>
-            <div className="health-overview-trend">
-              <span className="eyebrow">
-                {data?.dates.at(-1) === today ? "LAST 7 DAYS" : "RECENT STEPS"}
-                {steps?.stale || unavailable ? " · STALE" : ""}
-              </span>
-              <HistoryChart
-                compact
-                dates={data?.dates.slice(-7) || []}
-                points={steps?.points || {}}
-                selected={today}
-              />
-            </div>
-            <div className="health-overview-readings">
-              {[
-                { id: "sleep", label: "Sleep", unit: "h" },
-                {
-                  id: "resting_heart_rate",
-                  label: "Resting heart rate",
-                  unit: "bpm"
-                },
-                { id: "zone_minutes", label: "Zone minutes", unit: "min" }
-              ].map((metric) => (
-                <NavLink key={metric.id} to={metricPath(metric.id)}>
-                  <span>
-                    {metric.label}
-                    <small>{message(metric.id)}</small>
-                  </span>
-                  <strong>
-                    {format(data?.metrics[metric.id]?.points[today], metric.id)}{" "}
-                    <small>{metric.unit}</small>
-                  </strong>
-                </NavLink>
-              ))}
-            </div>
-          </div>
+          <NavLink
+            to="/health/activity"
+            className="dashboard-stat-value"
+            aria-label="View steps history"
+          >
+            {format(steps?.points[today], "steps")}
+          </NavLink>
+          <span className="eyebrow">{message("steps")}</span>
           {status.data?.status === "reconnect" && (
             <p className="notice">
-              Renew your Google Health connection in{" "}
-              <NavLink to="/settings/connections#google-health">
-                Integrations
-              </NavLink>
-              .
+              Reconnect in <NavLink to="/health">Health</NavLink>.
             </p>
           )}
         </>

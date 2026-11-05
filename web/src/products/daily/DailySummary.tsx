@@ -49,41 +49,30 @@ export default function DailySummary() {
                     {number(data.weather.data.temperature)}
                     <small>{data.weather.data.unit}</small>
                   </div>
-                  <p>
-                    {weatherLabel(data.weather.data.code)} · feels like{" "}
-                    {number(
-                      data.weather.data.feels_like,
-                      data.weather.data.unit
-                    )}
-                  </p>
+                  <p>{weatherLabel(data.weather.data.code)}</p>
                 </>
               ) : (
-                <DailySetup
-                  text={
-                    data.weather.enabled
-                      ? "Forecast pending"
-                      : "Choose a weather location"
-                  }
-                />
+                <p className="muted">
+                  {data.weather.enabled
+                    ? "Forecast pending"
+                    : "Weather not connected"}
+                </p>
               )}
-              <DailyFreshness value={data?.weather} />
+              <DailyFreshness compact value={data?.weather} />
             </section>
           )}
           {data?.widgets.includes("transport") && (
             <section className="daily-summary-transport">
-              {heading("Transport", "transport")}
+              {heading("Train issues", "transport")}
               {data.transport.data ? (
                 <>
-                  <div className="daily-hero-number">
-                    {String(disrupted.length).padStart(2, "0")}
-                  </div>
-                  <span className="eyebrow">
-                    {!data.transport.data.lines.length
-                      ? "NO LINES SELECTED"
-                      : disrupted.length
-                        ? "LINES NEEDING ATTENTION"
-                        : "ALL SELECTED LINES RUNNING WELL"}
-                  </span>
+                  {!disrupted.length && (
+                    <p className="muted">
+                      {data.transport.data.lines.length
+                        ? "Good service on your lines."
+                        : "No lines selected."}
+                    </p>
+                  )}
                   {disrupted.slice(0, 2).map((line) => (
                     <p key={line.id} className="daily-line-compact">
                       {line.name}
@@ -94,9 +83,9 @@ export default function DailySummary() {
                   ))}
                 </>
               ) : (
-                <DailySetup text="Choose your TfL lines" />
+                <p className="muted">No train lines connected.</p>
               )}
-              <DailyFreshness value={data?.transport} />
+              <DailyFreshness compact value={data?.transport} />
             </section>
           )}
           {data?.widgets.includes("news") && (
@@ -118,15 +107,13 @@ export default function DailySummary() {
                   ))}
                 </div>
               ) : (
-                <DailySetup
-                  text={
-                    data.news.enabled
-                      ? "Headlines pending"
-                      : "Add an RSS or Atom source"
-                  }
-                />
+                <p className="muted">
+                  {data.news.enabled
+                    ? "Headlines pending"
+                    : "No news sources connected"}
+                </p>
               )}
-              <DailyFreshness value={data?.news} />
+              <DailyFreshness compact value={data?.news} />
             </section>
           )}
         </>
@@ -145,10 +132,13 @@ export function DailySetup({ text }: { text: string }) {
   );
 }
 export function DailyFreshness({
+  compact = false,
   value
 }: {
+  compact?: boolean;
   value?: { last_sync: string | null; error: string };
 }) {
+  if (compact && !value?.error) return null;
   return (
     <div className="daily-freshness">
       {value?.error && (
@@ -156,7 +146,7 @@ export function DailyFreshness({
           {value.error} {value.last_sync ? "Showing saved data." : ""}
         </span>
       )}
-      {value?.last_sync && (
+      {!compact && value?.last_sync && (
         <time
           dateTime={value.last_sync}
           title={new Date(value.last_sync).toLocaleString()}

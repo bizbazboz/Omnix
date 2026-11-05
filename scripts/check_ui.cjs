@@ -561,6 +561,38 @@ let browser;
     !scripts.some((url) => /NotePage-|Settings-|Notes-/.test(url)),
     "Home eagerly loaded another product"
   );
+  assert(
+    (await page
+      .locator(
+        ".dashboard .metric-strip, .dashboard .dashboard-connections, .dashboard .dashboard-notes, .dashboard .health-overview-readings"
+      )
+      .count()) === 0,
+    "Home includes secondary account, notes or health details"
+  );
+  assert(!requestCounts.has("/notes/overview"), "Home fetched unused notes");
+  await page
+    .getByRole("link", { name: "Open unread mail", exact: true })
+    .click();
+  await page.waitForURL("**/email?unread=true");
+  const messageView = page.getByRole("group", {
+    name: "Message view",
+    exact: true
+  });
+  assert(
+    (await messageView
+      .getByRole("button", { name: /^Unread/ })
+      .getAttribute("aria-pressed")) === "true",
+    "Home did not open unread mail"
+  );
+  await messageView
+    .getByRole("button", { name: "All messages", exact: true })
+    .click();
+  assert(
+    !new URL(page.url()).searchParams.has("unread"),
+    "Clearing unread filter left its URL active"
+  );
+  await page.goto(origin + "/");
+  await page.locator(".dashboard .clock").waitFor();
   await page
     .getByRole("button", { name: "Open navigation", exact: true })
     .waitFor();
