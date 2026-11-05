@@ -422,18 +422,19 @@ let browser;
     ).contentFrame();
     await frame.waitForFunction(() => {
       const root = document.querySelector("#omnix-email-root"),
-        expected = Math.min(
-          1,
-          innerWidth / Math.max(root.scrollWidth, root.offsetWidth)
-        );
+        newsletter = document.querySelector("#newsletter"),
+        bottom = document.querySelector("#email-bottom");
+      if (!root || !newsletter || !bottom || document.readyState !== "complete")
+        return false;
+      const expected = Math.min(
+        1,
+        innerWidth / Math.max(root.scrollWidth, root.offsetWidth)
+      );
       return (
         Math.abs(new DOMMatrix(getComputedStyle(root).transform).a - expected) <
           0.005 &&
-        document.querySelector("#newsletter").getBoundingClientRect().right <=
-          innerWidth + 1 &&
-        document.querySelector("#email-bottom").getBoundingClientRect()
-          .bottom <=
-          innerHeight + 2
+        newsletter.getBoundingClientRect().right <= innerWidth + 1 &&
+        bottom.getBoundingClientRect().bottom <= innerHeight + 2
       );
     });
     const dimensions = await frame.evaluate(() => ({
@@ -475,19 +476,31 @@ let browser;
   let frame = await (
     await page.locator('iframe[title="Email content"]').elementHandle()
   ).contentFrame();
-  await frame.waitForFunction(
-    () => document.scrollingElement.scrollWidth > innerWidth
-  );
+  await frame.waitForFunction(() => {
+    const scrolling = document.scrollingElement;
+    return Boolean(
+      document.readyState === "complete" &&
+        document.querySelector('script[data-fit="false"]') &&
+        scrolling &&
+        scrolling.scrollWidth > innerWidth
+    );
+  });
   await page
     .getByRole("group", { name: "Email sizing" })
     .getByRole("button", { name: "Fit width", exact: true })
     .click();
+  await frame.waitForFunction(
+    () =>
+      document.readyState === "complete" &&
+      Boolean(document.querySelector('script[data-fit="true"]'))
+  );
+  const remoteImage = page.waitForResponse((r) =>
+    r.url().startsWith("https://images.example.test/")
+  );
   await page
     .getByRole("button", { name: "Load remote images", exact: true })
     .click();
-  await page.waitForResponse((r) =>
-    r.url().startsWith("https://images.example.test/")
-  );
+  await remoteImage;
   assert(remoteRequests === 1, "Remote image consent failed");
   const routes = [
     "/",
