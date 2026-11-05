@@ -1,0 +1,294 @@
+/* Compact workspace overview. Product pages keep their own layout. */
+.workspace .dashboard.dashboard-compact {
+  padding: 28px var(--page-gutter) 32px;
+  container-type: inline-size;
+}
+.dashboard-compact .dashboard-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding-bottom: 24px;
+}
+.workspace .dashboard-compact .dashboard-heading {
+  gap: 16px;
+  justify-content: flex-start;
+}
+.workspace .dashboard-compact .dashboard-heading h1 {
+  font-size: 24px;
+  margin: 8px 0;
+  max-width: none;
+}
+.dashboard-compact .dashboard-heading > .icon-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.workspace .dashboard-compact .clock-date {
+  display: block;
+  margin: 0;
+  font-size: 12px;
+}
+.workspace .dashboard-compact .clock-section {
+  display: block;
+  margin: 0;
+}
+.workspace .dashboard-compact .clock {
+  font-size: clamp(48px, 8cqw, 88px);
+  letter-spacing: -0.06em;
+  white-space: nowrap;
+}
+.workspace .dashboard-compact .clock-period {
+  font: 12px var(--font-mono);
+  letter-spacing: 0;
+  margin-left: 8px;
+}
+.workspace .dashboard-compact .metric-strip {
+  margin: 0;
+}
+.workspace .dashboard-compact .metric {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 16px;
+}
+.workspace .dashboard-compact .metric:first-child {
+  padding-left: 0;
+}
+.dashboard-compact .metric-label {
+  grid-column: 1;
+  gap: 8px;
+}
+.dashboard-compact .metric-label svg {
+  display: none;
+}
+.workspace .dashboard-compact .metric-value {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  margin: 0;
+  font-size: 36px;
+}
+.workspace .dashboard-compact .metric-suffix {
+  font-size: 9px;
+}
+.workspace .dashboard-compact .section-title {
+  margin-bottom: 12px;
+  gap: 12px;
+  min-height: 44px;
+}
+.workspace .dashboard-compact .section-title h2 {
+  font-size: 18px;
+}
+.dashboard-compact .section-title > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+}
+.workspace .dashboard-compact .daily-summary {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 24px;
+  margin: 0;
+  padding: 16px 0;
+  border-top: 0;
+}
+.workspace .dashboard-compact .daily-summary:empty {
+  display: none;
+}
+.workspace .dashboard-compact .daily-summary .section-title {
+  margin-bottom: 4px;
+}
+.workspace .dashboard-compact .daily-hero-number {
+  font-size: 40px;
+  margin: 8px 0;
+}
+.dashboard-compact .daily-summary p {
+  font-size: 13px;
+}
+.workspace .dashboard-compact .daily-freshness {
+  margin: 8px 0 0;
+}
+.workspace .dashboard-compact .daily-headlines a {
+  min-height: 44px;
+  padding: 8px 0;
+  gap: 4px 8px;
+  font-size: 13px;
+}
+.workspace .dashboard-compact .daily-headlines a:last-child {
+  border-bottom: 0;
+}
+.workspace .dashboard-compact .daily-empty {
+  gap: 8px;
+  padding: 8px 0;
+}
+.workspace .dashboard-compact .daily-line-compact {
+  margin-top: 8px;
+}
+.dashboard-compact .dashboard-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
+}
+.workspace .dashboard-compact .dashboard-panels > section {
+  min-width: 0;
+  padding: 16px 0;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+.dashboard-compact .upcoming-event {
+  grid-template-columns: 88px minmax(0, 1fr) 14px;
+  gap: 12px;
+  padding: 12px 0;
+  font-size: 14px;
+}
+.dashboard-compact .upcoming-event:first-of-type {
+  border-top: 0;
+}
+.dashboard-compact .upcoming-event time {
+  font-size: 10px;
+}
+.workspace .dashboard-compact .dashboard-message {
+  padding: 12px 0;
+}
+.dashboard-compact .dashboard-message strong,
+.dashboard-compact .dashboard-message p {
+  font-size: 13px;
+}
+.dashboard-compact .dashboard-message .avatar {
+  width: 32px;
+  height: 32px;
+}
+.dashboard-compact .dashboard-empty {
+  min-height: 120px;
+  gap: 12px;
+}
+.dashboard-compact .health-overview-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  padding: 0;
+}
+.dashboard-compact .health-overview-steps {
+  gap: 8px;
+  min-height: 44px;
+}
+.dashboard-compact .health-overview-steps > strong {
+  font-size: 36px;
+}
+.dashboard-compact .health-overview-trend > .eyebrow {
+  margin-bottom: 8px;
+}
+.dashboard-compact .health-overview-readings {
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+.dashboard-compact .health-overview-readings a {
+  min-height: 44px;
+  gap: 12px;
+  font-size: 13px;
+}
+.dashboard-compact .health-overview-readings a > span > small {
+  display: inline;
+  margin-left: 8px;
+  font-size: 8px;
+}
+.dashboard-compact .health-overview-readings strong {
+  font-size: 16px;
+}
+.dashboard-compact .dashboard-notes-grid {
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+.dashboard-compact .dashboard-notes-grid > div {
+  gap: 0;
+  align-content: start;
+}
+.dashboard-compact .dashboard-notes-grid a {
+  min-height: 44px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.dashboard-compact .dashboard-notes-grid .muted {
+  padding: 12px 0;
+  font-size: 13px;
+}
+.workspace .dashboard-compact .dashboard-connections {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 16px 0 0;
+}
+.workspace .dashboard-compact .dashboard-connections .section-title {
+  margin: 0;
+}
+.dashboard-compact .dashboard-account-list {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  min-width: 0;
+}
+.workspace .dashboard-compact .dashboard-account-list > a {
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 0;
+  border: 0;
+  font-size: 12px;
+  gap: 16px;
+}
+.dashboard-compact .dashboard-account-list > a > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dashboard-compact .dashboard-account-list small {
+  font-size: 10px;
+}
+.workspace .dashboard-compact .dashboard-compose {
+  width: auto;
+  margin: 0 0 0 auto;
+  gap: 16px;
+}
+@container (max-width: 640px) {
+  .dashboard-compact .dashboard-header {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .workspace .dashboard-compact .dashboard-heading {
+    justify-content: space-between;
+  }
+  .workspace .dashboard-compact .clock {
+    font-size: clamp(56px, 14cqw, 80px);
+  }
+  .dashboard-compact .dashboard-panels {
+    grid-template-columns: 1fr;
+  }
+  .workspace .dashboard-compact .daily-summary {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+    gap: 16px;
+  }
+  .dashboard-compact .daily-summary-news {
+    grid-column: 1 / -1;
+  }
+  .workspace .dashboard-compact .daily-line-compact {
+    flex-direction: column;
+    gap: 0;
+    font-size: 12px;
+  }
+  .workspace .dashboard-compact .metric {
+    gap: 4px 8px;
+    padding: 12px;
+  }
+  .workspace .dashboard-compact .metric-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .workspace .dashboard-compact .metric:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .dashboard-compact .metric:nth-child(n + 3) {
+    border-top: 1px solid var(--border);
+  }
+}

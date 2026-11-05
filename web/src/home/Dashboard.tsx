@@ -8,6 +8,7 @@ import { Avatar } from "../components/Brand";
 import { api, type Account, type Message, type User } from "../lib/api";
 import Upcoming from "../products/calendar/Upcoming";
 import HealthSummary from "../products/health/HealthSummary";
+import "./dashboard.css";
 type Overview = {
   unread: number;
   messages: number;
@@ -41,25 +42,12 @@ export default function Dashboard({
   const zone =
     preferences.data?.timezone ||
     Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const parts = Object.fromEntries(
+  const hour = Number(
     new Intl.DateTimeFormat("en-GB", {
       timeZone: zone,
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
       hour: "numeric",
-      minute: "numeric",
       hourCycle: "h23"
-    })
-      .formatToParts(now)
-      .map((part) => [part.type, part.value])
-  );
-  const hour = Number(parts.hour);
-  const minute = Number(parts.minute);
-  const calendarDate = new Date(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day)
+    }).format(now)
   );
   const date = now.toLocaleDateString("en-GB", {
     weekday: "long",
@@ -88,44 +76,33 @@ export default function Dashboard({
   const dayPeriod = clockParts.find((part) => part.type === "dayPeriod")?.value;
   const count = (value: number | undefined) =>
     overview.isLoading ? "—" : String(value ?? 0).padStart(2, "0");
-  const weekday = new Date(
-    calendarDate.getFullYear(),
-    calendarDate.getMonth(),
-    1
-  ).getDay();
-  const offset = (weekday + 6) % 7;
-  const days = new Date(
-    calendarDate.getFullYear(),
-    calendarDate.getMonth() + 1,
-    0
-  ).getDate();
   return (
-    <div className="dashboard">
-      <div className="dashboard-heading">
-        <div>
-          <span className="eyebrow">
-            OVERVIEW / {String(calendarDate.getMonth() + 1).padStart(2, "0")}.
-            {calendarDate.getFullYear()}
-          </span>
-          <h1>
-            {hour < 12
-              ? "Good morning"
-              : hour < 18
-                ? "Good afternoon"
-                : "Good evening"}
-            , {user.name.split(" ")[0]}.
-          </h1>
+    <div className="dashboard dashboard-compact">
+      <header className="dashboard-header">
+        <div className="dashboard-heading">
+          <div>
+            <span className="eyebrow">OVERVIEW</span>
+            <h1>
+              {hour < 12
+                ? "Good morning"
+                : hour < 18
+                  ? "Good afternoon"
+                  : "Good evening"}
+              , {user.name.split(" ")[0]}.
+            </h1>
+            <time className="clock-date" dateTime={now.toISOString()}>
+              {date}
+            </time>
+          </div>
+          <button
+            className="icon-button"
+            aria-label="Refresh overview"
+            onClick={() => overview.refetch()}
+          >
+            <RefreshCw size={16} />
+          </button>
         </div>
-        <button
-          className="icon-button"
-          aria-label="Refresh overview"
-          onClick={() => overview.refetch()}
-        >
-          <RefreshCw size={18} />
-        </button>
-      </div>
-      <section className="clock-section" aria-label="Date and time">
-        <div className="clock-primary">
+        <section className="clock-section" aria-label="Date and time">
           <time
             className="clock"
             dateTime={now.toISOString()}
@@ -134,55 +111,8 @@ export default function Dashboard({
             {clockTime}
             {dayPeriod && <span className="clock-period">{dayPeriod}</span>}
           </time>
-          <time className="clock-date" dateTime={now.toISOString()}>
-            {date}
-          </time>
-        </div>
-        <div className="clock-instrument">
-          <div className="day-progress-label">
-            <span>DAY ELAPSED</span>
-            <span>{Math.floor(((hour * 60 + minute) / 1440) * 100)}%</span>
-          </div>
-          <div className="day-progress" aria-label="Day elapsed">
-            {Array.from({ length: 48 }, (_, i) => (
-              <span
-                key={i}
-                className={i < (hour * 60 + minute) / 30 ? "filled" : ""}
-              />
-            ))}
-          </div>
-          <span className="instrument-caption">
-            00:00<span>24:00</span>
-          </span>
-          <div className="clock-calendar-label">
-            {calendarDate.toLocaleDateString("en-GB", { month: "long" })}{" "}
-            <span>{calendarDate.getFullYear()}</span>
-          </div>
-          <div className="calendar-grid">
-            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-              <span className="calendar-weekday" key={"w" + i}>
-                {d}
-              </span>
-            ))}
-            {Array.from({ length: offset }, (_, i) => (
-              <span key={"empty" + i} />
-            ))}
-            {Array.from({ length: days }, (_, i) => (
-              <span
-                key={i}
-                aria-current={
-                  i + 1 === calendarDate.getDate() ? "date" : undefined
-                }
-                className={
-                  i + 1 === calendarDate.getDate() ? "calendar-today" : ""
-                }
-              >
-                {i + 1}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      </header>
       {overview.error && (
         <p className="error" role="alert">
           [ OVERVIEW UNAVAILABLE ]{" "}
@@ -235,11 +165,9 @@ export default function Dashboard({
           </NavLink>
         ))}
       </section>
-      <NotesSummary />
       <DailySummary />
-      <HealthSummary zone={zone} />
-      <Upcoming zone={zone} hour12={preferences.data?.time_format === "12"} />
-      <div className="dashboard-bottom">
+      <div className="dashboard-panels">
+        <Upcoming zone={zone} hour12={preferences.data?.time_format === "12"} />
         <section className="dashboard-mail">
           <div className="section-title">
             <h2>Recent mail</h2>
@@ -260,7 +188,7 @@ export default function Dashboard({
               </NavLink>
             </div>
           ) : (
-            data.recent.map((m) => (
+            data.recent.slice(0, 4).map((m) => (
               <NavLink
                 key={m.id}
                 className="dashboard-message"
@@ -282,68 +210,47 @@ export default function Dashboard({
             ))
           )}
         </section>
-        <section className="dashboard-connections">
-          <div className="section-title">
-            <h2>Connections</h2>
-            <NavLink to="/settings/connections">
-              <Plus size={16} />
-            </NavLink>
-          </div>
-          <div className="connection-readout">
-            <span className="connection-readout-value">
-              {count(data?.healthy)}
-              <span> / {count(data?.accounts)}</span>
-            </span>
-            <span className="eyebrow">ONLINE</span>
-          </div>
-          <div className="health-segments">
-            {Array.from({ length: 20 }, (_, i) => (
-              <span
-                key={i}
-                className={
-                  data?.accounts && i < (20 * data.healthy) / data.accounts
-                    ? "filled"
-                    : ""
-                }
-              />
-            ))}
-          </div>
-          <div className="dashboard-account-list">
-            {accounts.slice(0, 4).map((a) => (
-              <NavLink to="/settings/connections" key={a.id}>
-                <span>
-                  {a.label}
-                  <small>{a.address}</small>
-                </span>
-                <span
-                  className={
-                    "account-health " +
-                    (a.status === "ready" ? "healthy" : "attention")
-                  }
-                >
-                  {a.status === "ready"
-                    ? "READY"
-                    : a.status.replaceAll("_", " ")}
-                </span>
-              </NavLink>
-            ))}
-            {!accounts.length && (
-              <span className="empty-label">NO ACCOUNTS</span>
-            )}
-          </div>
-          <button
-            className="primary dashboard-compose"
-            onClick={onCompose}
-            disabled={!accounts.some((a) => a.can_send)}
-          >
-            Compose <ArrowRight size={16} />
-          </button>
-        </section>
+        <HealthSummary zone={zone} />
+        <NotesSummary />
       </div>
-      <footer className="dashboard-footer">
-        <span>OMNIX / WORKSPACE</span>
-        <span>ENCRYPTED CONNECTIONS</span>
-      </footer>
+      <section className="dashboard-connections">
+        <div className="section-title">
+          <h2>Connections</h2>
+          <NavLink to="/settings/connections" aria-label="Manage connections">
+            <Plus size={16} />
+          </NavLink>
+        </div>
+        <div className="dashboard-account-list">
+          {accounts.slice(0, 4).map((a) => (
+            <NavLink to="/settings/connections" key={a.id}>
+              <span>
+                {a.label}
+                <small>{a.address}</small>
+              </span>
+              <span
+                className={
+                  "account-health " +
+                  (a.status === "ready" ? "healthy" : "attention")
+                }
+              >
+                {a.status === "ready"
+                  ? "READY"
+                  : a.status.replaceAll("_", " ")}
+              </span>
+            </NavLink>
+          ))}
+          {!accounts.length && (
+            <span className="empty-label">NO ACCOUNTS</span>
+          )}
+        </div>
+        <button
+          className="primary dashboard-compose"
+          onClick={onCompose}
+          disabled={!accounts.some((a) => a.can_send)}
+        >
+          Compose <ArrowRight size={16} />
+        </button>
+      </section>
     </div>
   );
 }

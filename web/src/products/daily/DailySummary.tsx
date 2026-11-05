@@ -40,7 +40,7 @@ export default function DailySummary() {
       ) : (
         <>
           {data?.widgets.includes("weather") && (
-            <section>
+            <section className="daily-summary-weather">
               {heading("Weather", "weather")}
               {data.weather.data ? (
                 <>
@@ -70,7 +70,7 @@ export default function DailySummary() {
             </section>
           )}
           {data?.widgets.includes("transport") && (
-            <section>
+            <section className="daily-summary-transport">
               {heading("Transport", "transport")}
               {data.transport.data ? (
                 <>
@@ -100,7 +100,7 @@ export default function DailySummary() {
             </section>
           )}
           {data?.widgets.includes("news") && (
-            <section>
+            <section className="daily-summary-news">
               {heading("Headlines", "news")}
               {news.length ? (
                 <div className="daily-headlines">
