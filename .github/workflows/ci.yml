@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Verify AMD64 and ARM64 production builds
         uses: docker/build-push-action@v6
         with:
