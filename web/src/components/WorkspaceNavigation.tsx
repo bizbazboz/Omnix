@@ -1,4 +1,5 @@
 import PageTree from "../products/notes/PageTree";
+import { dailyViews } from "../products/daily/api";
 import Select from "./Select";
 import {
   Archive,
@@ -303,6 +304,19 @@ export default function WorkspaceNavigation({
                   </NavLink>
                 )}
               </>
+            ) : activeApp.id === "daily" ? (
+              <nav aria-label="Daily navigation">
+                {dailyViews.map((view) => (
+                  <NavLink
+                    key={view.id}
+                    to={"/daily/" + view.id}
+                    onClick={onClose}
+                  >
+                    <activeApp.Icon size={17} />
+                    {view.name}
+                  </NavLink>
+                ))}
+              </nav>
             ) : calendar ? (
               <>
                 <button
@@ -338,6 +352,10 @@ export default function WorkspaceNavigation({
                     {view.name}
                   </NavLink>
                 ))}
+                <NavLink to="/health/walks" end onClick={onClose}>
+                  <activeApp.Icon size={17} />
+                  Walking loops
+                </NavLink>
               </nav>
             ) : (
               <nav aria-label={activeApp.name + " navigation"}>

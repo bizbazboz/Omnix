@@ -1,0 +1,72 @@
+.workspace .location-search {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+.workspace .location-search-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background: #080808;
+  border: 1px solid var(--border-visible);
+  border-radius: 6px;
+  min-height: 48px;
+  color: var(--text-secondary);
+}
+.workspace .location-search-input:focus-within {
+  border-color: var(--text-primary);
+}
+.workspace .location-search-input input {
+  min-width: 0;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: var(--text-primary);
+  padding: 12px 0;
+  outline: none;
+  font:
+    14px "Space Grotesk",
+    sans-serif;
+}
+.workspace .location-search-popup {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--border-visible);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 6px;
+}
+.workspace .location-search-popup button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  text-align: left;
+}
+.workspace .location-search-popup button:hover,
+.workspace .location-search-popup button[aria-selected="true"] {
+  background: var(--surface-raised);
+  color: var(--text-display);
+}
+.workspace .location-search-popup small,
+.workspace .location-search-popup p {
+  font: 11px/1.5 var(--font-mono);
+  color: var(--text-secondary);
+  padding: 8px;
+  overflow-wrap: anywhere;
+}
+.workspace .location-search-popup button small {
+  padding: 0;
+}

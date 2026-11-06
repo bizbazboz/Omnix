@@ -23,7 +23,16 @@ import { healthViews, metricDefinitions } from "./catalog";
 import SleepBreakdown from "./SleepBreakdown";
 import Workouts from "./Workouts";
 
+import Walking from "./Walking";
 export default function Health() {
+  const location = useLocation();
+  return location.pathname.replace(/\/$/, "") === "/health/walks" ? (
+    <Walking />
+  ) : (
+    <HealthReadings />
+  );
+}
+function HealthReadings() {
   const [params, setParams] = useSearchParams();
   const location = useLocation();
   const pageId = location.pathname.split("/")[2] || "overview";

@@ -24,7 +24,8 @@ export default function NotesSummary() {
       ) : (
         <div className="dashboard-notes-grid">
           <div>
-            {query.data?.recent.map((page) => (
+            <span className="eyebrow">RECENT PAGES</span>
+            {query.data?.recent.slice(0, 3).map((page) => (
               <NavLink key={page.id} to={"/notes/pages/" + page.id}>
                 <span>{page.title}</span>
                 <small>{new Date(page.updated_at).toLocaleDateString()}</small>
@@ -37,7 +38,8 @@ export default function NotesSummary() {
             )}
           </div>
           <div>
-            {query.data?.tasks.map((task) => (
+            <span className="eyebrow">UPCOMING ISSUES</span>
+            {query.data?.tasks.slice(0, 3).map((task) => (
               <NavLink
                 key={task.id}
                 to={

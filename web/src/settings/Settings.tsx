@@ -1,4 +1,6 @@
 import PageHeader from "../components/PageHeader";
+import DailyIntegration from "./DailyIntegration";
+import WalkingMapIntegration from "./WalkingMapIntegration";
 import Select from "../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -596,6 +598,10 @@ export default function Settings({
                 <NavLink to="/settings/connections#google-health">
                   Health
                 </NavLink>
+                <NavLink to="/settings/connections#daily">Daily</NavLink>
+                <NavLink to="/settings/connections#walking-map">
+                  Walking map
+                </NavLink>
               </nav>
               <div id="mail">
                 {user.is_admin && <ZohoRegistration />}
@@ -603,6 +609,8 @@ export default function Settings({
               </div>
               <CalendarIntegration />
               <HealthIntegration notify={notify} />
+              <DailyIntegration />
+              <WalkingMapIntegration administrator={user.is_admin} />
             </>
           ) : section === "api-access" ? (
             <ApiAccess />

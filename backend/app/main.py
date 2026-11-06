@@ -519,6 +519,12 @@ PRODUCTS = [
         "capabilities": ["health.read"],
     },
     {
+        "id": "daily",
+        "name": "Daily",
+        "path": "/daily",
+        "capabilities": ["daily.read", "daily.write"],
+    },
+    {
         "id": "notes",
         "name": "Notes & Projects",
         "path": "/notes",
@@ -1275,6 +1281,12 @@ from .notes import build_notes_router
 
 app.include_router(build_notes_router(authenticated, db_session))
 app.include_router(build_token_router(authenticated, db_session))
+from .daily import build_daily_router
+
+app.include_router(build_daily_router(authenticated, db_session))
+from .walking import build_walking_router
+
+app.include_router(build_walking_router(authenticated, db_session))
 
 from .mcp_server import mount_mcp
 

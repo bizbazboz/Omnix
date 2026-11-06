@@ -255,8 +255,6 @@ function Workspace({ user }: { user: User }) {
                       ...user,
                       name: preferences.data?.display_name || user.name
                     }}
-                    accounts={accounts.data || []}
-                    onCompose={createDraft}
                   />
                 )
               }

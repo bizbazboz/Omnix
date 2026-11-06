@@ -7,6 +7,7 @@ RUN npm run build
 FROM python:3.13.18-slim-trixie@sha256:b7b382eaeb8683a92c6217479b60b59de39514a4ebd6b3cc6ea518c207e22bce AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 STATIC_DIR=/app/static
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.txt .
 RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2 && pip install --no-cache-dir -r requirements.txt && useradd --create-home --uid 10001 app
 COPY --chown=app:app backend/app ./app

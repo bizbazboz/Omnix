@@ -38,6 +38,15 @@ with httpx.Client(
         "/health/status",
         "/health/statistics",
         "/health/google/registration",
+        "/settings/daily",
+        "/daily",
+        "/health/walks",
+        "/health/walks/map",
+        "/health/walks/gpx",
+        "/health/walks/locations?q=park",
+        "/settings/walking-map",
+        "/daily/locations?q=London",
+        "/daily/transport/catalog",
     ]:
         assert client.get("/api/v1" + path).status_code == 401, path
     assert (
@@ -81,7 +90,7 @@ with httpx.Client(
             {
                 "production": True,
                 "transport": "http-for-tunnel",
-                "protected_routes": 24,
+                "protected_routes": 33,
                 "mcp_token_required": True,
                 "setup_token_required": True,
                 "security_headers": True,

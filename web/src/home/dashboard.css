@@ -1,0 +1,175 @@
+/* A quiet home: clock first, daily essentials second. */
+.workspace .dashboard.dashboard-focus {
+  padding: 40px var(--page-gutter) 48px;
+  container-type: inline-size;
+}
+.dashboard-focus .dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  align-items: center;
+  gap: 48px;
+  padding-bottom: 40px;
+}
+.workspace .dashboard-focus .clock-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 0;
+  min-width: 0;
+}
+.dashboard-focus .dashboard-greeting {
+  font:
+    400 22px/1.4 "Space Grotesk",
+    sans-serif;
+  letter-spacing: -0.025em;
+  color: var(--text-secondary);
+}
+.workspace .dashboard-focus .clock {
+  font-size: clamp(88px, 16cqw, 176px);
+  line-height: 1;
+  letter-spacing: -0.06em;
+  white-space: nowrap;
+}
+.workspace .dashboard-focus .clock-period {
+  font: 12px var(--font-mono);
+  letter-spacing: 0;
+  margin-left: 12px;
+}
+.workspace .dashboard-focus .clock-date {
+  font-size: 14px;
+  margin: 0;
+  color: var(--text-secondary);
+}
+.dashboard-focus .dashboard-at-a-glance {
+  display: grid;
+  gap: 24px;
+}
+.workspace .dashboard-focus .dashboard-health {
+  padding: 0;
+  border: 0;
+}
+.workspace .dashboard-focus .section-title {
+  gap: 16px;
+  min-height: 44px;
+  margin-bottom: 8px;
+}
+.workspace .dashboard-focus .section-title h2 {
+  font-size: 18px;
+  font-weight: 400;
+}
+.dashboard-focus .section-title > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+}
+.dashboard-focus .dashboard-stat-value {
+  display: block;
+  font: 400 32px/1.4 var(--font-mono);
+  color: var(--text-primary);
+  min-height: 44px;
+  width: fit-content;
+}
+.dashboard-focus .dashboard-stat-value:hover {
+  color: var(--text-display);
+}
+.dashboard-focus .dashboard-at-a-glance .eyebrow {
+  font-size: 9px;
+}
+.dashboard-focus .health-overview-empty {
+  gap: 0;
+  font-size: 13px;
+}
+.dashboard-focus .health-overview-empty .text-button {
+  min-height: 44px;
+}
+.dashboard-focus .dashboard-briefing {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+  gap: 40px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.workspace .dashboard-focus .dashboard-agenda {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.dashboard-focus .upcoming-event {
+  grid-template-columns: 88px minmax(0, 1fr) 14px;
+  gap: 16px;
+  padding: 16px 0;
+  font-size: 14px;
+}
+.dashboard-focus .upcoming-event:first-of-type {
+  border-top: 0;
+}
+.dashboard-focus .upcoming-event time {
+  font-size: 10px;
+}
+.workspace .dashboard-focus .daily-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.workspace .dashboard-focus .daily-summary:empty {
+  display: none;
+}
+.dashboard-focus .daily-summary-news {
+  grid-column: 1 / -1;
+}
+.workspace .dashboard-focus .daily-hero-number {
+  font: 400 32px/1.4 var(--font-mono);
+  margin: 4px 0 8px;
+}
+.workspace .dashboard-focus .daily-summary p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.workspace .dashboard-focus .daily-line-compact {
+  flex-direction: column;
+  gap: 0;
+  margin-top: 12px;
+  font-size: 14px;
+}
+.workspace .dashboard-focus .daily-freshness {
+  margin: 12px 0 0;
+}
+.workspace .dashboard-focus .daily-headlines a {
+  min-height: 44px;
+  padding: 12px 0;
+  gap: 4px 12px;
+  font-size: 14px;
+}
+.workspace .dashboard-focus .daily-headlines a:last-child {
+  border: 0;
+}
+@container (max-width: 740px) {
+  .dashboard-focus .dashboard-hero {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    padding-bottom: 32px;
+  }
+  .workspace .dashboard-focus .clock {
+    font-size: clamp(72px, 28cqw, 160px);
+  }
+  .dashboard-focus .dashboard-at-a-glance {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
+  .dashboard-focus .dashboard-briefing {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+@media (max-width: 760px) {
+  .workspace .dashboard.dashboard-focus {
+    padding-top: 28px;
+  }
+}

@@ -23,7 +23,17 @@ def personal_operation(path: str, method: str) -> bool:
     if method.upper() not in {"GET", "POST", "PATCH", "PUT", "DELETE"}:
         return False
     return bool(
-        re.fullmatch(r"/api/v1/(notes|email|calendar)(/[^?]*)?", path)
+        re.fullmatch(r"/api/v1/(notes|email|calendar|daily)(/[^?]*)?", path)
+        or (path == "/api/v1/health/walks" and method in {"GET", "POST"})
+        or (
+            method == "GET"
+            and path
+            in {
+                "/api/v1/health/walks/map",
+                "/api/v1/health/walks/locations",
+                "/api/v1/health/walks/gpx",
+            }
+        )
         or (
             method == "GET"
             and path

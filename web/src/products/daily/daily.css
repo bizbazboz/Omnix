@@ -1,0 +1,392 @@
+.workspace .daily-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px;
+  margin-block: 48px;
+  padding-block: 32px;
+  border-block: 1px solid var(--border);
+}
+.workspace .daily-summary > section {
+  min-width: 0;
+}
+.workspace .daily-summary .section-title h2 {
+  font-size: 20px;
+}
+.workspace .daily-hero-number {
+  font: 500 clamp(48px, 5vw, 72px) / 1.1 var(--font-display);
+  margin: 20px 0 16px;
+  color: var(--text-display);
+}
+.workspace .daily-hero-number small {
+  font: 12px var(--font-mono);
+  margin-left: 12px;
+  color: var(--text-secondary);
+}
+.workspace .daily-empty {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  padding-block: 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.workspace .daily-empty a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 11px var(--font-mono);
+  text-transform: uppercase;
+  color: var(--text-primary);
+  min-height: 44px;
+}
+.workspace .daily-freshness {
+  display: grid;
+  gap: 12px;
+  margin-block: 16px;
+  color: var(--text-secondary);
+  font: 10px/1.6 var(--font-mono);
+}
+.workspace .daily-freshness time {
+  text-transform: uppercase;
+}
+.workspace .daily-line-compact {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  line-height: 1.5;
+}
+.workspace .daily-line-compact span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.workspace .daily-headlines a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 16px;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+}
+.workspace .daily-headlines small {
+  grid-column: 1/-1;
+  color: var(--text-secondary);
+  font: 10px var(--font-mono);
+  text-transform: uppercase;
+}
+.workspace .daily-headlines a:hover span,
+.workspace .daily-news-list a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.workspace .daily-page {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.workspace .daily-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-block: 24px;
+}
+.workspace .daily-toolbar .select-field {
+  width: 260px;
+  max-width: 100%;
+}
+.workspace .daily-news-list {
+  max-width: 920px;
+}
+.workspace .daily-news-list article {
+  padding-block: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.workspace .daily-news-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font: 11px var(--font-mono);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+.workspace .daily-news-list h2 {
+  font:
+    400 24px/1.35 "Space Grotesk",
+    sans-serif;
+  letter-spacing: -0.025em;
+}
+.workspace .daily-news-list h2 a {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+.workspace .daily-news-list p {
+  margin-top: 16px;
+  max-width: 760px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.workspace .daily-weather-current {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 32px;
+  margin: 32px 0 48px;
+  max-width: 1000px;
+}
+.workspace .daily-weather-current .daily-hero-number {
+  font-size: clamp(72px, 10vw, 120px);
+}
+.workspace .daily-weather-current dl {
+  display: grid;
+  gap: 24px;
+  min-width: 180px;
+}
+.workspace .daily-weather-current dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+}
+.workspace .daily-weather-current dt {
+  color: var(--text-secondary);
+}
+.workspace .daily-weather-current dd {
+  margin: 0;
+  font-family: var(--font-mono);
+}
+.workspace .daily-forecast {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  border-block: 1px solid var(--border);
+}
+.workspace .daily-forecast > div {
+  display: grid;
+  gap: 20px;
+  padding: 24px 16px;
+  border-right: 1px solid var(--border);
+}
+.workspace .daily-forecast time,
+.workspace .daily-forecast > div > span {
+  font: 11px var(--font-mono);
+  color: var(--text-secondary);
+}
+.workspace .daily-forecast strong {
+  font: 24px var(--font-mono);
+}
+.workspace .daily-forecast small {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+.workspace .daily-transport-list {
+  max-width: 1000px;
+}
+.workspace .daily-transport-list article {
+  padding-block: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.workspace .daily-transport-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+.workspace .daily-transport-title h2 {
+  font-size: 22px;
+}
+.workspace .daily-transport-title > span {
+  font: 11px var(--font-mono);
+  text-transform: uppercase;
+  text-align: right;
+}
+.workspace .daily-transport-list p {
+  margin-top: 16px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 760px;
+}
+.workspace .daily-attribution {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 10px/1.6 var(--font-mono);
+  color: var(--text-secondary);
+  margin-top: 24px;
+}
+.workspace .daily-walk-form {
+  max-width: 1000px;
+  display: grid;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+.workspace .daily-walk-fields,
+.workspace .daily-location-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 24px;
+}
+.workspace .daily-walk-form > p {
+  line-height: 1.6;
+  font-size: 13px;
+}
+.workspace .daily-route-preview {
+  width: 100%;
+  height: auto;
+  max-height: 440px;
+  border: 1px solid var(--border);
+  background: #080808;
+  color: var(--text-primary);
+}
+.workspace .daily-route-preview text {
+  font: 10px var(--font-mono);
+  fill: var(--text-secondary);
+  stroke: none;
+}
+.workspace .daily-walk-result details {
+  margin-top: 24px;
+}
+.workspace .daily-walk-result summary {
+  font: 11px var(--font-mono);
+  text-transform: uppercase;
+  cursor: pointer;
+  padding-block: 16px;
+}
+.workspace .daily-walk-result li {
+  padding: 12px 8px;
+  line-height: 1.6;
+}
+.workspace .daily-feedback {
+  margin-bottom: 24px;
+  font: 11px/1.6 var(--font-mono);
+  color: var(--text-secondary);
+}
+.workspace .daily-integration fieldset {
+  border: 0;
+  padding: 0;
+  margin: 16px 0;
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.workspace .daily-integration legend {
+  font: 11px var(--font-mono);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+.workspace .daily-widget-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+.workspace .daily-widget-options label,
+.workspace .daily-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  line-height: 1.5;
+}
+.workspace .daily-integration input[type="checkbox"] {
+  accent-color: white;
+  width: 16px;
+  height: 16px;
+}
+.workspace .daily-source-list {
+  display: grid;
+  gap: 24px;
+  container-type: inline-size;
+}
+.workspace .daily-source-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(160px, 2fr) 40px;
+  gap: 16px;
+  align-items: end;
+}
+.workspace .daily-provider-options {
+  min-width: 0;
+}
+.workspace .daily-provider-options summary {
+  font: 11px var(--font-mono);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding-block: 16px;
+  cursor: pointer;
+}
+.workspace .daily-provider-options .settings-form {
+  margin-block: 16px;
+}
+.workspace .daily-provider-options p {
+  font-size: 12px;
+}
+.workspace .daily-integration .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+}
+.workspace .daily-integration a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.workspace .walking-page .daily-walk-form {
+  max-width: 760px;
+}
+.workspace .walking-map-label {
+  margin: 0 0 24px;
+}
+.workspace .walking-page .daily-walk-form > .segmented-control,
+.workspace .walking-page .daily-walk-form > .text-button {
+  justify-self: start;
+}
+.workspace .walking-page .daily-walk-form > .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 0;
+}
+.workspace .daily-news-list article,
+.workspace .daily-headlines a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.workspace .daily-transport-title {
+  flex-wrap: wrap;
+}
+@container (max-width: 560px) {
+  .workspace .daily-source-row {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+  .workspace .daily-source-row > .form-label:first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 760px) {
+  .workspace .daily-summary {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+  .workspace .daily-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .workspace .daily-transport-title {
+    align-items: flex-start;
+  }
+  .workspace .daily-source-row {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+  .workspace .daily-source-row > .form-label:first-child {
+    grid-column: 1/-1;
+  }
+  .workspace .daily-walk-fields,
+  .workspace .daily-location-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workspace .daily-hero-number {
+    font-size: 56px;
+  }
+}

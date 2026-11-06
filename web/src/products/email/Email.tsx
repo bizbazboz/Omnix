@@ -65,7 +65,14 @@ export default function Email({
   }
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
-  const [unread, setUnread] = useState(false);
+  const unread = params.get("unread") === "true";
+  function setUnread(value: boolean) {
+    const next = new URLSearchParams(params);
+    if (value) next.set("unread", "true");
+    else next.delete("unread");
+    next.delete("message");
+    setParams(next);
+  }
   const [starred, setStarred] = useState(false);
   const filterId = useId();
   const [filterPosition, setFilterPosition] = useState({ left: 12, top: 120 });
