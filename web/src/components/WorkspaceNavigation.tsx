@@ -335,6 +335,17 @@ export default function WorkspaceNavigation({
                   </NavLink>
                 </nav>
               </>
+            ) : activeApp.id === "iot" ? (
+              <nav aria-label="IoT navigation">
+                <NavLink to="/iot" end onClick={onClose}>
+                  <activeApp.Icon size={17} />
+                  Lights
+                </NavLink>
+                <NavLink to="/iot/activity" onClick={onClose}>
+                  <CalendarDays size={17} />
+                  Calendar activity
+                </NavLink>
+              </nav>
             ) : activeApp.id === "notes" ? (
               <PageTree onClose={onClose} />
             ) : activeApp.id === "health" ? (

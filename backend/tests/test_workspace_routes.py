@@ -70,6 +70,8 @@ def test_public_product_routes_are_canonical(signed_client):
         "/calendar",
         "/health",
         "/daily",
+        "/iot",
+        "/assistant",
         "/notes",
     }
 

@@ -1,0 +1,225 @@
+.assistant-page {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.assistant-local-label {
+  font: 10px var(--font-mono);
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+}
+.assistant-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 48px;
+  max-width: 1400px;
+}
+.assistant-controls {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 20px;
+}
+.assistant-controls h2 {
+  font-size: 22px;
+  font-weight: 400;
+}
+.assistant-controls p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.assistant-controls fieldset {
+  border: 0;
+  padding: 24px 0 0;
+  margin: 0;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.assistant-controls legend {
+  font: 10px var(--font-mono);
+  color: var(--text-secondary);
+  padding-right: 12px;
+}
+.assistant-controls .form-label {
+  margin: 8px 0 0;
+}
+.assistant-controls .text-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  justify-self: start;
+  text-align: left;
+  font-size: 12px;
+}
+.assistant-progress,
+.assistant-ready {
+  font: 10px/1.7 var(--font-mono);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.assistant-conversation {
+  min-width: 0;
+}
+.assistant-welcome {
+  padding: 24px 0 40px;
+  max-width: 640px;
+}
+.assistant-welcome h2 {
+  font: 500 clamp(32px, 4vw, 52px) / 1.2 var(--font-display);
+  margin: 24px 0;
+  color: var(--text-display);
+}
+.assistant-welcome p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.assistant-suggestions {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+}
+.assistant-suggestions button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 48px;
+  padding: 12px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.assistant-suggestions button:hover {
+  color: var(--text-display);
+}
+.assistant-answers article {
+  padding: 0 0 32px;
+  margin: 0 0 32px;
+  border-bottom: 1px solid var(--border);
+}
+.assistant-answers h3 {
+  font-size: 20px;
+  font-weight: 400;
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+.assistant-answer {
+  font-size: 15px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.assistant-answers summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 16px 0;
+  font: 11px var(--font-mono);
+  color: var(--text-secondary);
+}
+.assistant-answers details > small {
+  font: 10px/1.7 var(--font-mono);
+  color: var(--text-secondary);
+}
+.assistant-sources {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.assistant-sources a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 44px;
+  font-size: 13px;
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.assistant-sources small {
+  display: block;
+  font: 9px var(--font-mono);
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+.assistant-prompt {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border-visible);
+  border-radius: 8px;
+  background: var(--surface);
+  margin-top: 24px;
+}
+.assistant-prompt > div {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+}
+.assistant-prompt textarea {
+  flex: 1;
+  min-width: 0;
+  resize: vertical;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+.assistant-prompt button {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 12px;
+}
+@media (max-width: 1050px) {
+  .assistant-layout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .assistant-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 24px;
+  }
+  .assistant-controls fieldset {
+    grid-column: 1/-1;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .assistant-controls p {
+    grid-column: 1/-1;
+  }
+  .assistant-welcome {
+    padding-top: 0;
+  }
+}
+@media (max-width: 440px) {
+  .assistant-controls {
+    grid-template-columns: 1fr;
+  }
+  .assistant-prompt {
+    padding: 16px;
+  }
+}
+
+.assistant-options {
+  display: grid;
+  gap: 20px;
+  grid-column: 1/-1;
+}
+.assistant-controls input[type="checkbox"],
+.govee-rule-form input[type="checkbox"] {
+  accent-color: var(--text-primary);
+}
+@media (max-width: 1050px) {
+  .assistant-controls .assistant-context-toggle {
+    grid-column: 1/-1;
+  }
+  .assistant-options fieldset {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+}

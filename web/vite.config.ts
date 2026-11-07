@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -6,8 +6,19 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: "self-hosted-python-runtime",
+      name: "self-hosted-browser-runtimes",
       closeBundle() {
+        const inference = resolve("dist/assistant/ort");
+        mkdirSync(inference, { recursive: true });
+        for (const name of readdirSync(
+          resolve("node_modules/onnxruntime-web/dist")
+        )) {
+          if (/^ort-wasm-simd-threaded\.(asyncify\.)?(mjs|wasm)$/.test(name))
+            copyFileSync(
+              resolve("node_modules/onnxruntime-web/dist", name),
+              resolve(inference, name)
+            );
+        }
         const target = resolve("dist/notebook/python");
         mkdirSync(target, { recursive: true });
         for (const name of [
@@ -25,6 +36,21 @@ export default defineConfig({
       },
       configureServer(server) {
         server.middlewares.use((request, response, next) => {
+          if (request.url?.startsWith("/assistant/ort/")) {
+            const name = request.url
+              .split("?")[0]
+              .slice("/assistant/ort/".length);
+            if (!/^ort-wasm-simd-threaded\.(asyncify\.)?(mjs|wasm)$/.test(name))
+              return next();
+            response.setHeader(
+              "Content-Type",
+              name.endsWith(".wasm") ? "application/wasm" : "text/javascript"
+            );
+            response.end(
+              readFileSync(resolve("node_modules/onnxruntime-web/dist", name))
+            );
+            return;
+          }
           const name = request.url
             ?.split("?")[0]
             ?.replace("/notebook/python/", "");
@@ -54,6 +80,7 @@ export default defineConfig({
       }
     }
   ],
+  worker: { format: "es" },
   build: { assetsInlineLimit: 0 },
   server: {
     allowedHosts: ["web", "localhost"],

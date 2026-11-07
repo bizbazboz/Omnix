@@ -1,3 +1,4 @@
+import GoveeIntegration from "./GoveeIntegration";
 import PageHeader from "../components/PageHeader";
 import DailyIntegration from "./DailyIntegration";
 import WalkingMapIntegration from "./WalkingMapIntegration";
@@ -599,6 +600,7 @@ export default function Settings({
                   Health
                 </NavLink>
                 <NavLink to="/settings/connections#daily">Daily</NavLink>
+                <NavLink to="/settings/connections#govee">Govee</NavLink>
                 <NavLink to="/settings/connections#walking-map">
                   Walking map
                 </NavLink>
@@ -610,6 +612,7 @@ export default function Settings({
               <CalendarIntegration />
               <HealthIntegration notify={notify} />
               <DailyIntegration />
+              <GoveeIntegration />
               <WalkingMapIntegration administrator={user.is_admin} />
             </>
           ) : section === "api-access" ? (
