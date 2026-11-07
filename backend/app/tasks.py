@@ -20,8 +20,25 @@ celery.conf.update(
         "calendar-dispatch": {"task": "app.tasks.dispatch_calendars", "schedule": 60.0},
         "health-dispatch": {"task": "app.tasks.dispatch_health", "schedule": 60.0},
         "daily-dispatch": {"task": "app.tasks.dispatch_daily", "schedule": 60.0},
+        "iot-dispatch": {"task": "app.tasks.dispatch_iot", "schedule": 30.0},
     },
 )
+
+
+@celery.task(name="app.tasks.iot_rule")
+def iot_rule(id):
+    from .iot import execute_rule
+
+    execute_rule(id)
+
+
+@celery.task(name="app.tasks.dispatch_iot")
+def dispatch_iot():
+    from .core import IoTRule
+
+    with redis.lock("scheduler:iot", timeout=25, blocking_timeout=0), Session() as db:
+        for id in db.scalars(select(IoTRule.id).where(IoTRule.enabled == True)):
+            iot_rule.delay(id)
 
 
 @celery.task(name="app.tasks.daily_sync")

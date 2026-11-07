@@ -198,6 +198,39 @@ let browser;
     },
     widgets: ["news", "weather", "transport"]
   };
+  const iotFixture = {
+    id: "curtain-qa",
+    name: "Curtain lights",
+    sku: "H70B1",
+    capabilities: [
+      {
+        type: "devices.capabilities.on_off",
+        instance: "powerSwitch",
+        parameters: {
+          dataType: "ENUM",
+          options: [
+            { name: "On", value: 1 },
+            { name: "Off", value: 0 }
+          ]
+        }
+      },
+      {
+        type: "devices.capabilities.range",
+        instance: "brightness",
+        parameters: { dataType: "INTEGER", range: { min: 1, max: 100 } }
+      },
+      {
+        type: "devices.capabilities.dynamic_scene",
+        instance: "lightScene",
+        parameters: {
+          dataType: "ENUM",
+          options: [{ name: "Aurora", value: { id: 2, paramId: 4 } }]
+        }
+      }
+    ]
+  };
+  let iotRules = [];
+  const iotCommands = [];
   const walkFixture = {
     coordinates: [
       [-0.12, 51.5],
@@ -344,8 +377,51 @@ let browser;
         { id: "calendar", name: "Calendar" },
         { id: "health", name: "Health" },
         { id: "notes", name: "Notes & Projects" },
-        { id: "daily", name: "Daily" }
+        { id: "daily", name: "Daily" },
+        { id: "iot", name: "IoT" },
+        { id: "assistant", name: "AI" }
       ];
+    else if (p === "/settings/govee") data = { configured: true };
+    else if (p === "/iot/devices")
+      data = { configured: true, items: [iotFixture] };
+    else if (p === "/iot/devices/discover") data = [iotFixture];
+    else if (p === "/iot/devices/curtain-qa/control") {
+      iotCommands.push(req.postDataJSON());
+      data = {
+        accepted: true,
+        message: "Govee accepted the command. Refresh to confirm device state."
+      };
+    } else if (p === "/iot/devices/curtain-qa/scenes") data = iotFixture;
+    else if (p === "/iot/devices/curtain-qa/state")
+      data = {
+        capabilities: [{ instance: "powerSwitch", state: { value: 1 } }]
+      };
+    else if (p === "/iot/history") data = [];
+    else if (p === "/iot/rules") {
+      if (req.method() === "POST")
+        iotRules.push({ ...req.postDataJSON(), id: "rule-qa" });
+      data = req.method() === "POST" ? iotRules.at(-1) : iotRules;
+    } else if (p === "/iot/rules/rule-qa") {
+      if (req.method() === "DELETE") {
+        iotRules = [];
+        data = { deleted: true };
+      } else {
+        iotRules = [{ ...req.postDataJSON(), id: "rule-qa" }];
+        data = iotRules[0];
+      }
+    } else if (p === "/assistant/context")
+      data = {
+        as_of: new Date().toISOString(),
+        notes_partial: false,
+        items: [
+          {
+            kind: "note",
+            title: "Planning note",
+            text: "The planning meeting is on Monday at noon.",
+            href: "/notes/pages/page-qa"
+          }
+        ]
+      };
     else if (p === "/daily")
       data = { ...dailyFixture, widgets: dailySettings.widgets };
     else if (p === "/settings/daily") {
@@ -751,6 +827,9 @@ let browser;
     "/daily/weather",
     "/daily/transport",
     "/health/walks",
+    "/iot",
+    "/iot/activity",
+    "/assistant",
     "/settings/general",
     "/settings/connections",
     "/settings/security",
@@ -760,33 +839,36 @@ let browser;
   for (const route of routes) {
     await page.goto(origin + route);
     await page.locator("main.main").waitFor();
-    const content =
-      route === "/health/walks"
-        ? ".walking-page .daily-walk-form"
-        : route.startsWith("/daily")
-          ? {
-              "/daily/news": ".daily-news-list",
-              "/daily/weather": ".daily-weather-current",
-              "/daily/transport": ".daily-transport-list",
-              "/health/walks": ".daily-walk-form"
-            }[route]
-          : route.startsWith("/health")
-            ? ".health-product .health-metrics"
-            : route.startsWith("/calendar")
-              ? ".calendar-layout"
-              : route.startsWith("/notes/pages/")
-                ? ".note-editor-surface [contenteditable=true]"
-                : route.startsWith("/notes/projects/project-")
-                  ? ".notes-view-bar"
-                  : route.startsWith("/notes")
-                    ? ".notes-page"
-                    : route.startsWith("/settings")
-                      ? ".settings-content > *"
-                      : route === "/"
-                        ? ".dashboard .clock"
-                        : route === "/email/outbox"
-                          ? ".outbox-heading"
-                          : ".email-heading";
+    const content = route.startsWith("/iot")
+      ? ".iot-page"
+      : route.startsWith("/assistant")
+        ? ".assistant-page"
+        : route === "/health/walks"
+          ? ".walking-page .daily-walk-form"
+          : route.startsWith("/daily")
+            ? {
+                "/daily/news": ".daily-news-list",
+                "/daily/weather": ".daily-weather-current",
+                "/daily/transport": ".daily-transport-list",
+                "/health/walks": ".daily-walk-form"
+              }[route]
+            : route.startsWith("/health")
+              ? ".health-product .health-metrics"
+              : route.startsWith("/calendar")
+                ? ".calendar-layout"
+                : route.startsWith("/notes/pages/")
+                  ? ".note-editor-surface [contenteditable=true]"
+                  : route.startsWith("/notes/projects/project-")
+                    ? ".notes-view-bar"
+                    : route.startsWith("/notes")
+                      ? ".notes-page"
+                      : route.startsWith("/settings")
+                        ? ".settings-content > *"
+                        : route === "/"
+                          ? ".dashboard .clock"
+                          : route === "/email/outbox"
+                            ? ".outbox-heading"
+                            : ".email-heading";
     await page.locator(content).first().waitFor();
     if (route === "/settings/connections")
       await page.locator(".daily-integration form").waitFor();
@@ -812,6 +894,8 @@ let browser;
           "/daily/weather",
           "/daily/transport",
           "/health/walks",
+          "/iot",
+          "/assistant",
           "/notes",
           "/notes/projects/project-qa?view=board",
           "/settings/general"
@@ -936,6 +1020,10 @@ let browser;
   );
   await page.goto(origin + "/");
   await page.locator(".daily-summary").waitFor();
+  await page
+    .locator(".daily-summary")
+    .getByRole("link", { name: /A useful daily headline/ })
+    .waitFor();
   assert(
     (await page
       .locator(".daily-summary")
@@ -1006,6 +1094,83 @@ let browser;
   assert(
     !scripts.some((url) => /NotePage-|native-/.test(url)),
     "Issue board downloaded the editor"
+  );
+  await page.goto(origin + "/iot");
+  const light = page.getByRole("region", {
+    name: "Curtain lights",
+    exact: true
+  });
+  await light.getByRole("button", { name: "Apply", exact: true }).click();
+  await light
+    .getByRole("status")
+    .filter({ hasText: "Govee accepted" })
+    .waitFor();
+  assert(
+    iotCommands.at(-1).instance === "powerSwitch" &&
+      iotCommands.at(-1).value === 1,
+    "IoT power command missing"
+  );
+  await light.getByRole("combobox", { name: "Control", exact: true }).click();
+  await page.getByRole("option", { name: "Scene", exact: true }).click();
+  await light.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector(".iot-feedback")
+      ?.textContent.includes("Govee accepted")
+  );
+  assert(
+    iotCommands.at(-1).instance === "lightScene" &&
+      iotCommands.at(-1).value.paramId === 4,
+    "IoT scene payload was not preserved"
+  );
+  await page.goto(origin + "/settings/connections#govee");
+  const govee = page.locator(".govee-integration");
+  await govee
+    .getByRole("textbox", { name: "Rule name", exact: true })
+    .fill("Meeting curtain lights");
+  await govee.getByRole("combobox", { name: "Light", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Curtain lights", exact: true })
+    .click();
+  await govee.getByRole("combobox", { name: "Calendar", exact: true }).click();
+  await page.getByRole("option", { name: "QA calendar", exact: true }).click();
+  await govee
+    .getByRole("textbox", { name: "Event title contains", exact: true })
+    .fill("meeting");
+  await govee
+    .getByRole("button", { name: "Save calendar rule", exact: true })
+    .click();
+  await govee.getByText("Meeting curtain lights", { exact: true }).waitFor();
+  assert(
+    iotRules[0].feed_id === "feed-qa" &&
+      iotRules[0].device_id === "curtain-qa" &&
+      iotRules[0].command.instance === "powerSwitch",
+    "Calendar rule did not preserve owned device, feed and action"
+  );
+  await govee.getByRole("button", { name: "Pause", exact: true }).click();
+  await govee.getByRole("button", { name: "Enable", exact: true }).waitFor();
+  assert(!iotRules[0].enabled, "Calendar rule did not pause");
+  await page.goto(origin + "/assistant");
+  await page
+    .getByRole("button", { name: "Load local model", exact: true })
+    .waitFor();
+  assert(
+    await page
+      .getByRole("button", { name: "Ask AI", exact: true })
+      .isDisabled(),
+    "AI allows requests before local model loading"
+  );
+  await page
+    .getByRole("button", {
+      name: "What is on my calendar this week?",
+      exact: true
+    })
+    .click();
+  assert(
+    (await page
+      .getByRole("textbox", { name: "ASK YOUR WORKSPACE", exact: true })
+      .inputValue()) === "What is on my calendar this week?",
+    "AI suggestion did not fill the prompt"
   );
   await page.goto(origin + "/onboarding");
   await page

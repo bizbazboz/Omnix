@@ -1,0 +1,135 @@
+.iot-page,
+.assistant-page {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.iot-caption {
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 760px;
+  margin-bottom: 32px;
+}
+.iot-caption a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.iot-device-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 32px;
+  max-width: 1200px;
+}
+.iot-device {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  background: var(--surface);
+}
+.iot-device h2 {
+  font-size: 24px;
+  font-weight: 400;
+  margin-top: 8px;
+}
+.iot-action-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 16px;
+}
+.iot-action-fields .form-label {
+  margin: 0;
+}
+.iot-action-fields input[type="color"] {
+  width: 100%;
+  min-height: 48px;
+  cursor: pointer;
+}
+.iot-feedback {
+  font: 11px/1.7 var(--font-mono);
+  color: var(--text-secondary);
+  margin-top: 16px;
+}
+.iot-state {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.iot-state p {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 8px;
+  font-size: 13px;
+}
+.iot-empty {
+  display: grid;
+  gap: 24px;
+  justify-items: start;
+  padding-block: 32px;
+  max-width: 600px;
+  color: var(--text-secondary);
+}
+.iot-empty h2 {
+  font-size: 32px;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+.iot-history article,
+.iot-rule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+.iot-history time,
+.iot-rule-row small {
+  display: block;
+  color: var(--text-secondary);
+  font: 10px/1.7 var(--font-mono);
+  margin-top: 8px;
+}
+.iot-rule-list {
+  margin-block: 32px;
+}
+.iot-rule-row > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.iot-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.iot-rule-actions button {
+  min-height: 44px;
+  min-width: 44px;
+}
+.govee-rule-form {
+  display: grid;
+  gap: 20px;
+  max-width: 760px;
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+.govee-rule-form .form-label {
+  margin: 0;
+}
+.govee-rule-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 20px;
+}
+@media (max-width: 600px) {
+  .iot-device {
+    padding: 20px;
+  }
+  .iot-rule-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
