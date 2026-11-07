@@ -42,8 +42,9 @@ let browser;
       };
     else if (p === "/config")
       data = { oidc_configured: true, setup_available: false };
-    else if (p === "/products") data = [{ id: "assistant", name: "AI" }];
+    else if (p === "/products") data = [{ id: "iot", name: "IoT" }];
     else if (p === "/connections") data = [];
+    else if (p === "/iot/devices") data = { configured: false, items: [] };
     else if (p === "/settings/workspace")
       data = { name: "Omnix", private_mail_hosts: [] };
     else if (p === "/settings/preferences")
@@ -77,7 +78,8 @@ let browser;
       body: JSON.stringify(data)
     });
   });
-  await page.goto(origin + "/assistant");
+  await page.goto(origin + "/iot");
+  await page.getByRole("button", { name: "Open AI chat", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Ask AI", exact: true })
   ).toBeDisabled();
@@ -112,6 +114,18 @@ let browser;
       )
     });
   }
+  await page
+    .getByRole("button", { name: "Minimise AI chat", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Open AI chat", exact: true }).click();
+  await expect(page.locator(".assistant-answer")).toContainText(/noon|12/i);
+  await expect(
+    page.getByText("MODEL READY / LOCAL CPU", { exact: true })
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Context and storage", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Remove downloaded model", exact: true })
     .click();

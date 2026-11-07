@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { ArrowUpRight, ArrowUp, Square, RotateCcw } from "lucide-react";
-import PageHeader from "../../components/PageHeader";
 import Select from "../../components/Select";
 import { api } from "../../lib/api";
 import "./assistant.css";
@@ -13,7 +12,7 @@ type Answer = {
   as_of: string;
   partial: boolean;
 };
-export default function Assistant() {
+export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
   const worker = useRef<Worker | null>(null),
     bottom = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<
@@ -25,16 +24,8 @@ export default function Assistant() {
     [sources, setSources] = useState(["notes", "calendar", "projects"]),
     [days, setDays] = useState("14"),
     [answers, setAnswers] = useState<Answer[]>([]);
-  const [contextOpen, setContextOpen] = useState(
-    () => window.innerWidth > 1050
-  );
+  const [contextOpen, setContextOpen] = useState(false);
   const busy = ["loading", "retrieving", "generating"].includes(phase);
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 1051px)");
-    const update = () => setContextOpen(media.matches);
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
   useEffect(() => () => worker.current?.terminate(), []);
   useEffect(() => {
     if (phase === "generating")
@@ -169,18 +160,14 @@ export default function Assistant() {
     }
   }
   return (
-    <div className="page assistant-page">
-      <PageHeader context="Workspace" title="AI">
-        <span className="assistant-local-label">ON THIS DEVICE</span>
-      </PageHeader>
+    <div className="assistant-chat-content">
       <div className="assistant-layout">
-        <aside className="assistant-controls" aria-label="AI context">
+        <section className="assistant-controls" aria-label="AI context">
           <span className="eyebrow">LOCAL MODEL</span>
-          <h2>SmolLM2 · 135M</h2>
-          <p>
-            A lightweight model running on this device. The first load downloads
-            about 140 MB of model files.
-          </p>
+          <span className="assistant-model-name">
+            SmolLM2 · 135M / ON THIS DEVICE
+          </span>
+          <p>One-time model download: about 140 MB. Answers run locally.</p>
           <div className="assistant-model-actions">
             {phase === "idle" ? (
               <button className="primary" onClick={load}>
@@ -260,7 +247,7 @@ export default function Assistant() {
               </button>
             </div>
           )}
-        </aside>
+        </section>
         <section
           className="assistant-conversation"
           aria-label="AI conversation"
@@ -268,7 +255,7 @@ export default function Assistant() {
           {!answers.length && (
             <div className="assistant-welcome">
               <span className="eyebrow">YOUR WORKSPACE / YOUR DEVICE</span>
-              <h2>Ask what’s on your mind.</h2>
+              <h2>Ask your workspace.</h2>
               <p>
                 Find details in your notes, see what’s coming up, or check
                 project tasks.
@@ -299,7 +286,11 @@ export default function Assistant() {
                     <summary>Sources · {answer.items.length}</summary>
                     <div className="assistant-sources">
                       {answer.items.map((source, index) => (
-                        <NavLink key={source.href} to={source.href}>
+                        <NavLink
+                          key={source.href}
+                          to={source.href}
+                          onClick={onNavigate}
+                        >
                           <span>
                             [{index + 1}] {source.title}
                             <small>{source.kind.toUpperCase()}</small>
@@ -332,7 +323,7 @@ export default function Assistant() {
             <div>
               <textarea
                 id="assistant-question"
-                rows={3}
+                rows={2}
                 maxLength={500}
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}

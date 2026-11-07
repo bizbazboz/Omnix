@@ -49,16 +49,6 @@ def daily_sync(owner, force=False):
         refresh_daily(owner, force=force)
 
 
-@celery.task(name="app.tasks.walking_map_import", soft_time_limit=840, time_limit=900)
-def walking_map_import():
-    from .walking import download_and_import
-
-    try:
-        return download_and_import()
-    finally:
-        redis.delete("walking-map-queued")
-
-
 @celery.task(name="app.tasks.dispatch_daily")
 def dispatch_daily():
     from .core import SystemSetting

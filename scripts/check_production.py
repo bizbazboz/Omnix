@@ -45,11 +45,6 @@ with httpx.Client(
         "/iot/history",
         "/assistant/context?question=notes",
         "/daily",
-        "/health/walks",
-        "/health/walks/map",
-        "/health/walks/gpx",
-        "/health/walks/locations?q=park",
-        "/settings/walking-map",
         "/daily/locations?q=London",
         "/daily/transport/catalog",
     ]:
@@ -95,7 +90,7 @@ with httpx.Client(
             {
                 "production": True,
                 "transport": "http-for-tunnel",
-                "protected_routes": 38,
+                "protected_routes": 33,
                 "mcp_token_required": True,
                 "setup_token_required": True,
                 "security_headers": True,

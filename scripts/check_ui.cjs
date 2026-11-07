@@ -1,6 +1,7 @@
 // Synthetic API fixtures only; this audit never writes to the running workspace.
 const path = require("path");
 const fs = require("fs");
+const { walkingFixture } = require("./walking_fixture.cjs");
 const { chromium } = require(
   require.resolve("playwright", { paths: [path.join(__dirname, "../web")] })
 );
@@ -20,9 +21,7 @@ let browser;
   const scripts = [];
   const requestCounts = new Map();
   let signedIn = true;
-  let dailySaved = null,
-    badWalk = false;
-  const walkingRequests = [];
+  let dailySaved = null;
   page.on("request", (request) => {
     if (request.resourceType() === "script")
       scripts.push(new URL(request.url()).pathname);
@@ -231,20 +230,6 @@ let browser;
   };
   let iotRules = [];
   const iotCommands = [];
-  const walkFixture = {
-    coordinates: [
-      [-0.12, 51.5],
-      [-0.119, 51.501],
-      [-0.118, 51.5],
-      [-0.12, 51.5]
-    ],
-    distance_m: 5100,
-    duration_s: 3700,
-    steps: ["Head north", "Turn left", "Arrive at your start"],
-    created_at: stamp,
-    requested_km: 5,
-    attribution: "OpenStreetMap contributors / Omnix local routing"
-  };
   const dailyFixture = {
     configured: true,
     widgets: dailySettings.widgets,
@@ -335,6 +320,37 @@ let browser;
       if (e.data?.type === "unsafe-email") window.__unsafeMail = true;
     });
   });
+  await context.route("https://photon.komoot.io/api/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        features: [
+          {
+            geometry: { coordinates: [-0.127, 51.503] },
+            properties: { osm_id: 1, name: "Test Park", city: "London" }
+          }
+        ]
+      })
+    })
+  );
+  await context.route("https://overpass-api.de/api/interpreter", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(walkingFixture())
+    })
+  );
+  await context.route("https://tile.openstreetmap.org/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64"
+      )
+    })
+  );
   await context.route("https://images.example.test/**", async (route) => {
     remoteRequests++;
     await route.fulfill({
@@ -378,8 +394,7 @@ let browser;
         { id: "health", name: "Health" },
         { id: "notes", name: "Notes & Projects" },
         { id: "daily", name: "Daily" },
-        { id: "iot", name: "IoT" },
-        { id: "assistant", name: "AI" }
+        { id: "iot", name: "IoT" }
       ];
     else if (p === "/settings/govee") data = { configured: true };
     else if (p === "/iot/devices")
@@ -433,38 +448,7 @@ let browser;
     } else if (p === "/daily/refresh") {
       status = 202;
       data = { queued: true };
-    } else if (p === "/health/walks") {
-      if (req.method() === "POST") walkingRequests.push(req.postDataJSON());
-      if (req.method() === "GET")
-        data = {
-          route: walkFixture,
-          map: {
-            ready: true,
-            name: "Test London",
-            nodes: 49,
-            updated_at: stamp
-          }
-        };
-      else if (badWalk) {
-        status = 422;
-        data = { detail: "No suitable loop found." };
-      } else data = walkFixture;
-    } else if (p === "/health/walks/map")
-      data = { ready: true, name: "Test London", nodes: 49, updated_at: stamp };
-    else if (p === "/health/walks/locations")
-      data = {
-        items: [
-          {
-            id: "test-park",
-            name: "Test Park",
-            label: "Test Park",
-            detail: "park",
-            latitude: 51.5,
-            longitude: -0.12
-          }
-        ]
-      };
-    else if (p === "/daily/locations")
+    } else if (p === "/daily/locations")
       data = {
         items: [
           {
@@ -829,7 +813,6 @@ let browser;
     "/health/walks",
     "/iot",
     "/iot/activity",
-    "/assistant",
     "/settings/general",
     "/settings/connections",
     "/settings/security",
@@ -841,34 +824,32 @@ let browser;
     await page.locator("main.main").waitFor();
     const content = route.startsWith("/iot")
       ? ".iot-page"
-      : route.startsWith("/assistant")
-        ? ".assistant-page"
-        : route === "/health/walks"
-          ? ".walking-page .daily-walk-form"
-          : route.startsWith("/daily")
-            ? {
-                "/daily/news": ".daily-news-list",
-                "/daily/weather": ".daily-weather-current",
-                "/daily/transport": ".daily-transport-list",
-                "/health/walks": ".daily-walk-form"
-              }[route]
-            : route.startsWith("/health")
-              ? ".health-product .health-metrics"
-              : route.startsWith("/calendar")
-                ? ".calendar-layout"
-                : route.startsWith("/notes/pages/")
-                  ? ".note-editor-surface [contenteditable=true]"
-                  : route.startsWith("/notes/projects/project-")
-                    ? ".notes-view-bar"
-                    : route.startsWith("/notes")
-                      ? ".notes-page"
-                      : route.startsWith("/settings")
-                        ? ".settings-content > *"
-                        : route === "/"
-                          ? ".dashboard .clock"
-                          : route === "/email/outbox"
-                            ? ".outbox-heading"
-                            : ".email-heading";
+      : route === "/health/walks"
+        ? ".walking-page .daily-walk-form"
+        : route.startsWith("/daily")
+          ? {
+              "/daily/news": ".daily-news-list",
+              "/daily/weather": ".daily-weather-current",
+              "/daily/transport": ".daily-transport-list",
+              "/health/walks": ".daily-walk-form"
+            }[route]
+          : route.startsWith("/health")
+            ? ".health-product .health-metrics"
+            : route.startsWith("/calendar")
+              ? ".calendar-layout"
+              : route.startsWith("/notes/pages/")
+                ? ".note-editor-surface [contenteditable=true]"
+                : route.startsWith("/notes/projects/project-")
+                  ? ".notes-view-bar"
+                  : route.startsWith("/notes")
+                    ? ".notes-page"
+                    : route.startsWith("/settings")
+                      ? ".settings-content > *"
+                      : route === "/"
+                        ? ".dashboard .clock"
+                        : route === "/email/outbox"
+                          ? ".outbox-heading"
+                          : ".email-heading";
     await page.locator(content).first().waitFor();
     if (route === "/settings/connections")
       await page.locator(".daily-integration form").waitFor();
@@ -895,7 +876,6 @@ let browser;
           "/daily/transport",
           "/health/walks",
           "/iot",
-          "/assistant",
           "/notes",
           "/notes/projects/project-qa?view=board",
           "/settings/general"
@@ -926,41 +906,19 @@ let browser;
   await page
     .getByRole("combobox", { name: "Start location", exact: true })
     .fill("Test Park");
+  await page
+    .getByRole("button", { name: "Search start location", exact: true })
+    .click();
   await page.getByRole("option", { name: /Test Park/ }).click();
   await page
     .getByRole("button", { name: "Generate loop", exact: true })
     .click();
   await page.locator(".daily-walk-result").waitFor();
+  const downloadEvent = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export GPX", exact: true }).click();
   assert(
-    (
-      await page.locator(".daily-walk-result a[download]").getAttribute("href")
-    ).startsWith("/api/v1/health/walks/gpx?created_at="),
-    "Walking GPX link missing"
-  );
-  badWalk = true;
-  await page
-    .getByRole("group", { name: "Walking target", exact: true })
-    .getByRole("button", { name: "Speed / time", exact: true })
-    .click();
-  await page.getByRole("spinbutton", { name: /Walking speed/ }).fill("4");
-  await page.getByRole("spinbutton", { name: /Walking time/ }).fill("45");
-  await page
-    .getByRole("button", { name: "Generate loop", exact: true })
-    .click();
-  await page
-    .getByRole("alert")
-    .filter({ hasText: "No suitable loop found." })
-    .waitFor();
-  assert(
-    await page.locator(".daily-route-preview").isVisible(),
-    "Failed generation discarded the previous route"
-  );
-  assert(
-    walkingRequests[0].mode === "distance" &&
-      walkingRequests.at(-1).mode === "time" &&
-      walkingRequests.at(-1).speed_kmh === 4 &&
-      walkingRequests.at(-1).duration_minutes === 45,
-    "Walking distance and speed/time targets did not reach the API"
+    (await downloadEvent).suggestedFilename() === "omnix-walking-loop.gpx",
+    "Browser walking export missing"
   );
   await page.goto(origin + "/settings/connections#daily");
   const dailyForm = page.locator(".daily-integration");
@@ -1150,7 +1108,8 @@ let browser;
   await govee.getByRole("button", { name: "Pause", exact: true }).click();
   await govee.getByRole("button", { name: "Enable", exact: true }).waitFor();
   assert(!iotRules[0].enabled, "Calendar rule did not pause");
-  await page.goto(origin + "/assistant");
+  await page.getByRole("button", { name: "Open AI chat", exact: true }).click();
+  await page.getByRole("dialog", { name: /AI/ }).waitFor();
   await page
     .getByRole("button", { name: "Load local model", exact: true })
     .waitFor();
@@ -1158,7 +1117,7 @@ let browser;
     await page
       .getByRole("button", { name: "Ask AI", exact: true })
       .isDisabled(),
-    "AI allows requests before local model loading"
+    "AI allows requests before model loading"
   );
   await page
     .getByRole("button", {
@@ -1166,11 +1125,21 @@ let browser;
       exact: true
     })
     .click();
+  await page
+    .getByRole("button", { name: "Minimise AI chat", exact: true })
+    .click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Open AI chat", exact: true }).click();
   assert(
     (await page
       .getByRole("textbox", { name: "ASK YOUR WORKSPACE", exact: true })
       .inputValue()) === "What is on my calendar this week?",
-    "AI suggestion did not fill the prompt"
+    "Chat input did not survive navigation"
+  );
+  await page.keyboard.press("Escape");
+  assert(
+    !(await page.getByRole("dialog", { name: /AI/ }).isVisible()),
+    "Escape did not minimise chat"
   );
   await page.goto(origin + "/onboarding");
   await page

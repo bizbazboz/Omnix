@@ -20,10 +20,10 @@
 - Track project issues with a backlog, boards, subtasks, comments and activity.
 - Embed mail, calendar events and issues into notes with slash commands.
 - Follow custom news feeds, autocomplete weather locations and select TfL lines.
-- Generate walking loops under Health using a local OpenStreetMap graph, with distance or speed/time targets and GPX export.
+- Plan walking loops on an online OpenStreetMap, with browser-side routing and GPX export.
 - See upcoming events, weather, train issues, unread mail and steps at a glance.
 - Control Govee curtain lights and trigger supported actions from iCal events.
-- Ask a lightweight AI about your notes, calendar and projects, with inference entirely in your browser.
+- Ask about notes, calendar and projects in a floating AI chat, with inference entirely in your browser.
 - Sign in with Pocket ID and keep each user's mail private.
 - Manage authentication, integrations and preferences in the app.
 - Run with Docker Compose, with images published to GHCR through CI.

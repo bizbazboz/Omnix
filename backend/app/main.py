@@ -153,6 +153,12 @@ async def security(request, call_next):
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https: http:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     )
+    if request.url.path.startswith("/assets/walking.worker-"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'self'; "
+            "connect-src https://photon.komoot.io https://overpass-api.de; "
+            "object-src 'none'; base-uri 'none'"
+        )
     if request.url.path.startswith("/assets/model.worker-"):
         response.headers["Content-Security-Policy"] = (
             "default-src 'none'; script-src 'self' blob: 'wasm-unsafe-eval'; "
@@ -535,12 +541,6 @@ PRODUCTS = [
         "name": "IoT",
         "path": "/iot",
         "capabilities": ["iot.read", "iot.write"],
-    },
-    {
-        "id": "assistant",
-        "name": "AI",
-        "path": "/assistant",
-        "capabilities": ["assistant.read"],
     },
     {
         "id": "notes",
@@ -1302,9 +1302,6 @@ app.include_router(build_token_router(authenticated, db_session))
 from .daily import build_daily_router
 
 app.include_router(build_daily_router(authenticated, db_session))
-from .walking import build_walking_router
-
-app.include_router(build_walking_router(authenticated, db_session))
 
 from .iot import build_iot_router
 from .assistant import build_assistant_router

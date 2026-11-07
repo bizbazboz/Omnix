@@ -1,7 +1,6 @@
 import GoveeIntegration from "./GoveeIntegration";
 import PageHeader from "../components/PageHeader";
 import DailyIntegration from "./DailyIntegration";
-import WalkingMapIntegration from "./WalkingMapIntegration";
 import Select from "../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -601,9 +600,6 @@ export default function Settings({
                 </NavLink>
                 <NavLink to="/settings/connections#daily">Daily</NavLink>
                 <NavLink to="/settings/connections#govee">Govee</NavLink>
-                <NavLink to="/settings/connections#walking-map">
-                  Walking map
-                </NavLink>
               </nav>
               <div id="mail">
                 {user.is_admin && <ZohoRegistration />}
@@ -613,7 +609,6 @@ export default function Settings({
               <HealthIntegration notify={notify} />
               <DailyIntegration />
               <GoveeIntegration />
-              <WalkingMapIntegration administrator={user.is_admin} />
             </>
           ) : section === "api-access" ? (
             <ApiAccess />

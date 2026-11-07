@@ -7,7 +7,6 @@ import {
   NotebookPen,
   Newspaper,
   Lightbulb,
-  Cpu,
   type LucideIcon
 } from "lucide-react";
 export type ProductProps = {
@@ -63,14 +62,6 @@ export const productRegistry: ProductModule[] = [
     requiredCapabilities: ["iot.read"],
     Icon: Lightbulb,
     Entry: lazy(() => import("./iot/IoT"))
-  },
-  {
-    id: "assistant",
-    name: "AI",
-    routePrefix: "/assistant",
-    requiredCapabilities: ["assistant.read"],
-    Icon: Cpu,
-    Entry: lazy(() => import("./assistant/Assistant"))
   },
   {
     id: "notes",
