@@ -13,7 +13,11 @@ export default defineConfig({
         for (const name of readdirSync(
           resolve("node_modules/onnxruntime-web/dist")
         )) {
-          if (/^ort-wasm-simd-threaded\.(asyncify\.)?(mjs|wasm)$/.test(name))
+          if (
+            /^ort-wasm-simd-threaded\.((asyncify|jspi)\.)?(mjs|wasm)$/.test(
+              name
+            )
+          )
             copyFileSync(
               resolve("node_modules/onnxruntime-web/dist", name),
               resolve(inference, name)
@@ -40,7 +44,11 @@ export default defineConfig({
             const name = request.url
               .split("?")[0]
               .slice("/assistant/ort/".length);
-            if (!/^ort-wasm-simd-threaded\.(asyncify\.)?(mjs|wasm)$/.test(name))
+            if (
+              !/^ort-wasm-simd-threaded\.((asyncify|jspi)\.)?(mjs|wasm)$/.test(
+                name
+              )
+            )
               return next();
             response.setHeader(
               "Content-Type",

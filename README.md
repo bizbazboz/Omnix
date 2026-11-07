@@ -23,7 +23,7 @@
 - Plan walking loops on an online OpenStreetMap, with browser-side routing and GPX export.
 - See upcoming events, weather, train issues, unread mail and steps at a glance.
 - Control Govee curtain lights and trigger supported actions from iCal events.
-- Ask about notes, calendar and projects in a floating AI chat, with inference entirely in your browser.
+- Ask general questions or explore notes, calendar and projects in a floating AI chat, with inference entirely in your browser and GPU acceleration where available.
 - Sign in with Pocket ID and keep each user's mail private.
 - Manage authentication, integrations and preferences in the app.
 - Run with Docker Compose, with images published to GHCR through CI.

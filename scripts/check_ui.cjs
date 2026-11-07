@@ -1205,7 +1205,7 @@ let browser;
   await page.getByRole("button", { name: "Open AI chat", exact: true }).click();
   assert(
     (await page
-      .getByRole("textbox", { name: "ASK YOUR WORKSPACE", exact: true })
+      .getByRole("textbox", { name: "ASK OMNIX", exact: true })
       .inputValue()) === "What is on my calendar this week?",
     "Chat input did not survive navigation"
   );

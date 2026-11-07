@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { ArrowUpRight, ArrowUp, Square, RotateCcw } from "lucide-react";
 import Select from "../../components/Select";
 import { api } from "../../lib/api";
+import { defaultModel, localModels, type ModelId } from "./models";
 import "./assistant.css";
 type Source = { kind: string; title: string; text: string; href: string };
 type Answer = {
@@ -14,6 +15,7 @@ type Answer = {
 };
 export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
   const worker = useRef<Worker | null>(null),
+    stopTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined),
     bottom = useRef<HTMLDivElement>(null);
   const [phase, setPhase] = useState<
       "idle" | "loading" | "ready" | "retrieving" | "generating"
@@ -24,9 +26,19 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
     [sources, setSources] = useState(["notes", "calendar", "projects"]),
     [days, setDays] = useState("14"),
     [answers, setAnswers] = useState<Answer[]>([]);
+  const [modelId, setModelId] = useState<ModelId>(defaultModel.id);
+  const [runtime, setRuntime] = useState("CPU"),
+    [stopping, setStopping] = useState(false);
+  const model = localModels.find((model) => model.id === modelId)!;
   const [contextOpen, setContextOpen] = useState(false);
   const busy = ["loading", "retrieving", "generating"].includes(phase);
-  useEffect(() => () => worker.current?.terminate(), []);
+  useEffect(
+    () => () => {
+      clearTimeout(stopTimer.current);
+      worker.current?.terminate();
+    },
+    []
+  );
   useEffect(() => {
     if (phase === "generating")
       bottom.current?.scrollIntoView({ block: "nearest" });
@@ -36,8 +48,10 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
       type: "module"
     });
     instance.onmessage = (event) => {
+      if (worker.current !== instance) return;
       const data = event.data;
       if (data.type === "ready") {
+        setRuntime(data.device === "webgpu" ? "GPU" : "CPU");
         setPhase("ready");
         setProgress("");
       }
@@ -53,15 +67,38 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
             i === rows.length - 1 ? { ...row, text: row.text + data.text } : row
           )
         );
-      if (data.type === "done") setPhase("ready");
+      if (data.type === "done") {
+        clearTimeout(stopTimer.current);
+        setStopping(false);
+        setProgress("");
+        if (data.stopped)
+          setAnswers((rows) =>
+            rows.map((row, index) =>
+              index === rows.length - 1 && !row.text
+                ? { ...row, text: "Generation stopped." }
+                : row
+            )
+          );
+        setPhase("ready");
+      }
+      if (data.type === "fallback") {
+        instance.terminate();
+        worker.current = null;
+        setProgress("GPU unavailable. Loading the CPU model…");
+        createWorker().postMessage({ type: "load", model: modelId, cpu: true });
+      }
       if (data.type === "error") {
         setError(data.message);
+        clearTimeout(stopTimer.current);
+        setStopping(false);
         setPhase("idle");
         instance.terminate();
         worker.current = null;
       }
     };
     instance.onerror = () => {
+      clearTimeout(stopTimer.current);
+      setStopping(false);
       setError("The local AI runtime stopped. Reload the model to continue.");
       setPhase("idle");
       instance.terminate();
@@ -74,61 +111,86 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
     setError("");
     setProgress("Preparing browser runtime…");
     setPhase("loading");
-    (worker.current || createWorker()).postMessage({ type: "load" });
+    (worker.current || createWorker()).postMessage({
+      type: "load",
+      model: modelId
+    });
   }
   function stop() {
+    if (phase === "generating") {
+      if (stopping) return;
+      worker.current?.postMessage({ type: "stop" });
+      setStopping(true);
+      setProgress("Stopping generation…");
+      stopTimer.current = setTimeout(() => {
+        worker.current?.terminate();
+        worker.current = null;
+        setStopping(false);
+        setPhase("idle");
+        setAnswers((rows) =>
+          rows.map((row, index) =>
+            index === rows.length - 1 && !row.text
+              ? { ...row, text: "Generation stopped." }
+              : row
+          )
+        );
+        setProgress("Generation stopped. Reload the model to continue.");
+      }, 5000);
+      return;
+    }
     worker.current?.terminate();
     worker.current = null;
-    if (phase === "generating")
-      setAnswers((rows) =>
-        rows.map((row, i) =>
-          i === rows.length - 1 && !row.text
-            ? { ...row, text: "Generation stopped." }
-            : row
-        )
-      );
     setPhase("idle");
     setProgress("");
   }
   async function ask(e: React.FormEvent) {
     e.preventDefault();
-    if (phase !== "ready" || !question.trim() || !sources.length) return;
+    if (phase !== "ready" || !question.trim()) return;
     setError("");
     setPhase("retrieving");
     try {
-      const data = await api<{
-        items: Source[];
-        as_of: string;
-        notes_partial: boolean;
-      }>(
-        "/assistant/context?" +
-          new URLSearchParams({
-            question: question.trim(),
-            sources: sources.join(","),
-            days
-          })
-      );
-      if (!data.items.length) {
-        setAnswers((rows) => [
-          ...rows,
-          {
-            question,
-            text: "No matching information was found in the selected sources and date range.",
-            items: [],
-            as_of: data.as_of,
-            partial: data.notes_partial
-          }
-        ]);
-        setQuestion("");
-        setPhase("ready");
-        return;
-      }
+      const data = sources.length
+        ? await api<{
+            items: Source[];
+            as_of: string;
+            notes_partial: boolean;
+          }>(
+            "/assistant/context?" +
+              new URLSearchParams({
+                question: question.trim(),
+                sources: sources.join(","),
+                days
+              })
+          )
+        : {
+            items: [] as Source[],
+            as_of: new Date().toISOString(),
+            notes_partial: false
+          };
+      // Retain sources for follow-up questions, but never reintroduce an
+      // unchecked source or replace a freshly retrieved extract with old data.
+      const kinds: Record<string, string> = {
+        note: "notes",
+        event: "calendar",
+        issue: "projects"
+      };
+      const items = data.items.slice(0, 8);
+      for (const source of answers
+        .slice(-2)
+        .flatMap((answer) => answer.items)
+        .reverse())
+        if (
+          items.length < 8 &&
+          sources.includes(kinds[source.kind]) &&
+          !items.some((item) => item.href === source.href)
+        )
+          items.push(source);
       setAnswers((rows) => [
         ...rows,
         {
           question,
           text: "",
-          items: data.items,
+          items,
           as_of: data.as_of,
           partial: data.notes_partial
         }
@@ -136,7 +198,16 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
       worker.current?.postMessage({
         type: "generate",
         question,
-        items: data.items,
+        items,
+        history: answers
+          .filter(
+            (answer) => answer.text && answer.text !== "Generation stopped."
+          )
+          .slice(-2)
+          .flatMap((answer) => [
+            { role: "user", content: answer.question },
+            { role: "assistant", content: answer.text }
+          ]),
         as_of: data.as_of
       });
       setQuestion("");
@@ -151,7 +222,10 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
     setAnswers([]);
     setError("");
     try {
-      if ("caches" in window) await caches.delete("omnix-smollm2-v1");
+      if ("caches" in window)
+        await Promise.all(
+          localModels.map((model) => caches.delete(model.cache))
+        );
       setProgress("Downloaded model removed from this browser.");
     } catch {
       setError(
@@ -165,9 +239,28 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
         <section className="assistant-controls" aria-label="AI context">
           <span className="eyebrow">LOCAL MODEL</span>
           <span className="assistant-model-name">
-            SmolLM2 · 135M / ON THIS DEVICE
+            {model.name} / ON THIS DEVICE
           </span>
-          <p>One-time model download: about 140 MB. Answers run locally.</p>
+          <label className="form-label">
+            Model
+            <Select
+              aria-label="AI model"
+              value={modelId}
+              disabled={busy}
+              onChange={(event) => {
+                stop();
+                setError("");
+                setModelId(event.target.value as ModelId);
+              }}
+            >
+              {localModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.description}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <p>One-time download: {model.download}. Answers run locally.</p>
           <div className="assistant-model-actions">
             {phase === "idle" ? (
               <button className="primary" onClick={load}>
@@ -179,7 +272,7 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
               </button>
             ) : (
               <span className="assistant-ready" role="status">
-                MODEL READY / LOCAL CPU
+                MODEL READY / LOCAL {runtime}
               </span>
             )}
           </div>
@@ -255,10 +348,10 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
           {!answers.length && (
             <div className="assistant-welcome">
               <span className="eyebrow">YOUR WORKSPACE / YOUR DEVICE</span>
-              <h2>Ask your workspace.</h2>
+              <h2>Ask anything.</h2>
               <p>
-                Find details in your notes, see what’s coming up, or check
-                project tasks.
+                Ask a general question, find details in your notes, or check
+                what’s coming up.
               </p>
               <div className="assistant-suggestions">
                 {[
@@ -318,7 +411,7 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
           )}
           <form className="assistant-prompt" onSubmit={ask}>
             <label htmlFor="assistant-question" className="eyebrow">
-              ASK YOUR WORKSPACE
+              ASK OMNIX
             </label>
             <div>
               <textarea
@@ -327,7 +420,7 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
                 maxLength={500}
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
-                placeholder="Ask about your notes, calendar or projects…"
+                placeholder="Ask a question or explore your workspace…"
                 disabled={
                   phase === "loading" ||
                   phase === "retrieving" ||
@@ -335,7 +428,12 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
                 }
               />
               {phase === "generating" ? (
-                <button type="button" className="secondary" onClick={stop}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={stop}
+                  disabled={stopping}
+                >
                   <Square size={16} />
                   Stop
                 </button>
@@ -343,9 +441,7 @@ export default function Assistant({ onNavigate }: { onNavigate: () => void }) {
                 <button
                   className="primary"
                   aria-label="Ask AI"
-                  disabled={
-                    phase !== "ready" || !question.trim() || !sources.length
-                  }
+                  disabled={phase !== "ready" || !question.trim()}
                 >
                   <ArrowUp size={18} />
                 </button>
