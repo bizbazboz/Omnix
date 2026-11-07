@@ -18,6 +18,7 @@ export type ProductModule = {
   id: string;
   name: string;
   routePrefix: string;
+  homePath?: string;
   requiredCapabilities: string[];
   Icon: LucideIcon;
   Entry: LazyExoticComponent<ComponentType<ProductProps>>;
@@ -51,6 +52,7 @@ export const productRegistry: ProductModule[] = [
     id: "daily",
     name: "Daily",
     routePrefix: "/daily",
+    homePath: "/daily/news",
     requiredCapabilities: ["daily.read"],
     Icon: Newspaper,
     Entry: lazy(() => import("./daily/Daily"))

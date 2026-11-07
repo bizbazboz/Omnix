@@ -107,7 +107,10 @@ let browser;
   };
   let tasks = [baseTask],
     badCreate = false,
-    created = [];
+    badUpdate = false,
+    createDelay = 0,
+    created = [],
+    updates = [];
   let failedMail = false,
     remoteRequests = 0;
   const note = {
@@ -564,6 +567,8 @@ let browser;
     else if (p === "/notes/projects/" + project.id) data = project;
     else if (p === "/notes/projects/" + project.id + "/tasks") {
       if (req.method() === "POST") {
+        if (createDelay)
+          await new Promise((resolve) => setTimeout(resolve, createDelay));
         if (badCreate) {
           status = 400;
           data = { detail: "Creation failed" };
@@ -584,11 +589,18 @@ let browser;
         }
       } else data = tasks;
     } else if (p.endsWith("/discussion")) data = { comments: [], activity: [] };
-    else if (p.includes("/notes/projects/") && p.includes("/tasks/"))
-      data = {
-        ...tasks.find((t) => p.endsWith("/" + t.id)),
-        ...req.postDataJSON()
-      };
+    else if (p.includes("/notes/projects/") && p.includes("/tasks/")) {
+      const task = tasks.find((t) => p.endsWith("/" + t.id));
+      const { expected_revision, ...body } = req.postDataJSON();
+      if (badUpdate || expected_revision !== task.revision) {
+        status = 409;
+        data = { detail: "Update conflict" };
+      } else {
+        updates.push({ ...body, expected_revision });
+        data = { ...task, ...body, revision: task.revision + 1 };
+        tasks = tasks.map((t) => (t.id === task.id ? data : t));
+      }
+    }
     await route.fulfill({
       status,
       contentType: "application/json",
@@ -665,6 +677,67 @@ let browser;
     .getByRole("link", { name: "Mail", exact: true })
     .click();
   await page.waitForURL("**/email");
+  assert(
+    await page.locator(".sidebar.mobile-open").isVisible(),
+    "Selecting an app closed the mobile subpage navigation"
+  );
+  await page
+    .getByRole("button", { name: "Back to applications", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Applications", exact: true })
+    .getByRole("link", { name: "Mail", exact: true })
+    .click();
+  assert(
+    await page.locator(".sidebar.mobile-open").isVisible(),
+    "Reopening the current app hid its subpages"
+  );
+  await page
+    .locator(".sidebar")
+    .getByRole("link", { name: /^Inbox/ })
+    .click();
+  await page.locator(".sidebar.mobile-open").waitFor({ state: "hidden" });
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Back to applications", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Applications", exact: true })
+    .getByRole("link", { name: "Health", exact: true })
+    .click();
+  await page.waitForURL("**/health");
+  assert(
+    await page.locator(".sidebar.mobile-open").isVisible(),
+    "Health subpages disappeared"
+  );
+  await page
+    .locator(".sidebar")
+    .getByRole("link", { name: "Sleep", exact: true })
+    .click();
+  await page.waitForURL("**/health/sleep");
+  await page.locator(".sidebar.mobile-open").waitFor({ state: "hidden" });
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Back to applications", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Applications", exact: true })
+    .getByRole("link", { name: "Daily", exact: true })
+    .click();
+  await page.waitForURL("**/daily/news");
+  assert(
+    await page.locator(".sidebar.mobile-open").isVisible(),
+    "Daily landing redirect closed the drawer"
+  );
+  await page
+    .locator(".sidebar")
+    .getByRole("link", { name: "Weather", exact: true })
+    .click();
+  await page.waitForURL("**/daily/weather");
   await page.locator(".sidebar.mobile-open").waitFor({ state: "hidden" });
   assert(
     !(await page.locator("main.main").evaluate((e) => e.inert)),
@@ -1199,20 +1272,67 @@ let browser;
     .click();
   const modal = page.getByRole("dialog", { name: "Create issue", exact: true });
   await modal.waitFor();
+  assert(
+    (await modal
+      .getByRole("button", { name: /^(Save changes|Create issue)$/ })
+      .count()) === 0,
+    "Task editor still requires an explicit save button"
+  );
+  createDelay = 1000;
   await modal
     .getByRole("textbox", { name: "Issue summary", exact: true })
     .fill("Created issue");
-  await modal
-    .getByRole("button", { name: "Create issue", exact: true })
-    .click();
-  await modal.waitFor({ state: "hidden" });
+  await page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/tasks") &&
+      response.request().method() === "POST"
+  );
+  const savedModal = page.getByRole("dialog", {
+    name: "Issue details",
+    exact: true
+  });
+  await savedModal.waitFor();
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
   assert(
     created.length === 1 && created[0].status !== "done",
     "Creation changed issue to Done or duplicated it"
   );
+  await savedModal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("First change");
+  await savedModal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("Latest change");
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
+  assert(
+    updates.length === 1 &&
+      updates[0].description === "Latest change" &&
+      updates[0].expected_revision === 1,
+    "Rapid edits were not coalesced into a revision-aware update"
+  );
+  // Closing before the debounce expires must flush the final change.
+  await savedModal
+    .getByRole("textbox", { name: "Issue summary", exact: true })
+    .fill("Final title");
+  await savedModal
+    .getByRole("button", { name: "Close issue", exact: true })
+    .click();
+  await savedModal.waitFor({ state: "hidden" });
+  assert(
+    updates.length === 2 &&
+      updates[1].title === "Final title" &&
+      updates[1].expected_revision === 2,
+    "Closing lost the pending edit or reused a stale revision"
+  );
   assert(
     !new URL(page.url()).searchParams.has("issue"),
-    "Created issue stayed open in URL"
+    "Closed issue stayed open in URL"
   );
   await page
     .getByRole("group", { name: "Project view", exact: true })
@@ -1230,15 +1350,88 @@ let browser;
     .first()
     .click();
   await modal.waitFor();
+  badCreate = true;
+  createDelay = 0;
   await modal
     .getByRole("textbox", { name: "Issue summary", exact: true })
     .fill("Failure stays open");
-  badCreate = true;
-  await modal
-    .getByRole("button", { name: "Create issue", exact: true })
-    .click();
   await modal.getByText("Creation failed", { exact: true }).waitFor();
   assert(await modal.isVisible(), "Failed issue creation closed the form");
+  assert(
+    (await modal
+      .getByRole("textbox", { name: "Issue summary", exact: true })
+      .inputValue()) === "Failure stays open",
+    "Failed save discarded the draft"
+  );
+  badCreate = false;
+  createDelay = 1000;
+  await modal.getByRole("button", { name: "Retry sync", exact: true }).click();
+  // Change a field while POST is pending. It must become a PUT, not another POST.
+  await modal.getByRole("status").filter({ hasText: "Saving" }).waitFor();
+  await modal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("Typed during creation");
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
+  assert(
+    created.length === 2 &&
+      updates.at(-1).description === "Typed during creation" &&
+      updates.at(-1).expected_revision === 1,
+    "Changes during creation were lost or duplicated the task"
+  );
+  badUpdate = true;
+  await savedModal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("Keep on conflict");
+  await savedModal.getByText("Update conflict", { exact: true }).waitFor();
+  await savedModal
+    .getByRole("button", { name: "Close issue", exact: true })
+    .click();
+  await savedModal.getByText("Update conflict", { exact: true }).waitFor();
+  assert(
+    await savedModal.isVisible(),
+    "Failed close discarded an unsaved change"
+  );
+  badUpdate = false;
+  await savedModal
+    .getByRole("button", { name: "Retry sync", exact: true })
+    .click();
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
+  assert(
+    updates.at(-1).description === "Keep on conflict" &&
+      updates.at(-1).expected_revision === 2,
+    "Retry lost input or failed to use the latest revision"
+  );
+  await capture("issue-autosave");
+  await savedModal
+    .getByRole("button", { name: "Close issue", exact: true })
+    .click();
+  await savedModal.waitFor({ state: "hidden" });
+  await page.goto(origin + "/notes/projects/project-qa?issue=task-qa");
+  await savedModal.waitFor();
+  const previousUpdates = updates.length;
+  await savedModal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("Existing issue autosaves too");
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
+  assert(
+    updates.length === previousUpdates + 1 &&
+      updates.at(-1).expected_revision === 1 &&
+      created.length === 2,
+    "Editing an existing issue created a duplicate or skipped its revision"
+  );
+  await savedModal
+    .getByRole("button", { name: "Close issue", exact: true })
+    .click();
+  await savedModal.waitFor({ state: "hidden" });
   assert(errors.length === 0, "Runtime errors: " + errors.join("; "));
   console.log(
     JSON.stringify({
@@ -1252,7 +1445,9 @@ let browser;
       actualSize: true,
       routesAudited: routes.length,
       responsiveWidths: widths,
-      issueAutoClose: true,
+      issueAutosave: true,
+      serialRevisionWrites: true,
+      closeFlushesEdits: true,
       failedCreateStaysOpen: true,
       syncStatus: true,
       lazyEditor: true,
