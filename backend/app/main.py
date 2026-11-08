@@ -159,12 +159,6 @@ async def security(request, call_next):
             "connect-src https://photon.komoot.io https://overpass-api.de; "
             "object-src 'none'; base-uri 'none'"
         )
-    if request.url.path.startswith("/assets/model.worker-"):
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; script-src 'self' blob: 'wasm-unsafe-eval'; "
-            "connect-src 'self' https://huggingface.co https://*.hf.co; "
-            "worker-src 'self' blob:; object-src 'none'; base-uri 'none'"
-        )
     if request.url.path == "/notebook/runtime.html":
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Content-Security-Policy"] = (
@@ -1304,10 +1298,8 @@ from .daily import build_daily_router
 app.include_router(build_daily_router(authenticated, db_session))
 
 from .iot import build_iot_router
-from .assistant import build_assistant_router
 
 app.include_router(build_iot_router(authenticated, db_session))
-app.include_router(build_assistant_router(authenticated, db_session))
 
 from .mcp_server import mount_mcp
 

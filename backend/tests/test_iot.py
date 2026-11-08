@@ -6,7 +6,6 @@ from app import iot
 from app.core import (
     Session,
     User,
-    NotePage,
     CalendarFeed,
     IoTRule,
     IoTRun,
@@ -236,70 +235,6 @@ def test_iot_cross_account_calendar_and_device_boundaries(signed_client, user, g
     assert signed_client.get("/api/v1/iot/devices").json()["items"] == []
     assert signed_client.get("/api/v1/iot/rules").json() == []
     assert signed_client.delete("/api/v1/iot/rules/" + rule_id).status_code == 404
-
-
-def test_assistant_context_is_owner_scoped_and_retrieval_only(signed_client, user):
-    with Session() as db:
-        other = User(
-            issuer="https://id.example.test",
-            subject="other-ai",
-            name="Other",
-            email="other-ai@example.test",
-        )
-        db.add(other)
-        db.commit()
-        for owner, text in [
-            (user.id, "The planning launch is at noon."),
-            (other.id, "Hidden other account secret."),
-        ]:
-            db.add(
-                NotePage(
-                    owner=owner,
-                    title=encrypt("Planning"),
-                    document=encrypt(
-                        [
-                            {
-                                "type": "paragraph",
-                                "content": [{"type": "text", "text": text}],
-                            }
-                        ]
-                    ),
-                )
-            )
-        db.commit()
-    response = signed_client.get(
-        "/api/v1/assistant/context", params={"question": "planning", "sources": "notes"}
-    )
-    assert response.status_code == 200
-    assert len(response.json()["items"]) == 1
-    assert "noon" in response.text and "Hidden" not in response.text
-    assert signed_client.get(
-        "/api/v1/assistant/context",
-        params={"question": "Summarise my recent notes", "sources": "notes"},
-    ).json()["items"]
-    assert (
-        signed_client.get(
-            "/api/v1/assistant/context",
-            params={"question": "planning", "sources": "calendar"},
-        ).json()["items"]
-        == []
-    )
-    assert (
-        signed_client.get(
-            "/api/v1/assistant/context",
-            params={"question": "planning", "sources": "credentials"},
-        ).status_code
-        == 422
-    )
-
-
-def test_browser_inference_policy_is_scoped(client):
-    page = client.get("/")
-    assert "huggingface" not in page.headers["content-security-policy"]
-    worker = client.get("/assets/model.worker-check.js")
-    policy = worker.headers["content-security-policy"]
-    assert "https://huggingface.co" in policy and "'wasm-unsafe-eval'" in policy
-    assert "'unsafe-eval'" not in policy
 
 
 def test_calendar_throttling_defers_only_unsent_commands(

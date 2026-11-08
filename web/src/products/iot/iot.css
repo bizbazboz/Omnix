@@ -1,5 +1,4 @@
-.iot-page,
-.assistant-page {
+.iot-page {
   overflow: auto;
   min-height: 0;
   flex: 1;

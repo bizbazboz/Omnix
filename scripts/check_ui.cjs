@@ -267,7 +267,7 @@ let browser;
       last_sync: stamp,
       data: {
         label: "London",
-        unit: "°C",
+        unit: "Â°C",
         temperature: 12,
         feels_like: 10,
         wind: 15,
@@ -427,20 +427,7 @@ let browser;
         iotRules = [{ ...req.postDataJSON(), id: "rule-qa" }];
         data = iotRules[0];
       }
-    } else if (p === "/assistant/context")
-      data = {
-        as_of: new Date().toISOString(),
-        notes_partial: false,
-        items: [
-          {
-            kind: "note",
-            title: "Planning note",
-            text: "The planning meeting is on Monday at noon.",
-            href: "/notes/pages/page-qa"
-          }
-        ]
-      };
-    else if (p === "/daily")
+    } else if (p === "/daily")
       data = { ...dailyFixture, widgets: dailySettings.widgets };
     else if (p === "/settings/daily") {
       if (req.method() === "PUT") {
@@ -1181,39 +1168,6 @@ let browser;
   await govee.getByRole("button", { name: "Pause", exact: true }).click();
   await govee.getByRole("button", { name: "Enable", exact: true }).waitFor();
   assert(!iotRules[0].enabled, "Calendar rule did not pause");
-  await page.getByRole("button", { name: "Open AI chat", exact: true }).click();
-  await page.getByRole("dialog", { name: /AI/ }).waitFor();
-  await page
-    .getByRole("button", { name: "Load local model", exact: true })
-    .waitFor();
-  assert(
-    await page
-      .getByRole("button", { name: "Ask AI", exact: true })
-      .isDisabled(),
-    "AI allows requests before model loading"
-  );
-  await page
-    .getByRole("button", {
-      name: "What is on my calendar this week?",
-      exact: true
-    })
-    .click();
-  await page
-    .getByRole("button", { name: "Minimise AI chat", exact: true })
-    .click();
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Open AI chat", exact: true }).click();
-  assert(
-    (await page
-      .getByRole("textbox", { name: "ASK OMNIX", exact: true })
-      .inputValue()) === "What is on my calendar this week?",
-    "Chat input did not survive navigation"
-  );
-  await page.keyboard.press("Escape");
-  assert(
-    !(await page.getByRole("dialog", { name: /AI/ }).isVisible()),
-    "Escape did not minimise chat"
-  );
   await page.goto(origin + "/onboarding");
   await page
     .getByRole("heading", { name: "You're connected.", exact: true })

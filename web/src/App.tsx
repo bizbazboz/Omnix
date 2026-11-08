@@ -17,7 +17,6 @@ import {
 } from "react-router-dom";
 import { Logo } from "./components/Brand";
 import WorkspaceNavigation from "./components/WorkspaceNavigation";
-import FloatingAssistant from "./products/assistant/FloatingAssistant";
 import DataStatus from "./components/DataStatus";
 import "./components/workspace-ui.css";
 import "./components/nothing-ui.css";
@@ -320,7 +319,6 @@ function Workspace({ user }: { user: User }) {
           </Routes>
         </Suspense>
       </main>
-      <FloatingAssistant disabled={mobile || !!compose} />
       {compose && (
         <Suspense fallback={<PageLoading label="Loading composer" />}>
           <Composer

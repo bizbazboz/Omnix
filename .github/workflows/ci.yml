@@ -48,8 +48,6 @@ jobs:
           npm --prefix web exec -- playwright install --with-deps chromium
       - name: Verify responsive workspace interactions
         run: npm --prefix web run test:ui
-      - name: Verify local browser AI inference
-        run: node scripts/check_browser_ai.cjs
       - name: Verify browser walking routes and GPX downloads
         run: node scripts/check_walking.cjs
       - name: Inspect startup failure

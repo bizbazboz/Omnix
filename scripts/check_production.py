@@ -43,7 +43,6 @@ with httpx.Client(
         "/iot/devices",
         "/iot/rules",
         "/iot/history",
-        "/assistant/context?question=notes",
         "/daily",
         "/daily/locations?q=London",
         "/daily/transport/catalog",
