@@ -267,7 +267,7 @@ let browser;
       last_sync: stamp,
       data: {
         label: "London",
-        unit: "Â°C",
+        unit: "°C",
         temperature: 12,
         feels_like: 10,
         wind: 15,

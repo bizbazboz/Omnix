@@ -10,7 +10,7 @@ import { Play, RotateCcw, Square } from "lucide-react";
 import { prepareJavaScript } from "./javascriptCells";
 import { runnableCells } from "./codeLanguages";
 export type KernelLanguage = "python" | "javascript";
-export type CellState = {
+type CellState = {
   status:
     "idle" | "queued" | "loading" | "running" | "done" | "error" | "stopped";
   output: { text: string; error: boolean }[];

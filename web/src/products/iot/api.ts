@@ -1,4 +1,4 @@
-export type Capability = {
+type Capability = {
   type: string;
   instance: string;
   parameters: {

@@ -7,7 +7,7 @@ export type HealthStatus = {
   error: string;
   groups: string[];
 };
-export type Workout = {
+type Workout = {
   day: string;
   start: string | null;
   end: string | null;

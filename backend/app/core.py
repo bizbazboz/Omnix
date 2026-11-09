@@ -1,4 +1,4 @@
-import os, uuid, json
+import uuid, json
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine,
@@ -28,12 +28,12 @@ def uid():
 
 
 from .runtime import (
-    SESSION_COOKIE,
-    OIDC_COOKIE,
+    SESSION_COOKIE as SESSION_COOKIE,
+    OIDC_COOKIE as OIDC_COOKIE,
     DATABASE_URL,
     REDIS_URL,
     ENCRYPTION_KEY,
-    BOOTSTRAP_TOKEN_FILE,
+    BOOTSTRAP_TOKEN_FILE as BOOTSTRAP_TOKEN_FILE,
 )
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, hide_parameters=True)

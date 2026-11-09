@@ -1,11 +1,9 @@
 """Mail transports. Blocking protocol I/O runs in worker processes, never API loops."""
 
-import os, socket, ipaddress, ssl, imaplib, smtplib, email, hashlib, re
+import socket, ipaddress, ssl, imaplib, smtplib, re
 from email.message import EmailMessage
-from email.header import decode_header, make_header
-from email.utils import parsedate_to_datetime, parseaddr
 import httpx
-from .core import decrypt, encrypt, redis, now
+from .core import decrypt, encrypt, redis
 
 REGIONS = {
     "us": ("https://accounts.zoho.com", "https://mail.zoho.com"),

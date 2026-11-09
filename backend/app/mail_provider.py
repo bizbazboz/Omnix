@@ -4,10 +4,8 @@ import base64
 import email
 import email.policy
 import html
-import json
 import re
 from datetime import datetime, timezone
-from email.header import decode_header, make_header
 from email.utils import parseaddr, parsedate_to_datetime
 from urllib.parse import quote
 import httpx

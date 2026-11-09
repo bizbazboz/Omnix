@@ -62,7 +62,6 @@ export async function allPages(trash = false, q = "") {
 export function invalidateNotes() {
   qc.invalidateQueries({ queryKey: ["note-pages"] });
   qc.invalidateQueries({ queryKey: ["note-projects"] });
-  qc.invalidateQueries({ queryKey: ["notes-overview"] });
 }
 export const defaultTask = {
   title: "",

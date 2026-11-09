@@ -1,4 +1,4 @@
-import os, json
+import json
 from celery import Celery
 from sqlalchemy import select, or_
 from .core import Session, Connection, Message, SendAttempt, now, redis, REDIS_URL

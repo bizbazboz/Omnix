@@ -58,15 +58,6 @@
   max-width: 100%;
   min-width: 0;
 }
-.workspace .notes-kanban {
-  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-}
-.workspace .notes-kanban > section {
-  min-width: 0;
-}
-.workspace .notes-kanban .issue-card-title {
-  overflow-wrap: anywhere;
-}
 .workspace .composer {
   max-width: 100%;
 }

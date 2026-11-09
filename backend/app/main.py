@@ -1,9 +1,8 @@
-import os, secrets, json, hashlib, time, base64
-from datetime import datetime, timezone
+import os, secrets, json, hashlib
+from datetime import datetime
 from urllib.parse import urlencode
-from contextlib import asynccontextmanager
-import httpx, bleach
-from fastapi import FastAPI, Depends, HTTPException, Request, Response, Header
+import httpx
+from fastapi import FastAPI, Depends, HTTPException, Request, Header
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.concurrency import run_in_threadpool
@@ -14,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from authlib.jose import JsonWebToken
 from .core import *
-from .providers import REGIONS, SCOPES, validate_protocol, fetch_body
+from .providers import REGIONS, SCOPES, validate_protocol
 from .tasks import sync, send
 from .api_tokens import authorize_request, build_token_router
 from . import rate_limits
@@ -22,7 +21,6 @@ from .sessions import create_session, read_session, MAX_SECONDS
 from .workspace_urls import sign_in_destination
 from .workspace_settings import (
     load_zoho,
-    load_setting,
     preferences,
     build_settings_router,
 )
@@ -129,7 +127,6 @@ async def security(request, call_next):
         except HTTPException:
             return JSONResponse({"detail": "origin_mismatch"}, status_code=403)
         if not setup_path:
-            sid = request.cookies.get(SESSION_COOKIE, "")
             try:
                 data = await run_in_threadpool(browser_session, request)
             except HTTPException as error:

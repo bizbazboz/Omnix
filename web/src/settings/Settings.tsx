@@ -16,7 +16,7 @@ import TimezoneSelect, { currentTimezone } from "./TimezoneSelect";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useStoredFlag } from "../lib/layout";
 
-export function ZohoRegistration() {
+function ZohoRegistration() {
   const query = useQuery({
     queryKey: ["zoho-registration"],
     queryFn: () => api("/settings/zoho")

@@ -1,6 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import { api, type Account } from "../../lib/api";
-export type MailFolder = {
+type MailFolder = {
   id: string;
   key: string;
   name: string;
