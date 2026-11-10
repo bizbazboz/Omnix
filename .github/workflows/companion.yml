@@ -45,7 +45,7 @@ jobs:
           java-version: "17"
       - uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-37 build-tools;37.0.0"
+          packages: "platform-tools platforms;android-37.0 build-tools;37.0.0"
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci
@@ -55,7 +55,7 @@ jobs:
         env:
           CI: "1"
       - name: Build installable preview APK
-        run: chmod +x gradlew && ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,x86_64
+        run: chmod +x gradlew && ./gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
         working-directory: app/android
       - uses: actions/upload-artifact@v6
         with:

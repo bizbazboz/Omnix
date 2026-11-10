@@ -479,6 +479,7 @@ function Companion({ fonts }: { fonts: boolean }) {
                 source={source}
                 style={styles.web}
                 sharedCookiesEnabled
+                geolocationEnabled
                 thirdPartyCookiesEnabled={false}
                 originWhitelist={["https://*", "about:blank", "about:srcdoc"]}
                 allowsBackForwardNavigationGestures

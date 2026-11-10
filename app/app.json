@@ -11,7 +11,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "uk.bizbazboz.omnix",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Use your location as the start of a walking route."
       }
     },
     "android": {
@@ -20,7 +21,11 @@
         "foregroundImage": "./assets/omnix.png",
         "backgroundColor": "#000000"
       },
-      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "plugins": [
       [
@@ -35,8 +40,7 @@
       "expo-web-browser",
       "expo-font",
       "expo-router",
-      "expo-splash-screen",
-      "expo-router"
+      "expo-splash-screen"
     ]
   }
 }
