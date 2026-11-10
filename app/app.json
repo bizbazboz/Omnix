@@ -10,7 +10,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "uk.bizbazboz.omnix",
-      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "uk.bizbazboz.omnix",
@@ -31,7 +33,10 @@
       ],
       "expo-secure-store",
       "expo-web-browser",
-      "expo-font"
+      "expo-font",
+      "expo-router",
+      "expo-splash-screen",
+      "expo-router"
     ]
   }
 }

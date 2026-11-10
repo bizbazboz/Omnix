@@ -31,6 +31,8 @@ Run lint and typecheck before declaring any task done.
 
 ## Building with EAS
 
+Project-specific build requirement: the companion's Android preview and iOS simulator artifacts are built directly on GitHub runners by `.github/workflows/companion.yml`, without an Expo cloud account. Use that workflow for this repository. EAS remains optional for owner-configured signing/store distribution.
+
 Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
 Docs: https://docs.expo.dev/eas/index.md
 

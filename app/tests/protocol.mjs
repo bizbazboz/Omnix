@@ -20,6 +20,10 @@ assert.equal(
   pairingOrigin("omnix://pair?origin=https%3A%2F%2Fomnix.example.com"),
   "https://omnix.example.com"
 );
+assert.equal(
+  pairingOrigin("omnix://pair/?origin=https%3A%2F%2Fomnix.example.com"),
+  "https://omnix.example.com"
+);
 for (const value of [
   "http://example.com",
   "javascript:alert(1)",

@@ -20,7 +20,10 @@ export function pairingOrigin(input: string): string {
   if (
     url.protocol !== "omnix:" ||
     url.hostname !== "pair" ||
-    url.pathname ||
+    !["", "/"].includes(url.pathname) ||
+    url.username ||
+    url.password ||
+    url.port ||
     url.hash ||
     url.searchParams.getAll("origin").length !== 1
   )

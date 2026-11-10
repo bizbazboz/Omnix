@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from "react";
 import {
   ActivityIndicator,
   Image,
@@ -29,17 +35,20 @@ import {
   internalNavigation,
   loginNavigation,
   pairingOrigin
-} from "./src/protocol";
-
+} from "./protocol";
 WebBrowser.maybeCompleteAuthSession();
 const INSTANCE_KEY = "omnix.instance";
-type Source = { uri: string; headers?: Record<string, string> };
-export default function App() {
+type Source = {
+  uri: string;
+  headers?: Record<string, string>;
+};
+export default function App({ children }: { children?: ReactNode }) {
   const [fonts] = useFonts({ SpaceGrotesk_400Regular });
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
       <Companion fonts={fonts} />
+      {children}
     </SafeAreaProvider>
   );
 }
@@ -59,13 +68,13 @@ function Companion({ fonts }: { fonts: boolean }) {
     signingIn = useRef(false),
     scanned = useRef(false),
     currentOrigin = useRef(origin);
-  currentOrigin.current = origin;
   useEffect(() => {
     let active = true;
     void SecureStore.getItemAsync(INSTANCE_KEY)
       .then((value) => {
         if (active && value) {
           const saved = instanceOrigin(value);
+          currentOrigin.current = saved;
           setOrigin(saved);
           setSource({ uri: saved });
         }
@@ -94,10 +103,47 @@ function Companion({ fonts }: { fonts: boolean }) {
     });
     return () => sub.remove();
   }, [scan, back]);
+  const connect = useCallback(async (address: string) => {
+    setBusy(true);
+    setError("");
+    try {
+      await SecureStore.setItemAsync(INSTANCE_KEY, address);
+      currentOrigin.current = address;
+      setOrigin(address);
+      setSource({ uri: address });
+      setWebError(false);
+      setScan(false);
+    } catch {
+      setError("Could not save this instance. Try again.");
+    } finally {
+      setBusy(false);
+      scanned.current = false;
+    }
+  }, []);
+  const confirmAddress = useCallback(
+    (address: string) => {
+      Alert.alert("Connect to Omnix", address, [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => {
+            scanned.current = false;
+          }
+        },
+        {
+          text: "Connect",
+          onPress: () => {
+            void connect(address);
+          }
+        }
+      ]);
+    },
+    [connect]
+  );
   useEffect(() => {
     if (!loaded) return;
     const receive = (url: string) => {
-      if (!url.startsWith("omnix://pair?")) return;
+      if (!/^omnix:\/\/pair\/?\?/.test(url)) return;
       try {
         confirmAddress(pairingOrigin(url));
       } catch (error) {
@@ -109,40 +155,7 @@ function Companion({ fonts }: { fonts: boolean }) {
     });
     const sub = Linking.addEventListener("url", ({ url }) => receive(url));
     return () => sub.remove();
-  }, [loaded]);
-  function confirmAddress(address: string) {
-    Alert.alert("Connect to Omnix", address, [
-      {
-        text: "Cancel",
-        style: "cancel",
-        onPress: () => {
-          scanned.current = false;
-        }
-      },
-      {
-        text: "Connect",
-        onPress: () => {
-          void connect(address);
-        }
-      }
-    ]);
-  }
-  async function connect(address: string) {
-    setBusy(true);
-    setError("");
-    try {
-      await SecureStore.setItemAsync(INSTANCE_KEY, address);
-      setOrigin(address);
-      setSource({ uri: address });
-      setWebError(false);
-      setScan(false);
-    } catch {
-      setError("Could not save this instance. Try again.");
-    } finally {
-      setBusy(false);
-      scanned.current = false;
-    }
-  }
+  }, [loaded, confirmAddress]);
   async function call<T>(
     address: string,
     path: string,
@@ -209,11 +222,12 @@ function Companion({ fonts }: { fonts: boolean }) {
       if (result.type !== "success") return;
       if (![AUTH_RETURN, AUTH_RETURN + "/"].includes(result.url))
         throw new Error("Unexpected sign-in callback.");
-      const session = await call<{ ticket: string }>(
-        address,
-        "/api/v1/mobile/exchange",
-        { request_id: pairing.request_id, verifier }
-      );
+      const session = await call<{
+        ticket: string;
+      }>(address, "/api/v1/mobile/exchange", {
+        request_id: pairing.request_id,
+        verifier
+      });
       if (!/^[\w-]{40,128}$/.test(session.ticket))
         throw new Error("The server returned an invalid session.");
       if (currentOrigin.current === address) {
@@ -231,7 +245,11 @@ function Companion({ fonts }: { fonts: boolean }) {
       setCode("");
     }
   }
-  function navigate(request: WebViewNavigation & { isTopFrame?: boolean }) {
+  function navigate(
+    request: WebViewNavigation & {
+      isTopFrame?: boolean;
+    }
+  ) {
     if (loginNavigation(request.url, origin)) {
       void signIn();
       return false;
@@ -249,25 +267,6 @@ function Companion({ fonts }: { fonts: boolean }) {
     return false;
   }
   const font = fonts ? { fontFamily: "SpaceGrotesk_400Regular" } : {};
-  function button(label: string, action: () => void, primary = false) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        disabled={busy}
-        onPress={action}
-        style={[
-          styles.button,
-          primary && styles.primary,
-          busy && { opacity: 0.5 }
-        ]}
-      >
-        <Text style={[styles.buttonText, font, primary && { color: "#000" }]}>
-          {label}
-        </Text>
-      </Pressable>
-    );
-  }
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       {!loaded ? (
@@ -287,7 +286,7 @@ function Companion({ fonts }: { fonts: boolean }) {
             }}
           >
             <Image
-              source={require("./assets/omnix.png")}
+              source={require("../assets/omnix.png")}
               style={{ width: 44, height: 44 }}
             />
             <Text style={[styles.brand, font, { marginBottom: 0 }]}>omnix</Text>
@@ -328,35 +327,55 @@ function Companion({ fonts }: { fonts: boolean }) {
                 placeholderTextColor="#777"
                 editable={!busy}
               />
-              {button(
-                "Connect",
-                () => {
-                  try {
-                    confirmAddress(instanceOrigin(entry));
-                  } catch (error) {
-                    setError((error as Error).message);
-                  }
-                },
-                true
-              )}
-              {button("Scan pairing code", () => {
-                void (async () => {
-                  const value = permission?.granted
-                    ? permission
-                    : await requestPermission();
-                  if (value.granted) {
-                    setScan(true);
-                    scanned.current = false;
-                    setError("");
-                  } else
-                    setError(
-                      "Camera access is needed to scan. You can enter the address instead."
-                    );
-                })();
-              })}
+              {
+                <ActionButton
+                  label={"Connect"}
+                  onPress={() => {
+                    try {
+                      confirmAddress(instanceOrigin(entry));
+                    } catch (error) {
+                      setError((error as Error).message);
+                    }
+                  }}
+                  primary={true}
+                  disabled={busy}
+                  fonts={fonts}
+                />
+              }
+              {
+                <ActionButton
+                  label={"Scan pairing code"}
+                  onPress={() => {
+                    void (async () => {
+                      const value = permission?.granted
+                        ? permission
+                        : await requestPermission();
+                      if (value.granted) {
+                        setScan(true);
+                        scanned.current = false;
+                        setError("");
+                      } else
+                        setError(
+                          "Camera access is needed to scan. You can enter the address instead."
+                        );
+                    })();
+                  }}
+                  primary={false}
+                  disabled={busy}
+                  fonts={fonts}
+                />
+              }
             </>
           )}
-          {scan && button("Cancel scan", () => setScan(false))}
+          {scan && (
+            <ActionButton
+              label={"Cancel scan"}
+              onPress={() => setScan(false)}
+              primary={false}
+              disabled={busy}
+              fonts={fonts}
+            />
+          )}
           {error ? (
             <Text accessibilityRole="alert" style={[styles.error, font]}>
               {error}
@@ -369,33 +388,58 @@ function Companion({ fonts }: { fonts: boolean }) {
             <Text numberOfLines={1} style={[styles.host, font]}>
               {new URL(origin).host}
             </Text>
-            {button("Sign in", () => {
-              void signIn();
-            })}
-            {button("Reload", () => {
-              setWebError(false);
-              setSource({ uri: origin });
-            })}
-            {button("Instance", () =>
-              Alert.alert("Instance", origin, [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Switch",
-                  onPress: () => {
-                    void SecureStore.deleteItemAsync(INSTANCE_KEY)
-                      .then(() => {
-                        setOrigin("");
-                        setSource(undefined);
-                        setBack(false);
-                        setError("");
-                      })
-                      .catch(() =>
-                        setError("Could not remove the saved instance.")
-                      );
-                  }
+            {
+              <ActionButton
+                label={"Sign in"}
+                onPress={() => {
+                  void signIn();
+                }}
+                primary={false}
+                disabled={busy}
+                fonts={fonts}
+              />
+            }
+            {
+              <ActionButton
+                label={"Reload"}
+                onPress={() => {
+                  setWebError(false);
+                  setSource({ uri: origin });
+                }}
+                primary={false}
+                disabled={busy}
+                fonts={fonts}
+              />
+            }
+            {
+              <ActionButton
+                label={"Instance"}
+                onPress={() =>
+                  Alert.alert("Instance", origin, [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Switch",
+                      onPress: () => {
+                        void SecureStore.deleteItemAsync(INSTANCE_KEY)
+                          .then(() => {
+                            currentOrigin.current = "";
+                            setOrigin("");
+                            setSource(undefined);
+                            setBack(false);
+                            setError("");
+                          })
+                          .catch(() =>
+                            setError("Could not remove the saved instance.")
+                          );
+                      }
+                    }
+                  ])
                 }
-              ])
-            )}
+                primary={false}
+                disabled={busy}
+                fonts={fonts}
+              />
+            }
           </View>
           {busy && (
             <View style={styles.notice}>
@@ -415,14 +459,18 @@ function Companion({ fonts }: { fonts: boolean }) {
           {webError ? (
             <View style={styles.pairing}>
               <Text style={[styles.title, font]}>Connection interrupted.</Text>
-              {button(
-                "Retry",
-                () => {
-                  setWebError(false);
-                  setSource({ uri: origin });
-                },
-                true
-              )}
+              {
+                <ActionButton
+                  label={"Retry"}
+                  onPress={() => {
+                    setWebError(false);
+                    setSource({ uri: origin });
+                  }}
+                  primary={true}
+                  disabled={busy}
+                  fonts={fonts}
+                />
+              }
             </View>
           ) : (
             source && (
@@ -454,6 +502,43 @@ function Companion({ fonts }: { fonts: boolean }) {
         </>
       )}
     </SafeAreaView>
+  );
+}
+function ActionButton({
+  label,
+  onPress,
+  primary = false,
+  disabled,
+  fonts
+}: {
+  label: string;
+  onPress: () => void;
+  primary?: boolean;
+  disabled: boolean;
+  fonts: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.button,
+        primary && styles.primary,
+        disabled && { opacity: 0.5 }
+      ]}
+    >
+      <Text
+        style={[
+          styles.buttonText,
+          fonts && { fontFamily: "SpaceGrotesk_400Regular" },
+          primary && { color: "#000" }
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 const styles = StyleSheet.create({

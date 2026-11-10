@@ -17,6 +17,7 @@ The QR contains only the instance address. Approval expires after five minutes. 
 ```sh
 cd app
 npm ci
+npm run lint
 npm run check
 npm test
 npx expo prebuild
