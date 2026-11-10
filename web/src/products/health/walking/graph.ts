@@ -116,8 +116,8 @@ export function buildGraph(elements: Element[]): Graph {
   return { nodes, edges };
 }
 class Heap {
-  rows: [number, number][] = [];
-  push(item: [number, number]) {
+  rows: [number, number, number][] = [];
+  push(item: [number, number, number]) {
     const r = this.rows;
     r.push(item);
     let i = r.length - 1;
@@ -155,16 +155,26 @@ function dijkstra(
   goal: number | undefined,
   penalty: Set<string> | undefined,
   limit: number,
-  deadline: number
+  deadline: number,
+  avoid?: number,
+  occupied?: Set<number>
 ) {
   const costs = new Map([[start, 0]]),
     lengths = new Map([[start, 0]]),
     parents = new Map<number, Parent>(),
     queue = new Heap();
-  queue.push([0, start]);
+  const destination = goal === undefined ? undefined : graph.nodes.get(goal);
+  const estimates = new Map<number, number>();
+  const estimate = (id: number) => {
+    if (!destination) return 0;
+    if (!estimates.has(id))
+      estimates.set(id, metres(graph.nodes.get(id)!, destination));
+    return estimates.get(id)!;
+  };
+  queue.push([estimate(start), start, 0]);
   let visits = 0;
   while (queue.rows.length) {
-    const [cost, u] = queue.pop();
+    const [, u, cost] = queue.pop();
     if (cost !== costs.get(u)) continue;
     if (u === goal) break;
     if (
@@ -173,15 +183,17 @@ function dijkstra(
     )
       break;
     for (const edge of graph.edges.get(u) || []) {
+      if (edge.to === avoid) continue;
+      if (edge.to !== goal && occupied?.has(edge.to)) continue;
       const length = lengths.get(u)! + edge.length;
       if (length > limit) continue;
       const score =
-        cost + edge.length * (penalty?.has(edgeKey(u, edge.to)) ? 6 : 1);
+        cost + edge.length * (penalty?.has(edgeKey(u, edge.to)) ? 24 : 1);
       if (score < (costs.get(edge.to) ?? Infinity)) {
         costs.set(edge.to, score);
         lengths.set(edge.to, length);
         parents.set(edge.to, { from: u, edge });
-        queue.push([score, edge.to]);
+        queue.push([score + estimate(edge.to), edge.to, score]);
       }
     }
   }
@@ -200,6 +212,11 @@ function path(parents: Map<number, Parent>, start: number, end: number) {
   }
   return { ids: ids.reverse(), edges: edges.reverse() };
 }
+// Reuse the bounded start search for "another route" and speed-only changes.
+const starts = new WeakMap<
+  Graph,
+  { start: number; target: number; search: ReturnType<typeof dijkstra> }
+>();
 export function generateLoop(
   graph: Graph,
   point: Point,
@@ -220,8 +237,11 @@ export function generateLoop(
     );
   let start: number | undefined,
     snap = Infinity;
+  const longitudeScale = Math.cos((point[1] * Math.PI) / 180);
   for (const id of graph.edges.keys()) {
-    const d = metres(graph.nodes.get(id)!, point);
+    const p = graph.nodes.get(id)!;
+    const d =
+      ((p[0] - point[0]) * longitudeScale) ** 2 + (p[1] - point[1]) ** 2;
     if (d < snap) {
       snap = d;
       start = id;
@@ -229,23 +249,40 @@ export function generateLoop(
   }
   if (start === undefined)
     throw Error("No walking paths were found here. Choose another start.");
+  snap = metres(graph.nodes.get(start)!, point);
   if (snap > 250)
     throw Error("Choose a start closer to a mapped public walking path.");
-  const deadline = performance.now() + 12000,
-    first = dijkstra(
-      graph,
-      start,
-      undefined,
-      undefined,
-      target * 0.5,
-      deadline
-    );
+  const deadline = performance.now() + 2400;
+  const previous = starts.get(graph);
+  const first =
+    previous?.start === start && previous.target === target
+      ? previous.search
+      : dijkstra(graph, start, undefined, undefined, target * 0.5, deadline);
+  starts.set(graph, { start, target, search: first });
   const origin = graph.nodes.get(start)!,
     candidates: number[] = [],
-    eligible = Array.from(first.lengths).filter(
-      ([id, length]) =>
-        id !== start && length > target * 0.16 && length < target * 0.5
-    );
+    eligible = Array.from(first.lengths)
+      .filter(
+        ([id, length]) =>
+          id !== start &&
+          length > target * 0.16 &&
+          length < target * 0.5 &&
+          !(
+            graph.edges.get(id)?.length === 1 &&
+            graph.edges.get(id)![0].to === first.parents.get(id)?.from
+          )
+      )
+      .map(([id, length]) => {
+        const p = graph.nodes.get(id)!;
+        return {
+          id,
+          length,
+          bearing: Math.atan2(
+            p[1] - origin[1],
+            (p[0] - origin[0]) * longitudeScale
+          )
+        };
+      });
   let state = seed | 0;
   state = (Math.imul(state ^ 0x6d2b79f5, 0x45d9f3b) ^ state) >>> 0;
   const rotation = (state / 4294967296) * Math.PI * 2;
@@ -253,13 +290,8 @@ export function generateLoop(
     const angle = rotation + (sector * Math.PI) / 4;
     let best = Infinity,
       chosen: number | undefined;
-    for (const [id, length] of eligible) {
-      const p = graph.nodes.get(id)!,
-        bearing = Math.atan2(
-          p[1] - origin[1],
-          (p[0] - origin[0]) * Math.cos((point[1] * Math.PI) / 180)
-        ),
-        delta = Math.abs(
+    for (const { id, length, bearing } of eligible) {
+      const delta = Math.abs(
           Math.atan2(Math.sin(bearing - angle), Math.cos(bearing - angle))
         ),
         score = Math.abs(length - target / 3.8) / (target / 3.8) + delta * 0.8;
@@ -280,27 +312,66 @@ export function generateLoop(
         repeated: number;
       }
     | undefined;
-  for (let i = 0; i < candidates.length && performance.now() < deadline; i++) {
-    const a = candidates[i],
-      b = candidates[(i + 3) % candidates.length],
+  for (
+    let i = 0;
+    i < candidates.length * 2 && performance.now() < deadline;
+    i++
+  ) {
+    const a = candidates[i % candidates.length],
+      b = candidates[(i + (i < candidates.length ? 2 : 1)) % candidates.length],
       p1 = path(first.parents, start, a);
     if (!p1) continue;
     const used = new Set(p1.edges.map((p) => edgeKey(p.from, p.edge.to))),
-      p2 = path(
-        dijkstra(graph, a, b, used, target * 0.65, deadline).parents,
+      occupied = new Set(p1.ids);
+    const p2 =
+      path(
+        dijkstra(graph, a, b, used, target * 0.65, deadline, start, occupied)
+          .parents,
+        a,
+        b
+      ) ||
+      path(
+        dijkstra(graph, a, b, used, target * 0.65, deadline, start).parents,
         a,
         b
       );
     if (!p2) continue;
     p2.edges.forEach((p) => used.add(edgeKey(p.from, p.edge.to)));
-    const p3 = path(
-      dijkstra(graph, b, start, used, target * 0.65, deadline).parents,
-      b,
-      start
-    );
+    p2.ids.forEach((id) => occupied.add(id));
+    const p3 =
+      path(
+        dijkstra(
+          graph,
+          b,
+          start,
+          used,
+          target * 0.65,
+          deadline,
+          undefined,
+          occupied
+        ).parents,
+        b,
+        start
+      ) ||
+      path(
+        dijkstra(graph, b, start, used, target * 0.65, deadline).parents,
+        b,
+        start
+      );
     if (!p3) continue;
-    const edges = [...p1.edges, ...p2.edges, ...p3.edges],
-      distance = edges.reduce((sum, p) => sum + p.edge.length, 0),
+    // Remove waypoint spurs instead of walking to a dead end and immediately back.
+    const edges: typeof p1.edges = [];
+    for (const segment of [...p1.edges, ...p2.edges, ...p3.edges]) {
+      const last = edges.at(-1);
+      if (
+        last &&
+        last.from === segment.edge.to &&
+        last.edge.to === segment.from
+      )
+        edges.pop();
+      else edges.push(segment);
+    }
+    const distance = edges.reduce((sum, p) => sum + p.edge.length, 0),
       counts = new Map<string, number>();
     for (const p of edges) {
       const k = edgeKey(p.from, p.edge.to);
@@ -316,16 +387,35 @@ export function generateLoop(
           0
         ) / Math.max(1, distance),
       error = Math.abs(distance - target) / target,
-      score = error * 3 + repeated;
+      area =
+        Math.abs(
+          edges.reduce((sum, p) => {
+            const a = graph.nodes.get(p.from)!,
+              b = graph.nodes.get(p.edge.to)!;
+            return (
+              sum +
+              ((a[0] - origin[0]) * (b[1] - origin[1]) -
+                (b[0] - origin[0]) * (a[1] - origin[1])) *
+                longitudeScale *
+                111195 ** 2
+            );
+          }, 0)
+        ) / 2,
+      compactness = Math.min(
+        1,
+        (area * 4 * Math.PI) / Math.max(1, distance ** 2)
+      ),
+      score = error * 1.5 + repeated * 8 + (1 - compactness) * 0.3;
     if (repeated > 0.35 || error > 0.3) continue;
     if (!best || score < best.score)
       best = {
         score,
-        ids: [...p1.ids, ...p2.ids.slice(1), ...p3.ids.slice(1)],
+        ids: [start, ...edges.map((p) => p.edge.to)],
         edges,
         distance,
         repeated
       };
+    if (best && repeated < 0.01 && error < 0.08 && compactness > 0.3) break;
   }
   if (!best)
     throw Error("No suitable loop found. Try another start or distance.");
@@ -355,19 +445,17 @@ export function generateLoop(
   };
 }
 const xml = (s: string) =>
-  s
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "")
-    .replace(
-      /[&<>"']/g,
-      (c) =>
-        ({
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&apos;"
-        })[c]!
-    );
+  s.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&apos;"
+      })[c]!
+  );
 export function gpx(route: Walk) {
   const points = route.coordinates;
   if (!points.length) throw Error("Generate a route before exporting.");

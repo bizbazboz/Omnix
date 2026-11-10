@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Omnix",
+    "slug": "omnix-companion",
+    "version": "1.0.0",
+    "scheme": "omnix",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/omnix.png",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "uk.bizbazboz.omnix",
+      "infoPlist": { "ITSAppUsesNonExemptEncryption": false }
+    },
+    "android": {
+      "package": "uk.bizbazboz.omnix",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/omnix.png",
+        "backgroundColor": "#000000"
+      },
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan an Omnix pairing code.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-font"
+    ]
+  }
+}

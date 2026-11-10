@@ -1,4 +1,5 @@
 import GoveeIntegration from "./GoveeIntegration";
+import Companion from "./Companion";
 import PageHeader from "../components/PageHeader";
 import DailyIntegration from "./DailyIntegration";
 import Select from "../components/Select";
@@ -543,6 +544,7 @@ export default function Settings({
     ["connections", "Integrations"],
     ["security", "Sessions"],
     ["api-access", "API access"],
+    ["companion", "Companion app"],
     ...(user.is_admin
       ? [
           ["auth", "Authentication"],
@@ -610,6 +612,8 @@ export default function Settings({
               <DailyIntegration />
               <GoveeIntegration />
             </>
+          ) : section === "companion" ? (
+            <Companion />
           ) : section === "api-access" ? (
             <ApiAccess />
           ) : section === "security" ? (

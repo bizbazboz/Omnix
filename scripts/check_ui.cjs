@@ -544,6 +544,11 @@ let browser;
       data = { dates, timezone: "Europe/London", metrics };
     else if (p === "/health/google/registration")
       data = { configured: true, can_configure: false };
+    else if (p === "/mobile/pairing")
+      data = { origin: "https://omnix.example.test", version: 1 };
+    else if (p === "/mobile/requests/mobile-qa/approve") data = { ok: true };
+    else if (p === "/mobile/requests/mobile-qa")
+      data = { code: "123456", platform: "android", approved: false };
     else if (p === "/notes/overview") data = { recent: [note], tasks: [] };
     else if (p === "/notes/pages")
       data = { items: [note, ...nestedPages], next_offset: null };
@@ -876,7 +881,9 @@ let browser;
     "/settings/general",
     "/settings/connections",
     "/settings/security",
-    "/settings/api-access"
+    "/settings/api-access",
+    "/settings/companion",
+    "/mobile/approve?request=mobile-qa"
   ];
   const overflows = [];
   for (const route of routes) {
@@ -905,11 +912,13 @@ let browser;
                     ? ".notes-page"
                     : route.startsWith("/settings")
                       ? ".settings-content > *"
-                      : route === "/"
-                        ? ".dashboard .clock"
-                        : route === "/email/outbox"
-                          ? ".outbox-heading"
-                          : ".email-heading";
+                      : route.startsWith("/mobile/")
+                        ? ".settings-card h1"
+                        : route === "/"
+                          ? ".dashboard .clock"
+                          : route === "/email/outbox"
+                            ? ".outbox-heading"
+                            : ".email-heading";
     await page.locator(content).first().waitFor();
     if (route === "/settings/connections")
       await page.locator(".daily-integration form").waitFor();
@@ -1168,6 +1177,29 @@ let browser;
   await govee.getByRole("button", { name: "Pause", exact: true }).click();
   await govee.getByRole("button", { name: "Enable", exact: true }).waitFor();
   assert(!iotRules[0].enabled, "Calendar rule did not pause");
+  await page.goto(origin + "/settings/companion");
+  await page
+    .getByRole("img", { name: "Omnix companion pairing QR code", exact: true })
+    .waitFor();
+  assert(
+    (await page
+      .getByRole("textbox", { name: "Instance address", exact: true })
+      .inputValue()) === "https://omnix.example.test",
+    "Pairing QR did not use the configured instance origin"
+  );
+  await page.goto(origin + "/mobile/approve?request=mobile-qa");
+  await page
+    .getByRole("button", { name: "Connect this device", exact: true })
+    .click();
+  const returnLink = page.getByRole("link", {
+    name: "Return to Omnix app",
+    exact: true
+  });
+  await returnLink.waitFor();
+  assert(
+    (await returnLink.getAttribute("href")) === "omnix://paired",
+    "Approval leaked credentials into the app callback"
+  );
   await page.goto(origin + "/onboarding");
   await page
     .getByRole("heading", { name: "You're connected.", exact: true })

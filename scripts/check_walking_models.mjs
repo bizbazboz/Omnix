@@ -54,6 +54,50 @@ const chain = buildGraph([
 ]);
 assert.throws(() => generateLoop(chain, [0, 0], 500, 5), /No suitable loop/);
 assert.throws(() => generateLoop(graph, point, 10, 5), /distance/);
+let sparseLoops = 0;
+for (let variant = 1; variant <= 8; variant++) {
+  const sparse = buildGraph(walkingFixture().elements);
+  for (const [id, edges] of sparse.edges)
+    sparse.edges.set(
+      id,
+      edges.filter((edge) => {
+        const a = Math.min(id, edge.to),
+          b = Math.max(id, edge.to);
+        const hash =
+          (Math.imul(a, 73856093) ^
+            Math.imul(b, 19349663) ^
+            Math.imul(variant, 83492791)) >>>
+          0;
+        return hash % 100 >= 42;
+      })
+    );
+  for (let seed = 1; seed <= 8; seed++) {
+    let loop;
+    try {
+      loop = generateLoop(sparse, point, 3200, 5, seed);
+    } catch (error) {
+      assert.match(error.message, /No suitable loop/);
+      continue;
+    }
+    sparseLoops++;
+    assert.deepEqual(loop.coordinates[0], loop.coordinates.at(-1));
+    assert.equal(
+      loop.repeated_fraction,
+      0,
+      "Prefer a non-repeating loop where the network allows it"
+    );
+    for (let i = 2; i < loop.coordinates.length; i++)
+      assert.notDeepEqual(
+        loop.coordinates[i],
+        loop.coordinates[i - 2],
+        "No immediate out-and-back spur"
+      );
+  }
+}
+assert(
+  sparseLoops >= 52,
+  "Find loops across sparse networks without trading away route coverage"
+);
 route.start_label = "Park <test> & cafe";
 const xml = gpx(route);
 assert(xml.includes("&lt;test&gt; &amp; cafe"));
