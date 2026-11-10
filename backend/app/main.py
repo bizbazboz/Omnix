@@ -1,9 +1,8 @@
-import os, secrets, json, hashlib, time, base64
-from datetime import datetime, timezone
+import os, secrets, json, hashlib
+from datetime import datetime
 from urllib.parse import urlencode
-from contextlib import asynccontextmanager
-import httpx, bleach
-from fastapi import FastAPI, Depends, HTTPException, Request, Response, Header
+import httpx
+from fastapi import FastAPI, Depends, HTTPException, Request, Header
 from fastapi.responses import RedirectResponse, JSONResponse, FileResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.concurrency import run_in_threadpool
@@ -14,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 from authlib.jose import JsonWebToken
 from .core import *
-from .providers import REGIONS, SCOPES, validate_protocol, fetch_body
+from .providers import REGIONS, SCOPES, validate_protocol
 from .tasks import sync, send
 from .api_tokens import authorize_request, build_token_router
 from . import rate_limits
@@ -22,7 +21,6 @@ from .sessions import create_session, read_session, MAX_SECONDS
 from .workspace_urls import sign_in_destination
 from .workspace_settings import (
     load_zoho,
-    load_setting,
     preferences,
     build_settings_router,
 )
@@ -129,7 +127,6 @@ async def security(request, call_next):
         except HTTPException:
             return JSONResponse({"detail": "origin_mismatch"}, status_code=403)
         if not setup_path:
-            sid = request.cookies.get(SESSION_COOKIE, "")
             try:
                 data = await run_in_threadpool(browser_session, request)
             except HTTPException as error:
@@ -153,6 +150,12 @@ async def security(request, call_next):
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https: http:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     )
+    if request.url.path.startswith("/assets/walking.worker-"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'self'; "
+            "connect-src https://photon.komoot.io https://overpass-api.de; "
+            "object-src 'none'; base-uri 'none'"
+        )
     if request.url.path == "/notebook/runtime.html":
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Content-Security-Policy"] = (
@@ -523,6 +526,12 @@ PRODUCTS = [
         "name": "Daily",
         "path": "/daily",
         "capabilities": ["daily.read", "daily.write"],
+    },
+    {
+        "id": "iot",
+        "name": "IoT",
+        "path": "/iot",
+        "capabilities": ["iot.read", "iot.write"],
     },
     {
         "id": "notes",
@@ -1284,9 +1293,10 @@ app.include_router(build_token_router(authenticated, db_session))
 from .daily import build_daily_router
 
 app.include_router(build_daily_router(authenticated, db_session))
-from .walking import build_walking_router
 
-app.include_router(build_walking_router(authenticated, db_session))
+from .iot import build_iot_router
+
+app.include_router(build_iot_router(authenticated, db_session))
 
 from .mcp_server import mount_mcp
 

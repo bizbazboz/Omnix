@@ -1,6 +1,6 @@
+import GoveeIntegration from "./GoveeIntegration";
 import PageHeader from "../components/PageHeader";
 import DailyIntegration from "./DailyIntegration";
-import WalkingMapIntegration from "./WalkingMapIntegration";
 import Select from "../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -16,7 +16,7 @@ import TimezoneSelect, { currentTimezone } from "./TimezoneSelect";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useStoredFlag } from "../lib/layout";
 
-export function ZohoRegistration() {
+function ZohoRegistration() {
   const query = useQuery({
     queryKey: ["zoho-registration"],
     queryFn: () => api("/settings/zoho")
@@ -599,9 +599,7 @@ export default function Settings({
                   Health
                 </NavLink>
                 <NavLink to="/settings/connections#daily">Daily</NavLink>
-                <NavLink to="/settings/connections#walking-map">
-                  Walking map
-                </NavLink>
+                <NavLink to="/settings/connections#govee">Govee</NavLink>
               </nav>
               <div id="mail">
                 {user.is_admin && <ZohoRegistration />}
@@ -610,7 +608,7 @@ export default function Settings({
               <CalendarIntegration />
               <HealthIntegration notify={notify} />
               <DailyIntegration />
-              <WalkingMapIntegration administrator={user.is_admin} />
+              <GoveeIntegration />
             </>
           ) : section === "api-access" ? (
             <ApiAccess />

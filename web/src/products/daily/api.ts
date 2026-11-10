@@ -15,7 +15,7 @@ export type Article = {
   url: string;
   published: string | null;
 };
-export type Forecast = {
+type Forecast = {
   source?: string;
   label: string;
   unit: string;

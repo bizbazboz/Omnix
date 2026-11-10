@@ -231,19 +231,6 @@
   line-height: 1.6;
   font-size: 13px;
 }
-.workspace .daily-route-preview {
-  width: 100%;
-  height: auto;
-  max-height: 440px;
-  border: 1px solid var(--border);
-  background: #080808;
-  color: var(--text-primary);
-}
-.workspace .daily-route-preview text {
-  font: 10px var(--font-mono);
-  fill: var(--text-secondary);
-  stroke: none;
-}
 .workspace .daily-walk-result details {
   margin-top: 24px;
 }
@@ -333,9 +320,6 @@
 }
 .workspace .walking-page .daily-walk-form {
   max-width: 760px;
-}
-.workspace .walking-map-label {
-  margin: 0 0 24px;
 }
 .workspace .walking-page .daily-walk-form > .segmented-control,
 .workspace .walking-page .daily-walk-form > .text-button {

@@ -258,11 +258,6 @@
 .workspace .integration-shortcuts a:hover {
   border-color: var(--text-primary);
 }
-.workspace .dashboard-heading h1 {
-  margin-top: 12px;
-  font-size: clamp(24px, 2.5vw, 32px);
-  font-weight: 400;
-}
 .workspace .clock-section {
   margin-block: 48px;
   gap: 48px;
@@ -285,29 +280,13 @@
 .workspace .metric:first-child {
   padding-left: 0;
 }
-.workspace .metric-label,
-.workspace .metric-suffix {
+.workspace .metric-label {
   font-size: 10px;
   color: var(--text-secondary);
-}
-.workspace .metric-value {
-  margin-block: 20px 12px;
 }
 .workspace .dashboard .section-title h2 {
   font-size: 20px;
   letter-spacing: -0.025em;
-}
-.workspace .dashboard-message,
-.workspace .dashboard-account-list > a {
-  padding-block: 20px;
-  border-bottom: 1px solid var(--border);
-}
-.workspace .dashboard-message:hover {
-  background: #080808;
-}
-.workspace .dashboard-footer {
-  font: 10px var(--font-mono);
-  color: var(--text-secondary);
 }
 .workspace .calendar-feeds {
   padding-right: 24px;
@@ -500,9 +479,6 @@
   }
   .workspace .metric:nth-child(odd) {
     padding-left: 0;
-  }
-  .workspace .metric-value {
-    font-size: 40px;
   }
   .workspace .calendar-feeds {
     padding: 0 0 20px;

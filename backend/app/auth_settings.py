@@ -1,7 +1,5 @@
 """Protected operator pairing and database-backed OIDC configuration."""
 
-import hashlib
-import json
 import secrets
 from urllib.parse import urlsplit
 import httpx

@@ -309,7 +309,3 @@ export const healthViews = [
     metrics: ["workouts", "workout_minutes"]
   }
 ];
-export function metricPath(id: string) {
-  const view = healthViews.slice(1).find((view) => view.metrics.includes(id));
-  return "/health" + (view ? "/" + view.id : "") + "?metric=" + id;
-}

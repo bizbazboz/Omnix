@@ -1,7 +1,7 @@
 FROM --platform=$BUILDPLATFORM node:22.14.0-alpine AS frontend
 WORKDIR /frontend
 COPY web/package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 COPY web/ .
 RUN npm run build
 FROM python:3.13.18-slim-trixie@sha256:b7b382eaeb8683a92c6217479b60b59de39514a4ebd6b3cc6ea518c207e22bce AS runtime

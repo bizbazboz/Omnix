@@ -64,6 +64,7 @@ export default function Project({ id }: { id: string }) {
       ? rawView!
       : "board";
   const [draft, setDraft] = useState<Partial<Task> | null>(null),
+    [editorSession, setEditorSession] = useState(0),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const project = useQuery<ProjectInfo>({
@@ -146,6 +147,7 @@ export default function Project({ id }: { id: string }) {
   );
   const editing = draft || rows.find((row) => row.id === params.get("issue"));
   function open(task: Task) {
+    setEditorSession((session) => session + 1);
     setDraft(null);
     filter("issue", task.id, false);
   }
@@ -154,6 +156,7 @@ export default function Project({ id }: { id: string }) {
     filter("issue", "", false);
   }
   function create(value: Partial<Task> = {}) {
+    setEditorSession((session) => session + 1);
     filter("issue", "");
     setDraft({ ...defaultTask, ...value });
   }
@@ -561,7 +564,7 @@ export default function Project({ id }: { id: string }) {
       )}
       {editing && (
         <IssueDetails
-          key={editing.id || "new"}
+          key={draft ? "draft-" + editorSession : editing.id}
           project={pr}
           value={editing}
           tasks={rows}
@@ -572,40 +575,36 @@ export default function Project({ id }: { id: string }) {
           onNew={create}
           onSave={async (value) => {
             let saved!: Task;
-            await run(async () => {
-              const body = value.id
-                ? taskPayload(value as Task)
-                : Object.fromEntries(
-                    Object.entries(value).filter(
-                      ([key]) =>
-                        ![
-                          "id",
-                          "revision",
-                          "project_id",
-                          "issue_key",
-                          "issue_number"
-                        ].includes(key)
-                    )
-                  );
-              const updated = await notesApi<Task>(
-                `/projects/${id}/tasks` + (value.id ? "/" + value.id : ""),
-                {
-                  method: value.id ? "PUT" : "POST",
-                  body: JSON.stringify(body)
-                }
-              );
-              saved = updated;
-              qc.setQueryData<Task[]>(["project-tasks", id], (current) =>
-                value.id
-                  ? current?.map((row) =>
-                      row.id === updated.id ? updated : row
-                    )
-                  : [...(current || []), updated]
-              );
-              refresh();
-              setDraft(null);
-              filter("issue", value.id ? updated.id : "", true);
-            });
+            const body = value.id
+              ? taskPayload(value as Task)
+              : Object.fromEntries(
+                  Object.entries(value).filter(
+                    ([key]) =>
+                      ![
+                        "id",
+                        "revision",
+                        "project_id",
+                        "issue_key",
+                        "issue_number"
+                      ].includes(key)
+                  )
+                );
+            const updated = await notesApi<Task>(
+              `/projects/${id}/tasks` + (value.id ? "/" + value.id : ""),
+              {
+                method: value.id ? "PUT" : "POST",
+                body: JSON.stringify(body)
+              }
+            );
+            saved = updated;
+            qc.setQueryData<Task[]>(["project-tasks", id], (current) =>
+              value.id
+                ? current?.map((row) => (row.id === updated.id ? updated : row))
+                : [...(current || []), updated]
+            );
+            refresh();
+            // Keep the same editor mounted after the first autosave.
+            setDraft((current) => (current ? updated : null));
             return saved;
           }}
           onDelete={async (value) => {

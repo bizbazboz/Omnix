@@ -160,6 +160,7 @@ def test_secret_and_products(signed_client):
         "calendar",
         "health",
         "daily",
+        "iot",
         "notes",
     ]
     value = encrypt({"secret": "not-plaintext"})

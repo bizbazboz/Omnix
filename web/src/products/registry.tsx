@@ -6,6 +6,7 @@ import {
   HeartPulse,
   NotebookPen,
   Newspaper,
+  Lightbulb,
   type LucideIcon
 } from "lucide-react";
 export type ProductProps = {
@@ -17,6 +18,7 @@ export type ProductModule = {
   id: string;
   name: string;
   routePrefix: string;
+  homePath?: string;
   requiredCapabilities: string[];
   Icon: LucideIcon;
   Entry: LazyExoticComponent<ComponentType<ProductProps>>;
@@ -50,9 +52,18 @@ export const productRegistry: ProductModule[] = [
     id: "daily",
     name: "Daily",
     routePrefix: "/daily",
+    homePath: "/daily/news",
     requiredCapabilities: ["daily.read"],
     Icon: Newspaper,
     Entry: lazy(() => import("./daily/Daily"))
+  },
+  {
+    id: "iot",
+    name: "IoT",
+    routePrefix: "/iot",
+    requiredCapabilities: ["iot.read"],
+    Icon: Lightbulb,
+    Entry: lazy(() => import("./iot/IoT"))
   },
   {
     id: "notes",

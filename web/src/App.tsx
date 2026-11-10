@@ -101,6 +101,7 @@ export default function App() {
 }
 function Workspace({ user }: { user: User }) {
   const menuButton = useRef<HTMLButtonElement>(null);
+  const drillingInto = useRef<string | null>(null);
   const [mobile, setMobile] = useState(false),
     [compose, setCompose] = useState<Draft | null>(null),
     [status, setStatus] = useState("");
@@ -116,10 +117,11 @@ function Workspace({ user }: { user: User }) {
     queryKey: ["preferences"],
     queryFn: () => api("/settings/preferences")
   });
-  useEffect(
-    () => setMobile(false),
-    [location.pathname, location.search, location.hash]
-  );
+  useEffect(() => {
+    const keepOpen = drillingInto.current === location.pathname;
+    drillingInto.current = null;
+    if (!keepOpen) setMobile(false);
+  }, [location.key, location.pathname, location.search, location.hash]);
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 761px)");
     const resized = () => {
@@ -186,6 +188,9 @@ function Workspace({ user }: { user: User }) {
         width={sidebarWidth}
         onResize={setSidebarWidth}
         onCollapse={() => setCollapsed(true)}
+        onSelectApp={(path) => {
+          drillingInto.current = mobile ? path : null;
+        }}
         onClose={() => setMobile(false)}
         onCompose={createDraft}
         notify={setStatus}
@@ -222,7 +227,11 @@ function Workspace({ user }: { user: User }) {
             <ChevronRight size={12} />
             <span>{current}</span>
           </div>
-          <DataStatus />
+          {location.pathname.replace(/\/$/, "") === "/health/walks" ? (
+            <span className="view-data-status">LOCAL ROUTING</span>
+          ) : (
+            <DataStatus />
+          )}
           {status && (
             <div className="inline-status" role="status">
               {status}

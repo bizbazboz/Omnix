@@ -40,6 +40,7 @@ export default function WorkspaceNavigation({
   width,
   onResize,
   onCollapse,
+  onSelectApp,
   onClose,
   onCompose,
   notify
@@ -53,6 +54,7 @@ export default function WorkspaceNavigation({
   width: number;
   onResize: (width: number) => void;
   onCollapse: () => void;
+  onSelectApp: (path: string) => void;
   onClose: () => void;
   onCompose: () => void;
   notify: (text: string) => void;
@@ -163,10 +165,10 @@ export default function WorkspaceNavigation({
                   <NavLink
                     key={app.id}
                     ref={index === 0 ? firstApp : undefined}
-                    to={app.routePrefix}
+                    to={app.homePath || app.routePrefix}
                     onClick={() => {
                       setListForPath(null);
-                      onClose();
+                      onSelectApp(app.homePath || app.routePrefix);
                     }}
                   >
                     <app.Icon size={19} strokeWidth={1.5} />
@@ -335,6 +337,17 @@ export default function WorkspaceNavigation({
                   </NavLink>
                 </nav>
               </>
+            ) : activeApp.id === "iot" ? (
+              <nav aria-label="IoT navigation">
+                <NavLink to="/iot" end onClick={onClose}>
+                  <activeApp.Icon size={17} />
+                  Lights
+                </NavLink>
+                <NavLink to="/iot/activity" onClick={onClose}>
+                  <CalendarDays size={17} />
+                  Calendar activity
+                </NavLink>
+              </nav>
             ) : activeApp.id === "notes" ? (
               <PageTree onClose={onClose} />
             ) : activeApp.id === "health" ? (

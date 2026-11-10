@@ -7,7 +7,7 @@ export type HealthStatus = {
   error: string;
   groups: string[];
 };
-export type Workout = {
+type Workout = {
   day: string;
   start: string | null;
   end: string | null;
@@ -59,13 +59,3 @@ export const format = (value: number | undefined, id: string) =>
             ? 2
             : 1
       });
-
-export type Walk = {
-  coordinates: number[][];
-  distance_m: number;
-  duration_s: number;
-  steps: string[];
-  created_at: string;
-  requested_km: number;
-  attribution: string;
-};

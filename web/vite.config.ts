@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: "self-hosted-python-runtime",
+      name: "self-hosted-browser-runtimes",
       closeBundle() {
         const target = resolve("dist/notebook/python");
         mkdirSync(target, { recursive: true });
@@ -54,6 +54,7 @@ export default defineConfig({
       }
     }
   ],
+  worker: { format: "es" },
   build: { assetsInlineLimit: 0 },
   server: {
     allowedHosts: ["web", "localhost"],

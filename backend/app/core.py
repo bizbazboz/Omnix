@@ -1,4 +1,4 @@
-import os, uuid, json
+import uuid, json
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine,
@@ -28,12 +28,12 @@ def uid():
 
 
 from .runtime import (
-    SESSION_COOKIE,
-    OIDC_COOKIE,
+    SESSION_COOKIE as SESSION_COOKIE,
+    OIDC_COOKIE as OIDC_COOKIE,
     DATABASE_URL,
     REDIS_URL,
     ENCRYPTION_KEY,
-    BOOTSTRAP_TOKEN_FILE,
+    BOOTSTRAP_TOKEN_FILE as BOOTSTRAP_TOKEN_FILE,
 )
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, hide_parameters=True)
@@ -69,15 +69,21 @@ class User(Base):
 class ApiToken(Base):
     __tablename__ = "api_tokens"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
-    owner: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    owner: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str] = mapped_column(String(80))
     prefix: Mapped[str] = mapped_column(String(14))
     digest: Mapped[str] = mapped_column(String(64), unique=True)
     permission: Mapped[str] = mapped_column(String(10), default="read")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class Connection(Base):
@@ -191,6 +197,29 @@ class CalendarFeed(Base):
     )
     last_attempt: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+
+class IoTRule(Base):
+    __tablename__ = "iot_rules"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    payload: Mapped[str] = mapped_column(Text)
+    activated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class IoTRun(Base):
+    __tablename__ = "iot_runs"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    rule_id: Mapped[str] = mapped_column(
+        ForeignKey("iot_rules.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String)
+    detail: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, index=True
     )
 
 

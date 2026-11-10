@@ -1,6 +1,7 @@
 // Synthetic API fixtures only; this audit never writes to the running workspace.
 const path = require("path");
 const fs = require("fs");
+const { walkingFixture } = require("./walking_fixture.cjs");
 const { chromium } = require(
   require.resolve("playwright", { paths: [path.join(__dirname, "../web")] })
 );
@@ -20,9 +21,7 @@ let browser;
   const scripts = [];
   const requestCounts = new Map();
   let signedIn = true;
-  let dailySaved = null,
-    badWalk = false;
-  const walkingRequests = [];
+  let dailySaved = null;
   page.on("request", (request) => {
     if (request.resourceType() === "script")
       scripts.push(new URL(request.url()).pathname);
@@ -108,7 +107,10 @@ let browser;
   };
   let tasks = [baseTask],
     badCreate = false,
-    created = [];
+    badUpdate = false,
+    createDelay = 0,
+    created = [],
+    updates = [];
   let failedMail = false,
     remoteRequests = 0;
   const note = {
@@ -198,20 +200,39 @@ let browser;
     },
     widgets: ["news", "weather", "transport"]
   };
-  const walkFixture = {
-    coordinates: [
-      [-0.12, 51.5],
-      [-0.119, 51.501],
-      [-0.118, 51.5],
-      [-0.12, 51.5]
-    ],
-    distance_m: 5100,
-    duration_s: 3700,
-    steps: ["Head north", "Turn left", "Arrive at your start"],
-    created_at: stamp,
-    requested_km: 5,
-    attribution: "OpenStreetMap contributors / Omnix local routing"
+  const iotFixture = {
+    id: "curtain-qa",
+    name: "Curtain lights",
+    sku: "H70B1",
+    capabilities: [
+      {
+        type: "devices.capabilities.on_off",
+        instance: "powerSwitch",
+        parameters: {
+          dataType: "ENUM",
+          options: [
+            { name: "On", value: 1 },
+            { name: "Off", value: 0 }
+          ]
+        }
+      },
+      {
+        type: "devices.capabilities.range",
+        instance: "brightness",
+        parameters: { dataType: "INTEGER", range: { min: 1, max: 100 } }
+      },
+      {
+        type: "devices.capabilities.dynamic_scene",
+        instance: "lightScene",
+        parameters: {
+          dataType: "ENUM",
+          options: [{ name: "Aurora", value: { id: 2, paramId: 4 } }]
+        }
+      }
+    ]
   };
+  let iotRules = [];
+  const iotCommands = [];
   const dailyFixture = {
     configured: true,
     widgets: dailySettings.widgets,
@@ -302,6 +323,37 @@ let browser;
       if (e.data?.type === "unsafe-email") window.__unsafeMail = true;
     });
   });
+  await context.route("https://photon.komoot.io/api/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        features: [
+          {
+            geometry: { coordinates: [-0.127, 51.503] },
+            properties: { osm_id: 1, name: "Test Park", city: "London" }
+          }
+        ]
+      })
+    })
+  );
+  await context.route("https://overpass-api.de/api/interpreter", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(walkingFixture())
+    })
+  );
+  await context.route("https://tile.openstreetmap.org/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64"
+      )
+    })
+  );
   await context.route("https://images.example.test/**", async (route) => {
     remoteRequests++;
     await route.fulfill({
@@ -344,9 +396,38 @@ let browser;
         { id: "calendar", name: "Calendar" },
         { id: "health", name: "Health" },
         { id: "notes", name: "Notes & Projects" },
-        { id: "daily", name: "Daily" }
+        { id: "daily", name: "Daily" },
+        { id: "iot", name: "IoT" }
       ];
-    else if (p === "/daily")
+    else if (p === "/settings/govee") data = { configured: true };
+    else if (p === "/iot/devices")
+      data = { configured: true, items: [iotFixture] };
+    else if (p === "/iot/devices/discover") data = [iotFixture];
+    else if (p === "/iot/devices/curtain-qa/control") {
+      iotCommands.push(req.postDataJSON());
+      data = {
+        accepted: true,
+        message: "Govee accepted the command. Refresh to confirm device state."
+      };
+    } else if (p === "/iot/devices/curtain-qa/scenes") data = iotFixture;
+    else if (p === "/iot/devices/curtain-qa/state")
+      data = {
+        capabilities: [{ instance: "powerSwitch", state: { value: 1 } }]
+      };
+    else if (p === "/iot/history") data = [];
+    else if (p === "/iot/rules") {
+      if (req.method() === "POST")
+        iotRules.push({ ...req.postDataJSON(), id: "rule-qa" });
+      data = req.method() === "POST" ? iotRules.at(-1) : iotRules;
+    } else if (p === "/iot/rules/rule-qa") {
+      if (req.method() === "DELETE") {
+        iotRules = [];
+        data = { deleted: true };
+      } else {
+        iotRules = [{ ...req.postDataJSON(), id: "rule-qa" }];
+        data = iotRules[0];
+      }
+    } else if (p === "/daily")
       data = { ...dailyFixture, widgets: dailySettings.widgets };
     else if (p === "/settings/daily") {
       if (req.method() === "PUT") {
@@ -357,38 +438,7 @@ let browser;
     } else if (p === "/daily/refresh") {
       status = 202;
       data = { queued: true };
-    } else if (p === "/health/walks") {
-      if (req.method() === "POST") walkingRequests.push(req.postDataJSON());
-      if (req.method() === "GET")
-        data = {
-          route: walkFixture,
-          map: {
-            ready: true,
-            name: "Test London",
-            nodes: 49,
-            updated_at: stamp
-          }
-        };
-      else if (badWalk) {
-        status = 422;
-        data = { detail: "No suitable loop found." };
-      } else data = walkFixture;
-    } else if (p === "/health/walks/map")
-      data = { ready: true, name: "Test London", nodes: 49, updated_at: stamp };
-    else if (p === "/health/walks/locations")
-      data = {
-        items: [
-          {
-            id: "test-park",
-            name: "Test Park",
-            label: "Test Park",
-            detail: "park",
-            latitude: 51.5,
-            longitude: -0.12
-          }
-        ]
-      };
-    else if (p === "/daily/locations")
+    } else if (p === "/daily/locations")
       data = {
         items: [
           {
@@ -504,6 +554,8 @@ let browser;
     else if (p === "/notes/projects/" + project.id) data = project;
     else if (p === "/notes/projects/" + project.id + "/tasks") {
       if (req.method() === "POST") {
+        if (createDelay)
+          await new Promise((resolve) => setTimeout(resolve, createDelay));
         if (badCreate) {
           status = 400;
           data = { detail: "Creation failed" };
@@ -524,11 +576,18 @@ let browser;
         }
       } else data = tasks;
     } else if (p.endsWith("/discussion")) data = { comments: [], activity: [] };
-    else if (p.includes("/notes/projects/") && p.includes("/tasks/"))
-      data = {
-        ...tasks.find((t) => p.endsWith("/" + t.id)),
-        ...req.postDataJSON()
-      };
+    else if (p.includes("/notes/projects/") && p.includes("/tasks/")) {
+      const task = tasks.find((t) => p.endsWith("/" + t.id));
+      const { expected_revision, ...body } = req.postDataJSON();
+      if (badUpdate || expected_revision !== task.revision) {
+        status = 409;
+        data = { detail: "Update conflict" };
+      } else {
+        updates.push({ ...body, expected_revision });
+        data = { ...task, ...body, revision: task.revision + 1 };
+        tasks = tasks.map((t) => (t.id === task.id ? data : t));
+      }
+    }
     await route.fulfill({
       status,
       contentType: "application/json",
@@ -605,6 +664,67 @@ let browser;
     .getByRole("link", { name: "Mail", exact: true })
     .click();
   await page.waitForURL("**/email");
+  assert(
+    await page.locator(".sidebar.mobile-open").isVisible(),
+    "Selecting an app closed the mobile subpage navigation"
+  );
+  await page
+    .getByRole("button", { name: "Back to applications", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Applications", exact: true })
+    .getByRole("link", { name: "Mail", exact: true })
+    .click();
+  assert(
+    await page.locator(".sidebar.mobile-open").isVisible(),
+    "Reopening the current app hid its subpages"
+  );
+  await page
+    .locator(".sidebar")
+    .getByRole("link", { name: /^Inbox/ })
+    .click();
+  await page.locator(".sidebar.mobile-open").waitFor({ state: "hidden" });
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Back to applications", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Applications", exact: true })
+    .getByRole("link", { name: "Health", exact: true })
+    .click();
+  await page.waitForURL("**/health");
+  assert(
+    await page.locator(".sidebar.mobile-open").isVisible(),
+    "Health subpages disappeared"
+  );
+  await page
+    .locator(".sidebar")
+    .getByRole("link", { name: "Sleep", exact: true })
+    .click();
+  await page.waitForURL("**/health/sleep");
+  await page.locator(".sidebar.mobile-open").waitFor({ state: "hidden" });
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Back to applications", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Applications", exact: true })
+    .getByRole("link", { name: "Daily", exact: true })
+    .click();
+  await page.waitForURL("**/daily/news");
+  assert(
+    await page.locator(".sidebar.mobile-open").isVisible(),
+    "Daily landing redirect closed the drawer"
+  );
+  await page
+    .locator(".sidebar")
+    .getByRole("link", { name: "Weather", exact: true })
+    .click();
+  await page.waitForURL("**/daily/weather");
   await page.locator(".sidebar.mobile-open").waitFor({ state: "hidden" });
   assert(
     !(await page.locator("main.main").evaluate((e) => e.inert)),
@@ -751,6 +871,8 @@ let browser;
     "/daily/weather",
     "/daily/transport",
     "/health/walks",
+    "/iot",
+    "/iot/activity",
     "/settings/general",
     "/settings/connections",
     "/settings/security",
@@ -760,8 +882,9 @@ let browser;
   for (const route of routes) {
     await page.goto(origin + route);
     await page.locator("main.main").waitFor();
-    const content =
-      route === "/health/walks"
+    const content = route.startsWith("/iot")
+      ? ".iot-page"
+      : route === "/health/walks"
         ? ".walking-page .daily-walk-form"
         : route.startsWith("/daily")
           ? {
@@ -812,6 +935,7 @@ let browser;
           "/daily/weather",
           "/daily/transport",
           "/health/walks",
+          "/iot",
           "/notes",
           "/notes/projects/project-qa?view=board",
           "/settings/general"
@@ -842,41 +966,19 @@ let browser;
   await page
     .getByRole("combobox", { name: "Start location", exact: true })
     .fill("Test Park");
+  await page
+    .getByRole("button", { name: "Search start location", exact: true })
+    .click();
   await page.getByRole("option", { name: /Test Park/ }).click();
   await page
     .getByRole("button", { name: "Generate loop", exact: true })
     .click();
   await page.locator(".daily-walk-result").waitFor();
+  const downloadEvent = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export GPX", exact: true }).click();
   assert(
-    (
-      await page.locator(".daily-walk-result a[download]").getAttribute("href")
-    ).startsWith("/api/v1/health/walks/gpx?created_at="),
-    "Walking GPX link missing"
-  );
-  badWalk = true;
-  await page
-    .getByRole("group", { name: "Walking target", exact: true })
-    .getByRole("button", { name: "Speed / time", exact: true })
-    .click();
-  await page.getByRole("spinbutton", { name: /Walking speed/ }).fill("4");
-  await page.getByRole("spinbutton", { name: /Walking time/ }).fill("45");
-  await page
-    .getByRole("button", { name: "Generate loop", exact: true })
-    .click();
-  await page
-    .getByRole("alert")
-    .filter({ hasText: "No suitable loop found." })
-    .waitFor();
-  assert(
-    await page.locator(".daily-route-preview").isVisible(),
-    "Failed generation discarded the previous route"
-  );
-  assert(
-    walkingRequests[0].mode === "distance" &&
-      walkingRequests.at(-1).mode === "time" &&
-      walkingRequests.at(-1).speed_kmh === 4 &&
-      walkingRequests.at(-1).duration_minutes === 45,
-    "Walking distance and speed/time targets did not reach the API"
+    (await downloadEvent).suggestedFilename() === "omnix-walking-loop.gpx",
+    "Browser walking export missing"
   );
   await page.goto(origin + "/settings/connections#daily");
   const dailyForm = page.locator(".daily-integration");
@@ -936,6 +1038,10 @@ let browser;
   );
   await page.goto(origin + "/");
   await page.locator(".daily-summary").waitFor();
+  await page
+    .locator(".daily-summary")
+    .getByRole("link", { name: /A useful daily headline/ })
+    .waitFor();
   assert(
     (await page
       .locator(".daily-summary")
@@ -1007,6 +1113,61 @@ let browser;
     !scripts.some((url) => /NotePage-|native-/.test(url)),
     "Issue board downloaded the editor"
   );
+  await page.goto(origin + "/iot");
+  const light = page.getByRole("region", {
+    name: "Curtain lights",
+    exact: true
+  });
+  await light.getByRole("button", { name: "Apply", exact: true }).click();
+  await light
+    .getByRole("status")
+    .filter({ hasText: "Govee accepted" })
+    .waitFor();
+  assert(
+    iotCommands.at(-1).instance === "powerSwitch" &&
+      iotCommands.at(-1).value === 1,
+    "IoT power command missing"
+  );
+  await light.getByRole("combobox", { name: "Control", exact: true }).click();
+  await page.getByRole("option", { name: "Scene", exact: true }).click();
+  await light.getByRole("button", { name: "Apply", exact: true }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector(".iot-feedback")
+      ?.textContent.includes("Govee accepted")
+  );
+  assert(
+    iotCommands.at(-1).instance === "lightScene" &&
+      iotCommands.at(-1).value.paramId === 4,
+    "IoT scene payload was not preserved"
+  );
+  await page.goto(origin + "/settings/connections#govee");
+  const govee = page.locator(".govee-integration");
+  await govee
+    .getByRole("textbox", { name: "Rule name", exact: true })
+    .fill("Meeting curtain lights");
+  await govee.getByRole("combobox", { name: "Light", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Curtain lights", exact: true })
+    .click();
+  await govee.getByRole("combobox", { name: "Calendar", exact: true }).click();
+  await page.getByRole("option", { name: "QA calendar", exact: true }).click();
+  await govee
+    .getByRole("textbox", { name: "Event title contains", exact: true })
+    .fill("meeting");
+  await govee
+    .getByRole("button", { name: "Save calendar rule", exact: true })
+    .click();
+  await govee.getByText("Meeting curtain lights", { exact: true }).waitFor();
+  assert(
+    iotRules[0].feed_id === "feed-qa" &&
+      iotRules[0].device_id === "curtain-qa" &&
+      iotRules[0].command.instance === "powerSwitch",
+    "Calendar rule did not preserve owned device, feed and action"
+  );
+  await govee.getByRole("button", { name: "Pause", exact: true }).click();
+  await govee.getByRole("button", { name: "Enable", exact: true }).waitFor();
+  assert(!iotRules[0].enabled, "Calendar rule did not pause");
   await page.goto(origin + "/onboarding");
   await page
     .getByRole("heading", { name: "You're connected.", exact: true })
@@ -1065,20 +1226,67 @@ let browser;
     .click();
   const modal = page.getByRole("dialog", { name: "Create issue", exact: true });
   await modal.waitFor();
+  assert(
+    (await modal
+      .getByRole("button", { name: /^(Save changes|Create issue)$/ })
+      .count()) === 0,
+    "Task editor still requires an explicit save button"
+  );
+  createDelay = 1000;
   await modal
     .getByRole("textbox", { name: "Issue summary", exact: true })
     .fill("Created issue");
-  await modal
-    .getByRole("button", { name: "Create issue", exact: true })
-    .click();
-  await modal.waitFor({ state: "hidden" });
+  await page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/tasks") &&
+      response.request().method() === "POST"
+  );
+  const savedModal = page.getByRole("dialog", {
+    name: "Issue details",
+    exact: true
+  });
+  await savedModal.waitFor();
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
   assert(
     created.length === 1 && created[0].status !== "done",
     "Creation changed issue to Done or duplicated it"
   );
+  await savedModal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("First change");
+  await savedModal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("Latest change");
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
+  assert(
+    updates.length === 1 &&
+      updates[0].description === "Latest change" &&
+      updates[0].expected_revision === 1,
+    "Rapid edits were not coalesced into a revision-aware update"
+  );
+  // Closing before the debounce expires must flush the final change.
+  await savedModal
+    .getByRole("textbox", { name: "Issue summary", exact: true })
+    .fill("Final title");
+  await savedModal
+    .getByRole("button", { name: "Close issue", exact: true })
+    .click();
+  await savedModal.waitFor({ state: "hidden" });
+  assert(
+    updates.length === 2 &&
+      updates[1].title === "Final title" &&
+      updates[1].expected_revision === 2,
+    "Closing lost the pending edit or reused a stale revision"
+  );
   assert(
     !new URL(page.url()).searchParams.has("issue"),
-    "Created issue stayed open in URL"
+    "Closed issue stayed open in URL"
   );
   await page
     .getByRole("group", { name: "Project view", exact: true })
@@ -1096,15 +1304,88 @@ let browser;
     .first()
     .click();
   await modal.waitFor();
+  badCreate = true;
+  createDelay = 0;
   await modal
     .getByRole("textbox", { name: "Issue summary", exact: true })
     .fill("Failure stays open");
-  badCreate = true;
-  await modal
-    .getByRole("button", { name: "Create issue", exact: true })
-    .click();
   await modal.getByText("Creation failed", { exact: true }).waitFor();
   assert(await modal.isVisible(), "Failed issue creation closed the form");
+  assert(
+    (await modal
+      .getByRole("textbox", { name: "Issue summary", exact: true })
+      .inputValue()) === "Failure stays open",
+    "Failed save discarded the draft"
+  );
+  badCreate = false;
+  createDelay = 1000;
+  await modal.getByRole("button", { name: "Retry sync", exact: true }).click();
+  // Change a field while POST is pending. It must become a PUT, not another POST.
+  await modal.getByRole("status").filter({ hasText: "Saving" }).waitFor();
+  await modal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("Typed during creation");
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
+  assert(
+    created.length === 2 &&
+      updates.at(-1).description === "Typed during creation" &&
+      updates.at(-1).expected_revision === 1,
+    "Changes during creation were lost or duplicated the task"
+  );
+  badUpdate = true;
+  await savedModal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("Keep on conflict");
+  await savedModal.getByText("Update conflict", { exact: true }).waitFor();
+  await savedModal
+    .getByRole("button", { name: "Close issue", exact: true })
+    .click();
+  await savedModal.getByText("Update conflict", { exact: true }).waitFor();
+  assert(
+    await savedModal.isVisible(),
+    "Failed close discarded an unsaved change"
+  );
+  badUpdate = false;
+  await savedModal
+    .getByRole("button", { name: "Retry sync", exact: true })
+    .click();
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
+  assert(
+    updates.at(-1).description === "Keep on conflict" &&
+      updates.at(-1).expected_revision === 2,
+    "Retry lost input or failed to use the latest revision"
+  );
+  await capture("issue-autosave");
+  await savedModal
+    .getByRole("button", { name: "Close issue", exact: true })
+    .click();
+  await savedModal.waitFor({ state: "hidden" });
+  await page.goto(origin + "/notes/projects/project-qa?issue=task-qa");
+  await savedModal.waitFor();
+  const previousUpdates = updates.length;
+  await savedModal
+    .getByRole("textbox", { name: "Issue description", exact: true })
+    .fill("Existing issue autosaves too");
+  await savedModal
+    .getByRole("status")
+    .filter({ hasText: /^Saved$/ })
+    .waitFor();
+  assert(
+    updates.length === previousUpdates + 1 &&
+      updates.at(-1).expected_revision === 1 &&
+      created.length === 2,
+    "Editing an existing issue created a duplicate or skipped its revision"
+  );
+  await savedModal
+    .getByRole("button", { name: "Close issue", exact: true })
+    .click();
+  await savedModal.waitFor({ state: "hidden" });
   assert(errors.length === 0, "Runtime errors: " + errors.join("; "));
   console.log(
     JSON.stringify({
@@ -1118,7 +1399,9 @@ let browser;
       actualSize: true,
       routesAudited: routes.length,
       responsiveWidths: widths,
-      issueAutoClose: true,
+      issueAutosave: true,
+      serialRevisionWrites: true,
+      closeFlushesEdits: true,
       failedCreateStaysOpen: true,
       syncStatus: true,
       lazyEditor: true,

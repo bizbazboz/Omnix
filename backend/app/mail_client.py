@@ -8,8 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select, func
 from .core import (
-    Session,
-    Connection,
     Message,
     MailUpload,
     User,

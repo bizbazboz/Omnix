@@ -1,4 +1,4 @@
-import os, json
+import json
 from celery import Celery
 from sqlalchemy import select, or_
 from .core import Session, Connection, Message, SendAttempt, now, redis, REDIS_URL
@@ -20,8 +20,25 @@ celery.conf.update(
         "calendar-dispatch": {"task": "app.tasks.dispatch_calendars", "schedule": 60.0},
         "health-dispatch": {"task": "app.tasks.dispatch_health", "schedule": 60.0},
         "daily-dispatch": {"task": "app.tasks.dispatch_daily", "schedule": 60.0},
+        "iot-dispatch": {"task": "app.tasks.dispatch_iot", "schedule": 30.0},
     },
 )
+
+
+@celery.task(name="app.tasks.iot_rule")
+def iot_rule(id):
+    from .iot import execute_rule
+
+    execute_rule(id)
+
+
+@celery.task(name="app.tasks.dispatch_iot")
+def dispatch_iot():
+    from .core import IoTRule
+
+    with redis.lock("scheduler:iot", timeout=25, blocking_timeout=0), Session() as db:
+        for id in db.scalars(select(IoTRule.id).where(IoTRule.enabled == True)):
+            iot_rule.delay(id)
 
 
 @celery.task(name="app.tasks.daily_sync")
@@ -30,16 +47,6 @@ def daily_sync(owner, force=False):
 
     with execution("daily-sync", owner):
         refresh_daily(owner, force=force)
-
-
-@celery.task(name="app.tasks.walking_map_import", soft_time_limit=840, time_limit=900)
-def walking_map_import():
-    from .walking import download_and_import
-
-    try:
-        return download_and_import()
-    finally:
-        redis.delete("walking-map-queued")
 
 
 @celery.task(name="app.tasks.dispatch_daily")

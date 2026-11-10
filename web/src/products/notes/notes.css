@@ -366,9 +366,6 @@
 .project-summary strong {
   font: 500 48px var(--font-display);
 }
-.project-section-title {
-  margin-top: 48px !important;
-}
 .task-summary-row {
   display: flex;
   width: 100%;
@@ -403,12 +400,6 @@
 }
 .project-filters > .select-field {
   width: 160px;
-}
-.task-table .select-field {
-  min-width: 150px;
-}
-.task-table td {
-  white-space: nowrap;
 }
 @media (max-width: 1100px) {
   .note-templates,
@@ -447,9 +438,6 @@
   .note-actions {
     gap: 2px;
   }
-  .task-form-grid {
-    grid-template-columns: 1fr;
-  }
   .note-cards {
     grid-template-columns: 1fr;
   }
@@ -469,13 +457,6 @@
   .notes-list > div {
     gap: 12px;
   }
-  .notes-task-dialog {
-    padding: 20px;
-  }
-  .dashboard-notes-grid {
-    grid-template-columns: 1fr;
-    gap: 28px;
-  }
 }
 
 .note-block-drag {
@@ -485,29 +466,11 @@
   border: 1px solid #333;
   border-radius: 4px;
 }
-
-.notes-task-modal {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  max-width: calc(100vw - 24px);
-  max-height: 92dvh;
-}
-.notes-task-modal::backdrop {
-  background: rgba(0, 0, 0, 0.75);
-}
 .task-fields {
   min-width: 0;
   border: 0;
   margin: 0;
   padding: 0;
-}
-
-.new-folder {
-  width: 100%;
-  margin-top: 8px;
-  justify-content: center;
 }
 .note-children {
   margin-top: 40px;
@@ -1445,28 +1408,6 @@
   flex: 1;
   min-width: 0;
 }
-.issue-transfer {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex-shrink: 0;
-  min-height: 40px;
-  padding: 10px 14px;
-  margin-right: 8px;
-  font-size: 11px;
-}
-.issue-transfer-notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 16px 0;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #333;
-  font-size: 13px;
-}
 @media (max-width: 600px) {
   .issue-list-entry {
     flex-wrap: wrap;
@@ -1474,9 +1415,6 @@
   }
   .issue-list-entry > .issue-row {
     flex-basis: 100%;
-  }
-  .issue-transfer {
-    margin: 0 12px 16px;
   }
 }
 

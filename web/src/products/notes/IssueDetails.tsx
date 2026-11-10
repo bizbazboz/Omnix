@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { X, Plus } from "lucide-react";
 import Select from "../../components/Select";
 import CopyField from "../../components/CopyField";
@@ -43,15 +43,27 @@ export default function IssueDetails({
   onOpen: (task: Task) => void;
   onNew: (value: Partial<Task>) => void;
 }) {
-  const draftKey = "issue:" + project.id + ":" + (value.id || "new"),
+  const draftKey = useRef(
+      "issue:" + project.id + ":" + (value.id || "new")
+    ).current,
     cached = drafts.get(draftKey);
   const [form, setForm] = useState({ ...defaultTask, ...value, ...cached }),
     [dirty, setDirty] = useState(Boolean(cached)),
     [error, setError] = useState(""),
     [comment, setComment] = useState(commentDrafts.get(draftKey) || ""),
     [posting, setPosting] = useState(false),
+    [saving, setSaving] = useState(false),
+    [leaving, setLeaving] = useState(false),
     [tab, setTab] = useState("comments");
   const dialog = useRef<HTMLDialogElement>(null);
+  const navigate = useNavigate();
+  const latest = useRef(form),
+    edits = useRef(0),
+    savedEdits = useRef(cached ? -1 : 0);
+  const identity = useRef<Partial<Task>>(cached || value);
+  const flight = useRef<Promise<boolean> | null>(null);
+  const save = useRef(onSave);
+  save.current = onSave;
   const discussion = useQuery<Discussion>({
     queryKey: ["issue-discussion", value.id, value.revision],
     queryFn: () =>
@@ -62,30 +74,106 @@ export default function IssueDetails({
     dialog.current?.showModal();
   }, []);
   useEffect(() => {
-    if (!dirty) setForm({ ...defaultTask, ...value });
+    if (!dirty && !flight.current) {
+      identity.current = value;
+      latest.current = { ...defaultTask, ...value };
+      setForm(latest.current);
+    }
   }, [value.revision]);
   useEffect(() => {
     markUnsaved(draftKey, dirty || Boolean(comment));
   }, [dirty, comment, draftKey]);
   function edit(patch: Partial<Task>) {
-    setForm((current) => {
-      const next = { ...current, ...patch };
-      drafts.set(draftKey, next);
-      return next;
-    });
+    const next = { ...latest.current, ...patch };
+    if (JSON.stringify(next) === JSON.stringify(latest.current)) return;
+    latest.current = next;
+    edits.current++;
+    drafts.set(draftKey, next);
+    markUnsaved(draftKey, true);
+    setForm(next);
+    setError("");
     setDirty(true);
   }
+  function flush(): Promise<boolean> {
+    if (flight.current) return flight.current;
+    if (edits.current === savedEdits.current) return Promise.resolve(true);
+    if (
+      !latest.current.title.trim() ||
+      !dialog.current?.querySelector("form")?.checkValidity()
+    ) {
+      setError("Check the issue fields. A summary is required.");
+      return Promise.resolve(false);
+    }
+    setSaving(true);
+    setError("");
+    flight.current = (async () => {
+      try {
+        // Serialize writes and advance the revision before sending edits made
+        // during a request. In particular, only the first request may POST.
+        while (edits.current !== savedEdits.current) {
+          if (
+            !latest.current.title.trim() ||
+            !dialog.current?.querySelector("form")?.checkValidity()
+          )
+            throw new Error("Check the issue fields. A summary is required.");
+          const version = edits.current;
+          const snapshot = {
+            ...latest.current,
+            ...identityFields(identity.current)
+          };
+          const saved = await save.current({
+            ...snapshot,
+            labels: snapshot.labels
+              .map((label) => label.trim())
+              .filter(Boolean),
+            milestone: false
+          });
+          identity.current = saved;
+          savedEdits.current = version;
+          latest.current =
+            edits.current === version
+              ? saved
+              : { ...latest.current, ...identityFields(saved) };
+          setForm(latest.current);
+          if (edits.current === version) {
+            drafts.delete(draftKey);
+            markUnsaved(draftKey, Boolean(commentDrafts.get(draftKey)));
+            setDirty(false);
+          } else drafts.set(draftKey, latest.current);
+        }
+        return true;
+      } catch (error) {
+        setError((error as Error).message);
+        return false;
+      } finally {
+        flight.current = null;
+        setSaving(false);
+      }
+    })();
+    return flight.current;
+  }
+  useEffect(() => {
+    if (!dirty || error || leaving || !form.title.trim()) return;
+    const timer = setTimeout(() => {
+      void flush();
+    }, 650);
+    return () => clearTimeout(timer);
+  }, [form, dirty, error, leaving]);
   function discard() {
     drafts.delete(draftKey);
     commentDrafts.delete(draftKey);
     markUnsaved(draftKey, false);
   }
-  function leave(action = onClose) {
-    if (
-      (dirty || comment.trim()) &&
-      !window.confirm("Discard unsaved issue changes?")
-    )
+  async function leave(action = onClose) {
+    setLeaving(true);
+    if (!(await flush())) {
+      setLeaving(false);
       return;
+    }
+    if (comment.trim() && !window.confirm("Discard the unposted comment?")) {
+      setLeaving(false);
+      return;
+    }
     discard();
     action();
   }
@@ -107,21 +195,21 @@ export default function IssueDetails({
     <dialog
       ref={dialog}
       className="issue-detail-modal"
-      aria-label={value.id ? "Issue details" : "Create issue"}
+      aria-label={form.id ? "Issue details" : "Create issue"}
       onCancel={(event) => {
         event.preventDefault();
-        if (!busy && !posting) leave();
+        if (!busy && !posting && !leaving) void leave();
       }}
     >
       <header className="issue-detail-heading">
         <span className="eyebrow">
-          {project.title} / {value.issue_key || "NEW ISSUE"}
+          {project.title} / {form.issue_key || "NEW ISSUE"}
         </span>
         <button
           className="icon-button"
           type="button"
           aria-label="Close issue"
-          disabled={busy || posting}
+          disabled={busy || posting || leaving}
           onClick={() => leave()}
         >
           <X size={18} />
@@ -130,22 +218,13 @@ export default function IssueDetails({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (busy) return;
-          setError("");
-          void onSave({
-            ...form,
-            labels: form.labels.map((label) => label.trim()).filter(Boolean),
-            milestone: false
-          })
-            .then((saved) => {
-              discard();
-              setDirty(false);
-              setForm(saved);
-            })
-            .catch((error) => setError(error.message));
+          if (!busy) void flush();
         }}
       >
-        <fieldset disabled={busy} className="task-fields issue-fields">
+        <fieldset
+          disabled={busy || leaving}
+          className="task-fields issue-fields"
+        >
           <label className="form-label issue-summary-label">
             Summary
             <input
@@ -438,12 +517,8 @@ export default function IssueDetails({
                 <NavLink
                   to={"/notes/pages/" + form.page_id}
                   onClick={(event) => {
-                    if (
-                      (dirty || comment) &&
-                      !window.confirm("Discard unsaved issue changes?")
-                    )
-                      event.preventDefault();
-                    else discard();
+                    event.preventDefault();
+                    void leave(() => navigate("/notes/pages/" + form.page_id));
                   }}
                 >
                   Open linked page ↗
@@ -458,26 +533,62 @@ export default function IssueDetails({
           </p>
         )}
         <footer className="issue-save-bar">
-          <span className="muted">
-            {dirty ? "Unsaved changes" : value.id ? "Saved" : "New issue"}
+          <span className="muted" role="status" aria-live="polite">
+            {saving
+              ? "Saving…"
+              : error && dirty
+                ? "Not saved"
+                : dirty
+                  ? form.title.trim()
+                    ? "Waiting to sync…"
+                    : "Add a summary to sync"
+                  : form.id
+                    ? "Saved"
+                    : "New issue · saves automatically"}
           </span>
-          <button className="primary" disabled={busy || posting}>
-            {busy ? "Saving…" : value.id ? "Save changes" : "Create issue"}
-          </button>
+          {error && dirty && (
+            <button
+              type="button"
+              className="text-button"
+              disabled={saving || leaving}
+              onClick={() => void flush()}
+            >
+              Retry sync
+            </button>
+          )}
+          {dirty && !saving && (error || !form.title.trim()) && (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                if (window.confirm("Discard unsaved issue changes?")) {
+                  discard();
+                  onClose();
+                }
+              }}
+            >
+              Discard changes
+            </button>
+          )}
           {value.id && (
             <button
               type="button"
               className="text-button"
-              disabled={busy || posting}
+              disabled={busy || posting || saving || leaving}
               onClick={() => {
                 if (
                   window.confirm(
                     "Permanently delete this issue and its comments?"
                   )
-                )
+                ) {
+                  setLeaving(true);
                   void onDelete(form)
                     .then(discard)
-                    .catch((error) => setError(error.message));
+                    .catch((error) => {
+                      setLeaving(false);
+                      setError(error.message);
+                    });
+                }
               }}
             >
               Delete issue
@@ -583,5 +694,13 @@ export default function IssueDetails({
         </>
       )}
     </dialog>
+  );
+}
+
+function identityFields(task: Partial<Task>): Partial<Task> {
+  return Object.fromEntries(
+    ["id", "revision", "project_id", "issue_key", "issue_number"]
+      .filter((key) => key in task)
+      .map((key) => [key, task[key as keyof Task]])
   );
 }

@@ -1567,7 +1567,7 @@ def build_notes_router(authenticated, db_session):
             for row in page_rows.values():
                 snapshot(db, row, True)
             db.commit()
-        except (ValueError, TypeError, KeyError) as error:
+        except (ValueError, TypeError, KeyError):
             db.rollback()
             raise HTTPException(422, "The archive contains invalid data.") from None
         return {

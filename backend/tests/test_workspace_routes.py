@@ -70,8 +70,37 @@ def test_public_product_routes_are_canonical(signed_client):
         "/calendar",
         "/health",
         "/daily",
+        "/iot",
         "/notes",
     }
+
+
+def test_walking_is_browser_only(signed_client):
+    for path in (
+        "/health/walks",
+        "/health/walks/map",
+        "/health/walks/gpx",
+        "/health/walks/locations?q=park",
+        "/settings/walking-map",
+    ):
+        assert signed_client.get("/api/v1" + path).status_code == 404
+    assert signed_client.post(
+        "/api/v1/health/walks", json={"latitude": 0, "longitude": 0}
+    ).status_code in {404, 405}
+    from app.main import app
+
+    assert not any(
+        path.startswith("/api/v1/health/walks") for path in app.openapi()["paths"]
+    )
+
+
+def test_walking_worker_network_policy_is_scoped(client):
+    assert "photon.komoot.io" not in client.get("/").headers["content-security-policy"]
+    policy = client.get("/assets/walking.worker-test.js").headers[
+        "content-security-policy"
+    ]
+    assert "https://photon.komoot.io" in policy and "https://overpass-api.de" in policy
+    assert "'unsafe-eval'" not in policy
 
 
 def test_notebook_sandbox_policy_does_not_weaken_the_app(client):

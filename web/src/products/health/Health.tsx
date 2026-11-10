@@ -9,7 +9,7 @@ import {
   Loader2,
   RefreshCw
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { lazy, useEffect, useState } from "react";
 import {
   NavLink,
   useSearchParams,
@@ -23,7 +23,7 @@ import { healthViews, metricDefinitions } from "./catalog";
 import SleepBreakdown from "./SleepBreakdown";
 import Workouts from "./Workouts";
 
-import Walking from "./Walking";
+const Walking = lazy(() => import("./Walking"));
 export default function Health() {
   const location = useLocation();
   return location.pathname.replace(/\/$/, "") === "/health/walks" ? (
