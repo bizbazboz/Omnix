@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/doto": "^0.4.1",
     "@expo-google-fonts/space-grotesk": "^0.4.1",
+    "@expo-google-fonts/space-mono": "^0.4.2",
     "expo": "~58.0.23",
     "expo-camera": "~58.0.14",
     "expo-constants": "~58.0.15",

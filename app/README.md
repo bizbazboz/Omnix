@@ -7,12 +7,14 @@ An Expo app for Android and iOS. The workspace runs inside a WebView. Pocket ID 
 1. Deploy this server version behind your HTTPS tunnel.
 2. Open **Settings → Companion app** in Omnix.
 3. Scan the QR code in the companion, or enter the HTTPS instance address.
-4. Select **Sign in**, complete Pocket ID sign-in and approve the matching six-digit code.
+4. Sign in through the workspace with Pocket ID and select **Connect this device** in the browser. No pairing number is needed.
 5. Select **Return to Omnix app**. A short-lived, one-use ticket establishes the WebView's regular HttpOnly session.
 
-The QR contains only the instance address. Approval expires after five minutes. A verifier held by the initiating app binds the exchange; the WebView ticket expires after 30 seconds. API tokens cannot approve a device. Only the instance address is saved in SecureStore. Use the workspace's sign-out control to end a session; **Instance → Switch** changes the saved address.
+The QR contains only the instance address. Approval expires after five minutes. A verifier held by the initiating app binds the exchange; the WebView ticket expires after 30 seconds. API tokens cannot approve a device. Only the instance address is saved in SecureStore. Scanning opens the instance directly without a confirmation popup. Once connected, the app is a full-screen WebView without a native navigation toolbar. Use the workspace sign-out control to end a session.
 
 ## Development
+
+Native setup, scanning and recovery screens follow the same Nothing-inspired dark design as the workspace: OLED black, Doto display headings, Space Grotesk body text and Space Mono controls. Font files are bundled locally. The connected workspace fills the WebView without native navigation chrome.
 
 ```sh
 cd app
