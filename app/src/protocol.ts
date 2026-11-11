@@ -1,4 +1,27 @@
-export const AUTH_RETURN = "omnix://paired";
+export const AUTH_SCHEME =
+  process.env.EXPO_PUBLIC_OMNIX_CHANNEL === "production"
+    ? "omnix"
+    : "omnix-preview";
+export const AUTH_RETURN = AUTH_SCHEME + "://paired";
+export function mobileGrant(input: string, request: string): string {
+  const url = new URL(input);
+  const code = url.searchParams.get("code") || "";
+  if (
+    url.protocol !== AUTH_SCHEME + ":" ||
+    url.hostname !== "paired" ||
+    !["", "/"].includes(url.pathname) ||
+    url.username ||
+    url.password ||
+    url.port ||
+    url.hash ||
+    url.searchParams.getAll("request").length !== 1 ||
+    url.searchParams.get("request") !== request ||
+    url.searchParams.getAll("code").length !== 1 ||
+    !/^[A-Za-z0-9_-]{54}$/.test(code)
+  )
+    throw new Error("Unexpected sign-in callback. Start again in this app.");
+  return code;
+}
 export function instanceOrigin(input: string): string {
   const url = new URL(input.trim());
   if (
@@ -18,7 +41,7 @@ export function instanceOrigin(input: string): string {
 export function pairingOrigin(input: string): string {
   const url = new URL(input);
   if (
-    url.protocol !== "omnix:" ||
+    !["omnix:", "omnix-preview:"].includes(url.protocol) ||
     url.hostname !== "pair" ||
     !["", "/"].includes(url.pathname) ||
     url.username ||

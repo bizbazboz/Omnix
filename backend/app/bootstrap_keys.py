@@ -21,6 +21,12 @@ def write_once(path, value, mode=0o644, owner=10001):
 
 
 def main():
+    # Mount the host's whole secrets parent here. Subdirectory-only mounts
+    # would chmod an ephemeral container parent and leave host files exposed.
+    secrets_root = Path("/secrets")
+    secrets_root.mkdir(parents=True, exist_ok=True)
+    os.chown(secrets_root, 0, 0)
+    os.chmod(secrets_root, 0o700)
     write_once("/data/encryption.key", Fernet.generate_key().decode(), 0o600)
     write_once("/data/setup-token", secrets.token_urlsafe(32), 0o600)
     write_once("/secrets/db/password", secrets.token_hex(32))

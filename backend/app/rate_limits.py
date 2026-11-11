@@ -6,6 +6,8 @@ sessions and all of an account's API tokens, including MCP calls.
 """
 
 import hashlib
+import ipaddress
+import os
 from fastapi import HTTPException
 from redis.exceptions import RedisError
 from .core import redis
@@ -58,7 +60,36 @@ def consume(bucket, identity, limit, window=WINDOW):
 
 def peer(scope):
     address = scope.get("client")
-    return address[0] if address else "unknown"
+    raw = address[0] if address else "unknown"
+    # Disabled unless the operator identifies the tunnel peer explicitly.
+    # A single canonical header is accepted, never an arbitrary XFF chain.
+    try:
+        networks = [
+            ipaddress.ip_network(value.strip())
+            for value in os.getenv("TRUSTED_PROXY_CIDRS", "").split(",")
+            if value.strip()
+        ]
+        if any(network.prefixlen == 0 for network in networks):
+            return raw
+        trusted = any(ipaddress.ip_address(raw) in network for network in networks)
+        if trusted:
+            header = (
+                os.getenv("TRUSTED_CLIENT_IP_HEADER", "cf-connecting-ip")
+                .lower()
+                .encode("ascii")
+            )
+            if header not in (b"cf-connecting-ip", b"x-real-ip"):
+                return raw
+            values = [
+                value.decode("ascii").strip()
+                for key, value in scope.get("headers", [])
+                if key.lower() == header
+            ]
+            if len(values) == 1:
+                return str(ipaddress.ip_address(values[0]))
+    except (ValueError, UnicodeError):
+        pass
+    return raw
 
 
 def inbound(scope):
@@ -70,7 +101,8 @@ def inbound(scope):
         return
     if not (path.startswith("/api/") or path == "/mcp" or path.startswith("/mcp/")):
         return
-    consume("peer", peer(scope), PEER_LIMIT)
+    address = scope.get("client")
+    consume("peer", address[0] if address else "unknown", PEER_LIMIT)
     if path == "/api/v1/auth/login":
         consume("login", peer(scope), LOGIN_LIMIT)
     elif path == "/api/v1/auth/callback":

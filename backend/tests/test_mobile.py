@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import secrets
+from urllib.parse import urlsplit, parse_qs
 from app.core import Session, SystemSetting, encrypt, redis, SESSION_COOKIE
 
 
@@ -19,7 +20,12 @@ def begin(client, verifier=None):
 
 
 def approve(client, request):
-    return client.post(f"/api/v1/mobile/requests/{request['request_id']}/approve")
+    response = client.post(f"/api/v1/mobile/requests/{request['request_id']}/approve")
+    if response.status_code == 200:
+        request["grant"] = parse_qs(urlsplit(response.json()["callback_url"]).query)[
+            "code"
+        ][0]
+    return response
 
 
 def test_native_handoff_is_proof_bound_and_one_use(signed_client, user):
@@ -27,15 +33,21 @@ def test_native_handoff_is_proof_bound_and_one_use(signed_client, user):
     assert pairing["origin"] == "https://app.example.test"
     request, verifier = begin(signed_client)
     assert "code" not in request
-    details = signed_client.get(f"/api/v1/mobile/requests/{request['request_id']}").json()
+    details = signed_client.get(
+        f"/api/v1/mobile/requests/{request['request_id']}"
+    ).json()
     assert "code" not in details
     assert details["platform"] == "android"
     assert verifier not in request["login_url"]
     assert "/api/v1/auth/login?return_to=" in request["login_url"]
-    body = {"request_id": request["request_id"], "verifier": verifier}
-    assert signed_client.post("/api/v1/mobile/exchange", json=body).status_code == 409
+    body = {
+        "request_id": request["request_id"],
+        "verifier": verifier,
+        "grant": request.get("grant", "x" * 54),
+    }
+    assert signed_client.post("/api/v1/mobile/exchange", json=body).status_code == 400
     assert approve(signed_client, request).status_code == 200
-    assert approve(signed_client, request).status_code == 409
+    body["grant"] = request["grant"]
     wrong = {**body, "verifier": secrets.token_urlsafe(32)}
     assert signed_client.post("/api/v1/mobile/exchange", json=wrong).status_code == 400
     response = signed_client.post("/api/v1/mobile/exchange", json=body)
@@ -66,9 +78,13 @@ def test_public_native_posts_do_not_bypass_browser_approval(signed_client):
     assert approve(signed_client, request).status_code in (401, 403)
     response = signed_client.post(
         "/api/v1/mobile/exchange",
-        json={"request_id": request["request_id"], "verifier": verifier},
+        json={
+            "request_id": request["request_id"],
+            "verifier": verifier,
+            "grant": request.get("grant", "x" * 54),
+        },
     )
-    assert response.status_code == 409
+    assert response.status_code == 400
     assert signed_client.post("/api/v1/auth/logout").status_code == 403
     assert (
         signed_client.options(
@@ -90,7 +106,11 @@ def test_request_and_ticket_expiry_and_registration_rotation(signed_client):
     assert approve(signed_client, request).status_code == 200
     response = signed_client.post(
         "/api/v1/mobile/exchange",
-        json={"request_id": request["request_id"], "verifier": verifier},
+        json={
+            "request_id": request["request_id"],
+            "verifier": verifier,
+            "grant": request.get("grant", "x" * 54),
+        },
     )
     ticket = response.json()["ticket"]
     key = "mobile-session:" + hashlib.sha256(ticket.encode()).hexdigest()

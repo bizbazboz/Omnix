@@ -24,16 +24,8 @@
         },
         {
           "type": "bind",
-          "source": "${OMNIX_DATA_DIR:-./data}/secrets/db",
-          "target": "/secrets/db",
-          "bind": {
-            "create_host_path": true
-          }
-        },
-        {
-          "type": "bind",
-          "source": "${OMNIX_DATA_DIR:-./data}/secrets/redis",
-          "target": "/secrets/redis",
+          "source": "${OMNIX_DATA_DIR:-./data}/secrets",
+          "target": "/secrets",
           "bind": {
             "create_host_path": true
           }
@@ -297,7 +289,14 @@
       "networks": [
         "data",
         "default"
-      ]
+      ],
+      "mem_limit": "${API_MEMORY_LIMIT:-1g}",
+      "cpus": "${API_CPUS:-2}",
+      "pids_limit": 256,
+      "environment": {
+        "TRUSTED_PROXY_CIDRS": "${TRUSTED_PROXY_CIDRS:-}",
+        "TRUSTED_CLIENT_IP_HEADER": "${TRUSTED_CLIENT_IP_HEADER:-cf-connecting-ip}"
+      }
     },
     "worker": {
       "image": "${OMNIX_IMAGE:-omnix:local}",

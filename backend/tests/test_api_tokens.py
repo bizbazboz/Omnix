@@ -72,7 +72,7 @@ def call(client, raw, path, arguments=None, method="get"):
 def other_workspace():
     raw = "omnix_" + secrets.token_urlsafe(32)
     with Session() as db:
-        user = User(issuer="test", subject="bob", name="Bob", email="bob@example.test")
+        user = User(issuer="https://id.example.test", subject="bob", name="Bob", email="bob@example.test")
         db.add(user)
         db.flush()
         page = NotePage(

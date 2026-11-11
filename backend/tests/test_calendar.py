@@ -118,6 +118,7 @@ def test_redirect_revalidation_and_size_limit(monkeypatch):
     response.status = 200
     response.getheader.return_value = "identity"
     response.read.return_value = b"x" * 65536
+    response.read1.return_value = b"x" * 65536
     with pytest.raises(ValueError):
         fetch_calendar("https://example.com/feed")
     assert response.read.call_count <= MAX_BYTES // 65536 + 1

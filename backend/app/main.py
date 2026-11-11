@@ -1,4 +1,4 @@
-import os, secrets, json, hashlib
+import os, secrets, json, hashlib, asyncio
 from datetime import datetime
 from urllib.parse import urlencode
 import httpx
@@ -36,6 +36,7 @@ from .auth_settings import (
 
 
 app = FastAPI(title="Omnix workspace", version="1.0.0")
+BODY_READ_SECONDS = 15
 
 
 @app.exception_handler(RequestValidationError)
@@ -62,30 +63,6 @@ async def security(request, call_next):
             status_code=error.status_code,
             headers=error.headers,
         )
-    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
-        chunks = []
-        size = 0
-        async for chunk in request.stream():
-            size += len(chunk)
-            limit = (
-                10 * 1024 * 1024
-                if request.method == "POST"
-                and request.url.path.startswith("/api/v1/email/mailboxes/")
-                and request.url.path.endswith("/uploads")
-                else 1048576
-            )
-            if (
-                request.method == "POST"
-                and request.url.path.startswith("/api/v1/notes/pages/")
-                and request.url.path.endswith("/assets")
-            ):
-                limit = 5 * 1024 * 1024
-            if request.method == "POST" and request.url.path == "/api/v1/notes/import":
-                limit = 32 * 1024 * 1024
-            if size > limit:
-                return JSONResponse({"detail": "request_too_large"}, status_code=413)
-            chunks.append(chunk)
-        request._body = b"".join(chunks)
     bearer_api = (
         request.url.path.startswith("/api/") and "authorization" in request.headers
     )
@@ -141,6 +118,41 @@ async def security(request, call_next):
                 request.headers.get("x-csrf-token", ""), data["csrf"]
             ):
                 return JSONResponse({"detail": "csrf_failed"}, status_code=403)
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        limit = 4096 if request.url.path in PUBLIC_POSTS else 1048576
+        if request.method == "POST":
+            if request.url.path.startswith(
+                "/api/v1/email/mailboxes/"
+            ) and request.url.path.endswith("/uploads"):
+                limit = 10 * 1024 * 1024
+            elif request.url.path.startswith(
+                "/api/v1/notes/pages/"
+            ) and request.url.path.endswith("/assets"):
+                limit = 5 * 1024 * 1024
+            elif request.url.path == "/api/v1/notes/import":
+                limit = 32 * 1024 * 1024
+        length = request.headers.get("content-length")
+        if length is not None:
+            if not length.isdecimal():
+                return JSONResponse(
+                    {"detail": "invalid_content_length"}, status_code=400
+                )
+            if len(length) > 12:
+                return JSONResponse({"detail": "request_too_large"}, status_code=413)
+            if int(length) > limit:
+                return JSONResponse({"detail": "request_too_large"}, status_code=413)
+        body = bytearray()
+        try:
+            async with asyncio.timeout(BODY_READ_SECONDS):
+                async for chunk in request.stream():
+                    if len(body) + len(chunk) > limit:
+                        return JSONResponse(
+                            {"detail": "request_too_large"}, status_code=413
+                        )
+                    body.extend(chunk)
+        except TimeoutError:
+            return JSONResponse({"detail": "request_body_timeout"}, status_code=408)
+        request._body = bytes(body)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = (
@@ -179,7 +191,14 @@ def db_session():
 
 def browser_session(request, refresh=False):
     try:
-        return read_session(request.cookies.get(SESSION_COOKIE, ""), refresh=refresh)
+        sid = request.cookies.get(SESSION_COOKIE, "")
+        data = read_session(sid, refresh=refresh)
+        from .admission import session_admitted
+
+        if not session_admitted(data):
+            redis.delete("session:" + sid)
+            raise HTTPException(401, "admission_revoked")
+        return data
     except HTTPException:
         rate_limits.failed_auth(request.scope)
         raise
@@ -473,6 +492,8 @@ async def callback(
     ):
         raise HTTPException(403, "This user is not admitted to the workspace.")
     db.execute(text("SELECT pg_advisory_xact_lock(901177)"))
+    if (load_oidc() or {}).get("version") != registration["version"]:
+        raise HTTPException(400, "Sign-in configuration changed. Start again.")
     user = db.scalar(
         select(User).where(User.issuer == claims["iss"], User.subject == claims["sub"])
     )

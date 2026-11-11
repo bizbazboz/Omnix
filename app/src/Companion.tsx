@@ -30,6 +30,8 @@ import { SpaceMono_400Regular } from "@expo-google-fonts/space-mono/400Regular";
 import { Doto_600SemiBold } from "@expo-google-fonts/doto/600SemiBold";
 import {
   AUTH_RETURN,
+  AUTH_SCHEME,
+  mobileGrant,
   base64url,
   instanceOrigin,
   internalNavigation,
@@ -43,7 +45,11 @@ type Source = {
   headers?: Record<string, string>;
 };
 export default function App({ children }: { children?: ReactNode }) {
-  const [fonts] = useFonts({ SpaceGrotesk_400Regular, SpaceMono_400Regular, Doto_600SemiBold });
+  const [fonts] = useFonts({
+    SpaceGrotesk_400Regular,
+    SpaceMono_400Regular,
+    Doto_600SemiBold
+  });
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
@@ -123,7 +129,7 @@ function Companion({ fonts }: { fonts: boolean }) {
   useEffect(() => {
     if (!loaded) return;
     const receive = (url: string) => {
-      if (!/^omnix:\/\/pair\/?\?/.test(url)) return;
+      if (!/^omnix(?:-preview)?:\/\/pair\/?\?/.test(url)) return;
       try {
         void connect(pairingOrigin(url));
       } catch (error) {
@@ -185,6 +191,7 @@ function Companion({ fonts }: { fonts: boolean }) {
         login_url: string;
       }>(address, "/api/v1/mobile/requests", {
         challenge,
+        callback_scheme: AUTH_SCHEME,
         platform: Platform.OS === "ios" ? "ios" : "android"
       });
       if (
@@ -200,12 +207,12 @@ function Companion({ fonts }: { fonts: boolean }) {
         setError("Sign-in was cancelled. Try again when you are ready.");
         return;
       }
-      if (![AUTH_RETURN, AUTH_RETURN + "/"].includes(result.url))
-        throw new Error("Unexpected sign-in callback.");
+      const grant = mobileGrant(result.url, pairing.request_id);
       const session = await call<{
         ticket: string;
       }>(address, "/api/v1/mobile/exchange", {
         request_id: pairing.request_id,
+        grant,
         verifier
       });
       if (!/^[\w-]{40,128}$/.test(session.ticket))
@@ -251,7 +258,11 @@ function Companion({ fonts }: { fonts: boolean }) {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       {!loaded ? (
-        <View style={styles.centered} accessibilityRole="progressbar" accessibilityLabel="Opening workspace">
+        <View
+          style={styles.centered}
+          accessibilityRole="progressbar"
+          accessibilityLabel="Opening workspace"
+        >
           <Text style={[styles.label, labelFont]}>[OPENING WORKSPACE...]</Text>
         </View>
       ) : !origin || scan ? (
@@ -270,11 +281,16 @@ function Companion({ fonts }: { fonts: boolean }) {
             <Text style={[styles.label, labelFont]}>COMPANION</Text>
           </View>
           <View style={styles.hero}>
-            <Text accessibilityRole="header" style={[styles.title, displayFont]}>
+            <Text
+              accessibilityRole="header"
+              style={[styles.title, displayFont]}
+            >
               {scan ? "Scan.\nConnect." : "Your space.\nAnywhere."}
             </Text>
             <Text style={[styles.copy, font]}>
-              {scan ? "Point your camera at the QR in Companion settings." : "Scan the QR in Companion settings, or enter your instance address."}
+              {scan
+                ? "Point your camera at the QR in Companion settings."
+                : "Scan the QR in Companion settings, or enter your instance address."}
             </Text>
           </View>
           {scan && permission?.granted ? (
@@ -298,7 +314,12 @@ function Companion({ fonts }: { fonts: boolean }) {
               <Text style={[styles.label, labelFont]}>INSTANCE ADDRESS</Text>
               <TextInput
                 accessibilityLabel="Instance address"
-                style={[styles.input, labelFont, inputFocused && styles.inputFocused, !!error && styles.inputError]}
+                style={[
+                  styles.input,
+                  labelFont,
+                  inputFocused && styles.inputFocused,
+                  !!error && styles.inputError
+                ]}
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
                 value={entry}
@@ -312,8 +333,11 @@ function Companion({ fonts }: { fonts: boolean }) {
                 returnKeyType="go"
                 onSubmitEditing={() => {
                   if (busy) return;
-                  try { void connect(instanceOrigin(entry)); }
-                  catch (error) { setError((error as Error).message); }
+                  try {
+                    void connect(instanceOrigin(entry));
+                  } catch (error) {
+                    setError((error as Error).message);
+                  }
                 }}
                 editable={!busy}
               />
@@ -367,7 +391,11 @@ function Companion({ fonts }: { fonts: boolean }) {
             />
           )}
           {error ? (
-            <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.error, font]}>
+            <Text
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              style={[styles.error, font]}
+            >
               {error}
             </Text>
           ) : null}
@@ -376,7 +404,12 @@ function Companion({ fonts }: { fonts: boolean }) {
         <>
           {busy && (
             <View style={styles.notice}>
-              <Text accessibilityLiveRegion="polite" style={[styles.label, labelFont]}>[SIGNING IN...]</Text>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={[styles.label, labelFont]}
+              >
+                [SIGNING IN...]
+              </Text>
             </View>
           )}
           {error ? (
@@ -394,9 +427,18 @@ function Companion({ fonts }: { fonts: boolean }) {
           ) : null}
           {webError ? (
             <View style={styles.pairing}>
-              <Text style={[styles.label, labelFont]}>CONNECTION / OFFLINE</Text>
-              <Text accessibilityRole="header" style={[styles.title, displayFont]}>Try again.</Text>
-              <Text style={[styles.copy, font]}>Check your connection and reload the workspace.</Text>
+              <Text style={[styles.label, labelFont]}>
+                CONNECTION / OFFLINE
+              </Text>
+              <Text
+                accessibilityRole="header"
+                style={[styles.title, displayFont]}
+              >
+                Try again.
+              </Text>
+              <Text style={[styles.copy, font]}>
+                Check your connection and reload the workspace.
+              </Text>
               {
                 <ActionButton
                   label={"Retry"}
@@ -434,7 +476,13 @@ function Companion({ fonts }: { fonts: boolean }) {
                 startInLoadingState
                 renderLoading={() => (
                   <View style={styles.loading} pointerEvents="none">
-                    <Text accessibilityRole="progressbar" accessibilityLabel="Loading workspace" style={[styles.label, labelFont]}>[LOADING...]</Text>
+                    <Text
+                      accessibilityRole="progressbar"
+                      accessibilityLabel="Loading workspace"
+                      style={[styles.label, labelFont]}
+                    >
+                      [LOADING...]
+                    </Text>
                   </View>
                 )}
               />
@@ -487,8 +535,22 @@ function ActionButton({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#000" },
   web: { flex: 1, backgroundColor: "#000" },
-  pairing: { flexGrow: 1, width: "100%", maxWidth: 560, alignSelf: "center", padding: 24, paddingTop: 32, paddingBottom: 48, gap: 16 },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 48 },
+  pairing: {
+    flexGrow: 1,
+    width: "100%",
+    maxWidth: 560,
+    alignSelf: "center",
+    padding: 24,
+    paddingTop: 32,
+    paddingBottom: 48,
+    gap: 16
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 48
+  },
   logo: { width: 32, height: 32 },
   brand: { flex: 1, color: "#E8E8E8", fontSize: 16 },
   hero: { gap: 16, marginBottom: 32 },
@@ -520,10 +582,45 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: "#fff", borderColor: "#fff" },
   pressed: { opacity: 0.7 },
-  buttonText: { color: "#E8E8E8", fontSize: 12, lineHeight: 18, letterSpacing: 0.8, textAlign: "center" },
-  error: { color: "#E8E8E8", borderLeftWidth: 2, borderLeftColor: "#D71921", paddingLeft: 16, paddingVertical: 8, fontSize: 16, lineHeight: 24 },
-  camera: { width: "100%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: "#333333" },
+  buttonText: {
+    color: "#E8E8E8",
+    fontSize: 12,
+    lineHeight: 18,
+    letterSpacing: 0.8,
+    textAlign: "center"
+  },
+  error: {
+    color: "#E8E8E8",
+    borderLeftWidth: 2,
+    borderLeftColor: "#D71921",
+    paddingLeft: 16,
+    paddingVertical: 8,
+    fontSize: 16,
+    lineHeight: 24
+  },
+  camera: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#333333"
+  },
   notice: { gap: 16, padding: 24, backgroundColor: "#111111" },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  loading: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#000000" }
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24
+  },
+  loading: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000000"
+  }
 });
