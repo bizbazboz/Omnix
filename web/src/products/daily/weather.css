@@ -1,0 +1,274 @@
+.workspace .weather-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.3fr);
+  gap: clamp(32px, 5vw, 80px);
+  max-width: 1280px;
+  margin-inline: auto;
+}
+.workspace .weather-now {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 24px;
+  min-width: 0;
+  margin: 0;
+}
+.weather-location {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-secondary);
+  font: 11px/1.5 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
+.weather-current-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.weather-temperature {
+  color: var(--text-display);
+  font: 500 clamp(80px, 9vw, 144px)/1 var(--font-display);
+  letter-spacing: -0.06em;
+  white-space: nowrap;
+}
+.weather-temperature > span {
+  font: 16px var(--font-mono);
+  letter-spacing: 0;
+  vertical-align: super;
+  margin-left: 8px;
+}
+.weather-condition {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.weather-condition p {
+  font-size: 18px;
+}
+.weather-condition > span {
+  color: var(--text-secondary);
+  font: 11px/1.5 var(--font-mono);
+}
+.weather-symbol {
+  display: grid;
+  place-items: center;
+  padding-block: 24px;
+  color: var(--text-display);
+}
+.workspace .weather-now .weather-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding-block: 24px;
+  border-top: 1px solid var(--border);
+}
+.workspace .weather-details div {
+  display: grid;
+  gap: 12px;
+}
+.workspace .weather-details dt {
+  color: var(--text-secondary);
+  font: 10px/1.5 var(--font-mono);
+  text-transform: uppercase;
+}
+.workspace .weather-details dd {
+  margin: 0;
+  font: 14px/1.5 var(--font-mono);
+}
+.workspace .weather-now .daily-freshness {
+  margin: 0;
+}
+.weather-forecasts {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  min-width: 0;
+}
+.weather-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 0;
+}
+.weather-panel > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.weather-panel h2 {
+  font-size: 16px;
+  letter-spacing: -0.02em;
+  font-weight: 400;
+}
+.weather-period {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.weather-period > span {
+  color: var(--text-secondary);
+  font: 10px var(--font-mono);
+  margin-right: 8px;
+}
+.weather-hours {
+  display: grid;
+  grid-template-columns: repeat(var(--hours), minmax(0, 1fr));
+  gap: 8px;
+}
+.weather-hours > div {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.weather-hours time,
+.weather-hours > div > span {
+  font: 10px/1.5 var(--font-mono);
+  color: var(--text-secondary);
+}
+.weather-hours strong {
+  font: 16px var(--font-mono);
+  color: var(--text-display);
+}
+.weather-trend {
+  display: block;
+  width: 100%;
+  height: 72px;
+  margin-top: 12px;
+  overflow: visible;
+  color: var(--text-primary);
+}
+.weather-trend path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.weather-trend circle {
+  fill: currentColor;
+}
+.weather-trend .weather-trend-baseline {
+  stroke: var(--border-visible);
+  stroke-dasharray: 2 5;
+}
+.weather-days {
+  display: grid;
+  gap: 4px;
+}
+.weather-day {
+  display: grid;
+  grid-template-columns: 54px 32px 34px 26px minmax(32px, 1fr) 26px;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  font: 12px/1.5 var(--font-mono);
+}
+.weather-day time {
+  color: var(--text-primary);
+}
+.weather-low,
+.weather-rain {
+  color: var(--text-secondary);
+}
+.weather-low,
+.weather-high,
+.weather-rain {
+  text-align: right;
+}
+.weather-range {
+  position: relative;
+  height: 4px;
+  background: var(--border-visible);
+  border-radius: 999px;
+}
+.weather-range > span {
+  position: absolute;
+  height: 100%;
+  max-width: 100%;
+  border-radius: inherit;
+  background: var(--text-primary);
+}
+.weather-unavailable {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.workspace .weather-forecasts .daily-attribution {
+  margin: 0;
+}
+@media (max-width: 1100px) {
+  .workspace .weather-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    max-width: 680px;
+  }
+  .weather-symbol {
+    padding-block: 0;
+  }
+  .weather-symbol > svg {
+    width: 176px;
+    height: 176px;
+  }
+}
+@media (max-width: 480px) {
+  .workspace .weather-now {
+    gap: 16px;
+  }
+  .weather-symbol > svg {
+    width: 128px;
+    height: 128px;
+  }
+  .workspace .weather-now .weather-details {
+    padding-block: 16px;
+  }
+  .weather-panel {
+    padding: 16px;
+  }
+  .weather-panel > header {
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .weather-period > span {
+    display: none;
+  }
+  .weather-hours {
+    gap: 4px;
+  }
+  .weather-hours time {
+    font-size: 9px;
+  }
+  .weather-hours .weather-glyph {
+    width: 28px;
+    height: 28px;
+  }
+  .weather-day {
+    grid-template-columns: 42px 28px 30px 24px minmax(24px, 1fr) 24px;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .weather-day .weather-glyph {
+    width: 28px;
+    height: 28px;
+  }
+  .weather-temperature {
+    font-size: clamp(64px, 22vw, 96px);
+  }
+  .weather-temperature > span {
+    font-size: 12px;
+  }
+  .weather-condition p {
+    font-size: 16px;
+  }
+}

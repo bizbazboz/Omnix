@@ -92,3 +92,52 @@ jobs:
           name: omnix-ios-simulator
           path: app/omnix-ios-simulator.zip
           if-no-files-found: error
+  release:
+    name: Publish companion downloads
+    needs: [android, ios-simulator]
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/mobile-v'))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: omnix-*
+          path: downloads
+          merge-multiple: true
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_REF: ${{ github.ref }}
+          BUILD_TAG: ${{ github.ref_name }}
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find downloads -maxdepth 1 -name '*.apk' -type f)
+          test "${#apks[@]}" -eq 1
+          mv "${apks[0]}" downloads/omnix-android-preview.apk
+          test -s downloads/omnix-ios-simulator.zip
+          cd downloads
+          sha256sum omnix-android-preview.apk omnix-ios-simulator.zip > SHA256SUMS
+          cd ..
+          tag="mobile-preview-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          title="Omnix companion preview ${GITHUB_RUN_NUMBER}"
+          options=(--prerelease)
+          if [[ "$BUILD_REF" == refs/tags/mobile-v* ]]; then
+            tag="$BUILD_TAG"
+            title="Omnix companion $BUILD_TAG"
+            options=()
+          fi
+          cat > release-notes.md <<EOF
+          Companion build from commit $BUILD_SHA.
+
+          - **Android:** download omnix-android-preview.apk and install it on your device. This release-mode APK uses the template preview signing identity, not a Play Store signing key.
+          - **iOS:** omnix-ios-simulator.zip is an unsigned simulator app, not an installable iPhone IPA. Physical iOS distribution requires Apple signing and provisioning.
+          - SHA256SUMS contains checksums for both downloads.
+
+          Pair in Omnix under Settings → Companion app. Pocket ID uses the existing server OIDC configuration.
+          EOF
+          gh release create "$tag" downloads/omnix-android-preview.apk downloads/omnix-ios-simulator.zip downloads/SHA256SUMS \
+            --target "$BUILD_SHA" --title "$title" --notes-file release-notes.md --latest=false "${options[@]}"
