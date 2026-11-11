@@ -137,7 +137,7 @@ jobs:
           - **iOS:** omnix-ios-simulator.zip is an unsigned simulator app, not an installable iPhone IPA. Physical iOS distribution requires Apple signing and provisioning.
           - SHA256SUMS contains checksums for both downloads.
 
-          Pair in Omnix under Settings → Companion app. Pocket ID uses the existing server OIDC configuration.
+          Pair in Omnix under Settings â†’ Companion app. Pocket ID uses the existing server OIDC configuration.
           EOF
           gh release create "$tag" downloads/omnix-android-preview.apk downloads/omnix-ios-simulator.zip downloads/SHA256SUMS \
             --target "$BUILD_SHA" --title "$title" --notes-file release-notes.md --latest=false "${options[@]}"

@@ -192,6 +192,13 @@
   .workspace .issue-summary-label > input {
     font-size: 24px;
   }
+  /* Editable document titles retain their hierarchy above generic form fields. */
+  .workspace .project-page input.note-title,
+  .workspace .note-sheet input.note-title {
+    font-size: clamp(32px, 6vw, 44px);
+    line-height: 1.2;
+    padding-block: 12px 24px;
+  }
   .workspace .select-trigger {
     min-height: 44px;
   }

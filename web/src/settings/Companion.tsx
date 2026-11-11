@@ -63,7 +63,7 @@ export default function Companion() {
         />
       )}
       <a
-        href="https://github.com/bizbazboz/Omnix/actions/workflows/companion.yml"
+        href="https://github.com/bizbazboz/Omnix/releases"
         target="_blank"
         rel="noreferrer"
       >

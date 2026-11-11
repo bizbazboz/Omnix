@@ -9,6 +9,9 @@
 .workspace .daily-summary > section {
   min-width: 0;
 }
+.weather-glyph { display: block; flex-shrink: 0; max-width: 100%; }
+.workspace .daily-summary-temperature { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.workspace .daily-summary-temperature .weather-glyph { color: var(--text-primary); }
 .workspace .daily-summary .section-title h2 {
   font-size: 20px;
 }
@@ -126,58 +129,6 @@
   margin-top: 16px;
   max-width: 760px;
   line-height: 1.7;
-  color: var(--text-secondary);
-}
-.workspace .daily-weather-current {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 32px;
-  margin: 32px 0 48px;
-  max-width: 1000px;
-}
-.workspace .daily-weather-current .daily-hero-number {
-  font-size: clamp(72px, 10vw, 120px);
-}
-.workspace .daily-weather-current dl {
-  display: grid;
-  gap: 24px;
-  min-width: 180px;
-}
-.workspace .daily-weather-current dl div {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-}
-.workspace .daily-weather-current dt {
-  color: var(--text-secondary);
-}
-.workspace .daily-weather-current dd {
-  margin: 0;
-  font-family: var(--font-mono);
-}
-.workspace .daily-forecast {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  border-block: 1px solid var(--border);
-}
-.workspace .daily-forecast > div {
-  display: grid;
-  gap: 20px;
-  padding: 24px 16px;
-  border-right: 1px solid var(--border);
-}
-.workspace .daily-forecast time,
-.workspace .daily-forecast > div > span {
-  font: 11px var(--font-mono);
-  color: var(--text-secondary);
-}
-.workspace .daily-forecast strong {
-  font: 24px var(--font-mono);
-}
-.workspace .daily-forecast small {
-  font-size: 14px;
   color: var(--text-secondary);
 }
 .workspace .daily-transport-list {

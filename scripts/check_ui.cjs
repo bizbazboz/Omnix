@@ -21,6 +21,8 @@ let browser;
   const scripts = [];
   const requestCounts = new Map();
   let signedIn = true;
+  let administrator = false;
+  let initialSetup = false;
   let dailySaved = null;
   page.on("request", (request) => {
     if (request.resourceType() === "script")
@@ -272,6 +274,13 @@ let browser;
         feels_like: 10,
         wind: 15,
         code: 3,
+        source: "api.open-meteo.com",
+        hours: Array.from({ length: 24 }, (_, i) => ({
+          time: `${today}T${String(i).padStart(2, "0")}:00`,
+          temperature: 10 + Math.sin(i / 4) * 4,
+          rain: i % 4 === 0 ? 35 : 10,
+          code: i % 4 === 0 ? 61 : 3
+        })),
         days: dates
           .slice(-7)
           .map((date) => ({ date, high: 13, low: 6, rain: 20, code: 3 }))
@@ -373,7 +382,7 @@ let browser;
         id: "qa",
         name: "Design QA",
         email: "qa@example.test",
-        is_admin: false,
+        is_admin: administrator,
         csrf: "qa-only"
       };
     if (p === "/me" && !signedIn) {
@@ -389,7 +398,7 @@ let browser;
     else if (p === "/settings/workspace")
       data = { name: "Omnix", private_mail_hosts: [] };
     else if (p === "/config")
-      data = { oidc_configured: true, setup_available: false };
+      data = { oidc_configured: !initialSetup, setup_available: initialSetup };
     else if (p === "/products")
       data = [
         { id: "email", name: "Mail" },
@@ -470,6 +479,43 @@ let browser;
         healthy: 1,
         recent: [message]
       };
+    else if (p === "/settings/auth")
+      data = {
+        configured: true,
+        issuer: "https://id.example.test",
+        client_id: "test",
+        allow_all: false,
+        allowed_subjects: [],
+        callback_url: origin + "/api/v1/auth/callback"
+      };
+    else if (p === "/settings/zoho")
+      data = {
+        region: "eu",
+        client_id: "",
+        configured: false,
+        client_secret_configured: false
+      };
+    else if (p === "/settings/pipelines")
+      data = {
+        configuration: { sync_enabled: true, sync_interval: 300 },
+        runs: []
+      };
+    else if (p === "/settings/system")
+      data = {
+        database: "Ready",
+        redis: "Ready",
+        scheduler: "Ready",
+        worker: "Ready"
+      };
+    else if (p === "/settings/users")
+      data = [
+        {
+          id: "qa",
+          name: "Design QA",
+          email: "qa@example.test",
+          is_admin: true
+        }
+      ];
     else if (p === "/settings/preferences")
       data = {
         display_name: "Design QA",
@@ -548,7 +594,7 @@ let browser;
       data = { origin: "https://omnix.example.test", version: 1 };
     else if (p === "/mobile/requests/mobile-qa/approve") data = { ok: true };
     else if (p === "/mobile/requests/mobile-qa")
-      data = { code: "123456", platform: "android", approved: false };
+      data = { platform: "android", approved: false };
     else if (p === "/notes/overview") data = { recent: [note], tasks: [] };
     else if (p === "/notes/pages")
       data = { items: [note, ...nestedPages], next_offset: null };
@@ -827,9 +873,9 @@ let browser;
     const scrolling = document.scrollingElement;
     return Boolean(
       document.readyState === "complete" &&
-        document.querySelector('script[data-fit="false"]') &&
-        scrolling &&
-        scrolling.scrollWidth > innerWidth
+      document.querySelector('script[data-fit="false"]') &&
+      scrolling &&
+      scrolling.scrollWidth > innerWidth
     );
   });
   await page
@@ -871,6 +917,9 @@ let browser;
     "/notes/projects",
     "/notes/projects/project-qa?view=board",
     "/notes/projects/project-qa?view=issues",
+    "/notes/projects/project-qa?view=backlog",
+    "/notes/projects/project-qa?view=overview",
+    "/notes/projects/project-qa?view=notes",
     "/notes/pages/page-qa",
     "/daily/news",
     "/daily/weather",
@@ -883,10 +932,20 @@ let browser;
     "/settings/security",
     "/settings/api-access",
     "/settings/companion",
+    "/settings/auth",
+    "/settings/pipelines",
+    "/settings/system",
+    "/settings/administration",
     "/mobile/approve?request=mobile-qa"
   ];
   const overflows = [];
   for (const route of routes) {
+    administrator = [
+      "/settings/auth",
+      "/settings/pipelines",
+      "/settings/system",
+      "/settings/administration"
+    ].includes(route);
     await page.goto(origin + route);
     await page.locator("main.main").waitFor();
     const content = route.startsWith("/iot")
@@ -933,23 +992,7 @@ let browser;
     assert(!badContrast, "Selected view label is invisible on " + route);
     for (const width of [320, 390, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
-      if (
-        [390, 1280].includes(width) &&
-        [
-          "/",
-          "/email",
-          "/calendar?view=month",
-          "/health",
-          "/daily/news",
-          "/daily/weather",
-          "/daily/transport",
-          "/health/walks",
-          "/iot",
-          "/notes",
-          "/notes/projects/project-qa?view=board",
-          "/settings/general"
-        ].includes(route)
-      )
+      if ([390, 1280].includes(width) && process.env.OMNIX_UI_SCREENSHOTS)
         await capture(route.replaceAll(/[^a-z0-9]/gi, "_") + "-" + width);
       const size = await page.evaluate(() => ({
         view: innerWidth,
@@ -964,6 +1007,72 @@ let browser;
   assert(
     !overflows.length,
     "Responsive overflow: " + JSON.stringify(overflows)
+  );
+  administrator = false;
+  await page.goto(origin + "/daily/weather");
+  await page
+    .getByRole("heading", { name: "Hourly forecast", exact: true })
+    .waitFor();
+  const firstHours = await page
+    .locator(".weather-hours time")
+    .allTextContents();
+  await page.getByRole("button", { name: "Later forecast hours" }).click();
+  assert(
+    JSON.stringify(
+      await page.locator(".weather-hours time").allTextContents()
+    ) !== JSON.stringify(firstHours),
+    "Hourly navigation did not update the forecast"
+  );
+  await page.getByRole("button", { name: "Earlier forecast hours" }).click();
+  assert(
+    JSON.stringify(
+      await page.locator(".weather-hours time").allTextContents()
+    ) === JSON.stringify(firstHours),
+    "Hourly navigation did not restore the first forecast"
+  );
+  const hours = dailyFixture.weather.data.hours;
+  dailyFixture.weather.data.hours = [];
+  await page.reload();
+  await page
+    .getByText("Hourly data is unavailable from this source.", { exact: true })
+    .waitFor();
+  dailyFixture.weather.data.hours = hours;
+  const originalWeather = { ...dailyFixture.weather.data };
+  Object.assign(dailyFixture.weather.data, {
+    temperature: -100,
+    unit: "°F",
+    code: 95,
+    label: "A very long weather location name for a small mobile screen"
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.reload();
+  await page.getByText("Thunderstorms", { exact: true }).waitFor();
+  assert(
+    await page.evaluate(
+      () =>
+        document.querySelector("main.main").scrollWidth <=
+        document.querySelector("main.main").clientWidth + 1
+    ),
+    "Weather extremes overflow on mobile"
+  );
+  Object.assign(dailyFixture.weather.data, originalWeather);
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(origin + "/settings/general");
+  await page
+    .getByRole("combobox", { name: "Settings category", exact: true })
+    .click();
+  await page
+    .getByRole("option", { name: "Companion app", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "Take Omnix with you.", exact: true })
+    .waitFor();
+  await page.goto(origin + "/notes/projects/project-qa");
+  assert(
+    await page
+      .getByRole("textbox", { name: "Project title", exact: true })
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize) >= 32),
+    "Mobile project title lost display hierarchy"
   );
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(origin + "/daily/transport");
@@ -1188,6 +1297,10 @@ let browser;
     "Pairing QR did not use the configured instance origin"
   );
   await page.goto(origin + "/mobile/approve?request=mobile-qa");
+  assert(
+    (await page.getByText("123456", { exact: true }).count()) === 0,
+    "Pairing should not display a numeric approval code"
+  );
   await page
     .getByRole("button", { name: "Connect this device", exact: true })
     .click();
@@ -1224,6 +1337,22 @@ let browser;
     "Login eagerly loaded workspace screens"
   );
   await capture("login");
+  initialSetup = true;
+  await page.goto(origin + "/setup");
+  await page
+    .getByRole("heading", { name: "Connect Pocket ID.", exact: true })
+    .waitFor();
+  for (const width of [320, 390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1
+      ),
+      "Initial setup overflows at " + width
+    );
+    if ([390, 1280].includes(width)) await capture("setup-" + width);
+  }
+  initialSetup = false;
   signedIn = true;
   failedMail = true;
   await page.goto(origin + "/email?account=mail-qa");
