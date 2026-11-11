@@ -13,7 +13,7 @@ export default defineConfig({
         for (const name of [
           "pyodide.mjs",
           "pyodide.js",
-          "pyodide.asm.js",
+          "pyodide.asm.mjs",
           "pyodide.asm.wasm",
           "python_stdlib.zip",
           "pyodide-lock.json"
@@ -33,7 +33,7 @@ export default defineConfig({
             ![
               "pyodide.mjs",
               "pyodide.js",
-              "pyodide.asm.js",
+              "pyodide.asm.mjs",
               "pyodide.asm.wasm",
               "python_stdlib.zip",
               "pyodide-lock.json"
