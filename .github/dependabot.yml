@@ -1,4 +1,6 @@
 version: 2
+# Patch/minor PRs are squash-merged after required checks pass by
+# workflows/dependabot-auto-merge.yml. Major upgrades require manual review.
 
 updates:
   - package-ecosystem: "npm"
@@ -11,6 +13,8 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
     commit-message:
       prefix: "deps(app)"
   # React, Vite, TypeScript and frontend packages
