@@ -225,6 +225,7 @@ def load_weather(config):
         "latitude": config["latitude"],
         "longitude": config["longitude"],
         "current": "temperature_2m,apparent_temperature,weather_code,wind_speed_10m",
+        "hourly": "temperature_2m,weather_code,precipitation_probability",
         "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
         "forecast_days": 7,
         "timezone": "auto",
@@ -245,6 +246,25 @@ def load_weather(config):
             value if isinstance(value, (int, float)) and math.isfinite(value) else None
         )
 
+    def reading(values, index):
+        return number(values[index]) if isinstance(values, list) and index < len(values) else None
+
+    hourly = data.get("hourly") or {}
+    times = hourly.get("time") or []
+    # Provider timestamps are local to the requested timezone, like current.time.
+    # Keep the current hour and the next 23; older custom caches remain usable.
+    current_hour = str(current.get("time", ""))[:13]
+    hours = [
+        {
+            "time": time,
+            "temperature": reading(hourly.get("temperature_2m"), i),
+            "code": reading(hourly.get("weather_code"), i),
+            "rain": reading(hourly.get("precipitation_probability"), i),
+        }
+        for i, time in enumerate(times if isinstance(times, list) else [])
+        if isinstance(time, str) and time[:13] >= current_hour
+    ][:24]
+
     return {
         "label": config["label"],
         "source": urlsplit(config["endpoint"]).hostname,
@@ -254,11 +274,12 @@ def load_weather(config):
         "code": number(current.get("weather_code")),
         "wind": number(current.get("wind_speed_10m")),
         "time": text(current.get("time"), 40),
+        "hours": hours,
         "days": [
             {
                 "date": day,
                 **{
-                    name: number(daily.get(key, [None] * len(daily["time"]))[i])
+                    name: reading(daily.get(key), i)
                     for name, key in [
                         ("high", "temperature_2m_max"),
                         ("low", "temperature_2m_min"),
