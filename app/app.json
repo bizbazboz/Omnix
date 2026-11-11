@@ -16,7 +16,7 @@
       }
     },
     "android": {
-      "package": "uk.bizbazboz.omnix",
+      "package": "com.bizbazboz.omnix",
       "adaptiveIcon": {
         "foregroundImage": "./assets/omnix.png",
         "backgroundColor": "#000000"

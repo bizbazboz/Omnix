@@ -26,7 +26,10 @@ def test_native_handoff_is_proof_bound_and_one_use(signed_client, user):
     pairing = signed_client.get("/api/v1/mobile/pairing").json()
     assert pairing["origin"] == "https://app.example.test"
     request, verifier = begin(signed_client)
-    assert len(request["code"]) == 6
+    assert "code" not in request
+    details = signed_client.get(f"/api/v1/mobile/requests/{request['request_id']}").json()
+    assert "code" not in details
+    assert details["platform"] == "android"
     assert verifier not in request["login_url"]
     assert "/api/v1/auth/login?return_to=" in request["login_url"]
     body = {"request_id": request["request_id"], "verifier": verifier}
