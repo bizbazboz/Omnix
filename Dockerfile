@@ -7,7 +7,8 @@ RUN npm run build
 FROM python:3.15.0-slim-trixie@sha256:f5b92f2a669a4c347044f29367f31983280b648250ca94dea66f98c53bc87e58 AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 STATIC_DIR=/app/static
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends libexpat1 && rm -rf /var/lib/apt/lists/*
+ARG SECURITY_REFRESH=2026-11-11
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/debian.sources && apt-get update && apt-get upgrade -y --no-install-recommends && apt-get install -y --no-install-recommends libexpat1 && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements.txt .
 RUN python -m pip install --no-cache-dir --upgrade pip==26.2.2 && pip install --no-cache-dir -r requirements.txt && useradd --create-home --uid 10001 app
 COPY --chown=app:app backend/app ./app
@@ -16,7 +17,7 @@ COPY --chown=app:app backend/alembic.ini .
 COPY --from=frontend --chown=app:app /frontend/dist ./static
 USER app
 EXPOSE 8000
-CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--no-access-log","--no-proxy-headers"]
+CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--no-access-log","--no-proxy-headers","--limit-concurrency","32","--timeout-keep-alive","5"]
 FROM runtime AS test
 USER root
 COPY backend/requirements-dev.txt .

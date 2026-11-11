@@ -592,7 +592,10 @@ let browser;
       data = { configured: true, can_configure: false };
     else if (p === "/mobile/pairing")
       data = { origin: "https://omnix.example.test", version: 1 };
-    else if (p === "/mobile/requests/mobile-qa/approve") data = { ok: true };
+    else if (p === "/mobile/requests/mobile-qa/approve")
+      data = {
+        callback_url: "omnix://paired?request=mobile-qa&code=" + "a".repeat(54)
+      };
     else if (p === "/mobile/requests/mobile-qa")
       data = { platform: "android", approved: false };
     else if (p === "/notes/overview") data = { recent: [note], tasks: [] };
@@ -1310,8 +1313,9 @@ let browser;
   });
   await returnLink.waitFor();
   assert(
-    (await returnLink.getAttribute("href")) === "omnix://paired",
-    "Approval leaked credentials into the app callback"
+    (await returnLink.getAttribute("href")) ===
+      "omnix://paired?request=mobile-qa&code=" + "a".repeat(54),
+    "Approval did not return an initiator-bound one-use grant"
   );
   await page.goto(origin + "/onboarding");
   await page

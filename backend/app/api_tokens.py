@@ -51,6 +51,10 @@ def verify_personal_token(db, raw: str):
     )
     if not token or not (user := db.get(User, token.owner)):
         return None
+    from .admission import admitted
+
+    if not admitted(user):
+        return None
     if token.last_used_at is None or token.last_used_at < now() - timedelta(minutes=1):
         token.last_used_at = now()
         db.commit()

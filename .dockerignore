@@ -15,3 +15,7 @@ artifacts
 data
 backups
 /app
+
+.vscode
+**/*.keystore
+**/*.jks

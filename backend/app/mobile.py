@@ -6,6 +6,9 @@ import json
 import secrets
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from typing import Literal
+from urllib.parse import urlencode
+from .admission import admitted
 from .core import redis, User, SESSION_COOKIE
 from .auth_settings import configured_origin, load_oidc
 from . import rate_limits
@@ -13,30 +16,33 @@ from . import rate_limits
 PUBLIC_POSTS = {"/api/v1/mobile/requests", "/api/v1/mobile/exchange"}
 _CLAIM = """
 local raw = redis.call('GET', KEYS[1])
-if not raw then return nil end
+local grant = redis.call('GET', KEYS[2])
+if not raw or not grant then return nil end
 local data = cjson.decode(raw)
-if data.challenge ~= ARGV[1] or data.version ~= ARGV[2] then return 'invalid' end
-if not data.user then return 'pending' end
-redis.call('DEL', KEYS[1])
-return raw
+local approval = cjson.decode(grant)
+if data.challenge ~= ARGV[1] or data.version ~= ARGV[2]
+    or approval.version ~= ARGV[2] or approval.request ~= ARGV[3] then return nil end
+redis.call('DEL', KEYS[1], KEYS[2])
+return grant
 """
 _APPROVE = """
 local raw = redis.call('GET', KEYS[1])
 if not raw then return nil end
 local data = cjson.decode(raw)
-if data.user or data.version ~= ARGV[2] then return nil end
-data.user = ARGV[1]
-redis.call('SET', KEYS[1], cjson.encode(data), 'KEEPTTL')
-return 'ok'
+if data.version ~= ARGV[1] then return nil end
+redis.call('SET', KEYS[2], ARGV[2], 'EX', 30)
+return raw
 """
 
 
 class PairRequest(BaseModel):
+    callback_scheme: Literal["omnix", "omnix-preview"] = "omnix"
     challenge: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
     platform: str = Field(pattern=r"^(android|ios)$")
 
 
 class Exchange(BaseModel):
+    grant: str = Field(pattern=r"^[A-Za-z0-9_-]{54}$")
     request_id: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
     verifier: str = Field(min_length=43, max_length=128, pattern=r"^[A-Za-z0-9._~-]+$")
 
@@ -72,6 +78,7 @@ def build_mobile_router(authenticated, db_session, session_response):
                 {
                     "challenge": body.challenge,
                     "platform": body.platform,
+                    "callback_scheme": body.callback_scheme,
                     "version": config["version"],
                 }
             ),
@@ -95,7 +102,7 @@ def build_mobile_router(authenticated, db_session, session_response):
             raise HTTPException(409, "Sign-in configuration changed. Start again.")
         return {
             "platform": value["platform"],
-            "approved": bool(value.get("user")),
+            "approved": False,
         }
 
     @router.post("/requests/{identifier}/approve")
@@ -103,11 +110,31 @@ def build_mobile_router(authenticated, db_session, session_response):
         # API tokens must never be promoted into interactive browser sessions.
         if not getattr(request.state, "sid", None):
             raise HTTPException(403, "Approve from a signed-in browser.")
-        if not redis.eval(
-            _APPROVE, 1, request_key(identifier), user.id, registration()["version"]
-        ):
-            raise HTTPException(409, "Pairing expired or already approved.")
-        return {"ok": True}
+        code = secrets.token_urlsafe(40)
+        config = registration()
+        grant_key = "mobile-grant:" + hashlib.sha256(code.encode()).hexdigest()
+        raw = redis.eval(
+            _APPROVE,
+            2,
+            request_key(identifier),
+            grant_key,
+            config["version"],
+            json.dumps(
+                {"request": identifier, "user": user.id, "version": config["version"]}
+            ),
+        )
+        if not raw:
+            raise HTTPException(409, "Pairing expired. Start again.")
+        value = json.loads(raw)
+        scheme = value.get("callback_scheme", "omnix")
+        # Only the native app holding the matching local request and verifier
+        # can finish this browser grant. It is never visible by polling.
+        return {
+            "callback_url": scheme
+            + "://paired?"
+            + urlencode({"request": identifier, "code": code}),
+            "expires_in": 30,
+        }
 
     @router.post("/exchange")
     def exchange(body: Exchange, request: Request):
@@ -119,10 +146,14 @@ def build_mobile_router(authenticated, db_session, session_response):
             .decode()
         )
         raw = redis.eval(
-            _CLAIM, 1, request_key(body.request_id), challenge, config["version"]
+            _CLAIM,
+            2,
+            request_key(body.request_id),
+            "mobile-grant:" + hashlib.sha256(body.grant.encode()).hexdigest(),
+            challenge,
+            config["version"],
+            body.request_id,
         )
-        if raw == "pending":
-            raise HTTPException(409, "Approve this device in the browser first.")
         if not raw or raw == "invalid":
             raise HTTPException(400, "Pairing unavailable. Start again.")
         value = json.loads(raw)
@@ -156,8 +187,9 @@ def build_mobile_router(authenticated, db_session, session_response):
                 401, "Companion session ticket expired or already used."
             )
         data = json.loads(raw)
-        if data["version"] != registration()["version"] or not db.get(
-            User, data["user"]
+        config = registration()
+        if data["version"] != config["version"] or not admitted(
+            db.get(User, data["user"]), config
         ):
             raise HTTPException(401, "Sign-in configuration changed. Sign in again.")
         return session_response(data["user"], request.cookies.get(SESSION_COOKIE))

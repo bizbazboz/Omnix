@@ -11,6 +11,7 @@ from .core import (
     Session,
     SystemSetting,
     User,
+    ApiToken,
     encrypt,
     decrypt,
     redis,
@@ -176,13 +177,38 @@ async def validate_registration(body, previous=None, request_origin=""):
 
 
 def save_config(db, config):
+    from .admission import admitted
+
+    db.execute(text("SELECT pg_advisory_xact_lock(901177)"))
     row = db.get(SystemSetting, "oidc")
     if not row:
         row = SystemSetting(key="oidc", value="")
         db.add(row)
     row.value = encrypt(config)
     row.updated_at = now()
+    excluded = {
+        user.id for user in db.scalars(select(User)) if not admitted(user, config)
+    }
+    if excluded:
+        for token in db.scalars(
+            select(ApiToken).where(
+                ApiToken.owner.in_(excluded), ApiToken.revoked_at.is_(None)
+            )
+        ):
+            token.revoked_at = now()
     db.commit()
+    # Admission checks already fail closed after commit. Remove old session
+    # credentials too, so re-admitting an account cannot revive them.
+    if excluded:
+        import json
+
+        for key in redis.scan_iter("session:*"):
+            try:
+                value = json.loads(redis.get(key) or "null")
+                if isinstance(value, dict) and value.get("user") in excluded:
+                    redis.delete(key)
+            except (ValueError, TypeError):
+                continue
 
 
 def build_router(authenticated, db_session, rate):

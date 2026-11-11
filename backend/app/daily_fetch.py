@@ -5,6 +5,7 @@ import ssl
 import time
 from urllib.parse import urlsplit, urlunsplit, urljoin
 from .calendar_fetch import PublicHTTPS, normalize_url
+from .download_deadline import DownloadDeadline, read_chunk
 
 
 def fetch_public(url, *, payload=None, headers=None, accept="application/json"):
@@ -26,7 +27,7 @@ def fetch_public(url, *, payload=None, headers=None, accept="application/json"):
         body = json.dumps(payload).encode() if payload is not None else None
         if body is not None:
             request_headers["Content-Type"] = "application/json"
-        try:
+        with DownloadDeadline(connection, deadline):
             connection.request(
                 "POST" if body is not None else "GET",
                 urlunsplit(("", "", parsed.path, parsed.query, "")),
@@ -43,13 +44,11 @@ def fetch_public(url, *, payload=None, headers=None, accept="application/json"):
             ):
                 raise ValueError("Source request failed")
             data = bytearray()
-            while chunk := response.read(65536):
+            while chunk := read_chunk(response, deadline):
                 data.extend(chunk)
                 if len(data) > 4 * 1024 * 1024 or time.monotonic() > deadline:
                     raise ValueError("Source exceeds download limits")
             return bytes(data)
-        finally:
-            connection.close()
     raise ValueError("Too many source redirects")
 
 

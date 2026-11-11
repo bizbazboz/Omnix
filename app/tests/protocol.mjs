@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import {
   AUTH_RETURN,
+  mobileGrant,
   instanceOrigin,
   pairingOrigin,
   internalNavigation,
@@ -60,7 +61,25 @@ assert(
 assert(
   !loginNavigation("https://evil.test/api/v1/auth/login", "https://example.com")
 );
-assert.equal(AUTH_RETURN, "omnix://paired");
+assert.equal(
+  AUTH_RETURN,
+  process.env.EXPO_PUBLIC_OMNIX_CHANNEL === "production"
+    ? "omnix://paired"
+    : "omnix-preview://paired"
+);
+const grant = "a".repeat(54);
+assert.equal(
+  mobileGrant(`${AUTH_RETURN}?request=own&code=${grant}`, "own"),
+  grant
+);
+for (const url of [
+  `${AUTH_RETURN}?request=other&code=${grant}`,
+  `${AUTH_RETURN}?request=own&code=${grant}&code=${grant}`,
+  `https://paired?request=own&code=${grant}`,
+  `${AUTH_RETURN}?request=own&code=short`,
+  `${AUTH_RETURN}?request=own&code=${grant}#fragment`
+])
+  assert.throws(() => mobileGrant(url, "own"));
 for (let length = 1; length <= 64; length++) {
   const bytes = randomBytes(length);
   assert.equal(base64url(bytes), bytes.toString("base64url"));

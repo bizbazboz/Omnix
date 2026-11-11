@@ -6,6 +6,7 @@ import socket
 import ssl
 import time
 from urllib.parse import urlsplit, urlunsplit, urljoin
+from .download_deadline import DownloadDeadline, remaining, resolve, read_chunk
 
 MAX_BYTES = 2 * 1024 * 1024
 
@@ -33,14 +34,21 @@ def normalize_url(value):
 
 class PublicHTTPS(http.client.HTTPSConnection):
     def connect(self):
-        addresses = socket.getaddrinfo(self.host, 443, type=socket.SOCK_STREAM)
+        deadline = getattr(self, "deadline", time.monotonic() + 35)
+        addresses = resolve(self.host, deadline)
         if not addresses or any(
             not ipaddress.ip_address(a[4][0]).is_global for a in addresses
         ):
             raise ValueError("Private calendar hosts are not permitted.")
-        sock = socket.create_connection((addresses[0][4][0], 443), timeout=self.timeout)
+        sock = socket.create_connection(
+            (addresses[0][4][0], 443), timeout=min(self.timeout, remaining(deadline))
+        )
+        self.deadline_socket = sock
         try:
+            remaining(deadline)
             self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+            self.deadline_socket = self.sock
+            remaining(deadline)
         except Exception:
             sock.close()
             raise
@@ -54,7 +62,7 @@ def fetch_calendar(url):
         connection = PublicHTTPS(
             parsed.hostname, timeout=10, context=ssl.create_default_context()
         )
-        try:
+        with DownloadDeadline(connection, deadline):
             connection.request(
                 "GET",
                 urlunsplit(("", "", parsed.path, parsed.query, "")),
@@ -74,11 +82,9 @@ def fetch_calendar(url):
             ):
                 raise ValueError("Calendar download failed.")
             data = bytearray()
-            while chunk := response.read(65536):
+            while chunk := read_chunk(response, deadline):
                 data.extend(chunk)
                 if len(data) > MAX_BYTES or time.monotonic() > deadline:
                     raise ValueError("Calendar exceeds download limits.")
             return bytes(data)
-        finally:
-            connection.close()
     raise ValueError("Too many calendar redirects.")

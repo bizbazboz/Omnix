@@ -2,13 +2,25 @@ name: Companion app
 on:
   pull_request:
     paths:
-      ["app/**", "backend/app/mobile.py", ".github/workflows/companion.yml"]
+      [
+        "app/**",
+        "scripts/configure_android_signing.cjs",
+        "backend/app/mobile.py",
+        ".github/workflows/companion.yml"
+      ]
   push:
     branches: [main]
     paths:
-      ["app/**", "backend/app/mobile.py", ".github/workflows/companion.yml"]
+      [
+        "app/**",
+        "scripts/configure_android_signing.cjs",
+        "backend/app/mobile.py",
+        ".github/workflows/companion.yml"
+      ]
     tags: ["mobile-v*"]
   workflow_dispatch:
+env:
+  EXPO_PUBLIC_OMNIX_CHANNEL: ${{ startsWith(github.ref, 'refs/tags/mobile-v') && 'production' || 'preview' }}
 permissions:
   contents: read
 concurrency:
@@ -26,7 +38,7 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
         working-directory: app
-      - run: npm run lint && npm run check && npm test
+      - run: npm run lint && npm run check && npm test && node --test ../scripts/test_android_signing.cjs
         working-directory: app
   android:
     needs: validate
@@ -54,9 +66,47 @@ jobs:
         working-directory: app
         env:
           CI: "1"
-      - name: Build installable preview APK
+      - name: Prepare private production signing
+        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          python - <<'PY'
+          import base64, os
+          from pathlib import Path
+          value = os.environ.get('ANDROID_KEYSTORE_BASE64', '')
+          if not value:
+              raise SystemExit('Production signing key is required; refusing a debug-signed release')
+          target = Path(os.environ['RUNNER_TEMP']) / 'omnix-release.p12'
+          target.write_bytes(base64.b64decode(value, validate=True))
+          target.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('OMNIX_ANDROID_KEYSTORE=' + str(target) + '\n')
+          PY
+      - name: Configure release signing
+        run: node scripts/configure_android_signing.cjs
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ startsWith(github.ref, 'refs/tags/mobile-v') && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ startsWith(github.ref, 'refs/tags/mobile-v') && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ startsWith(github.ref, 'refs/tags/mobile-v') && secrets.ANDROID_KEY_PASSWORD || '' }}
+      - name: Build Android APK
         run: chmod +x gradlew && ./gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
         working-directory: app/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ startsWith(github.ref, 'refs/tags/mobile-v') && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ startsWith(github.ref, 'refs/tags/mobile-v') && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ startsWith(github.ref, 'refs/tags/mobile-v') && secrets.ANDROID_KEY_PASSWORD || '' }}
+      - name: Verify production certificate
+        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        env:
+          EXPECTED_CERT: ${{ secrets.ANDROID_CERT_SHA256 }}
+        run: |
+          test -n "$EXPECTED_CERT"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs app/android/app/build/outputs/apk/release/app-release.apk > "$RUNNER_TEMP/signature.txt"
+          grep -Fqi "$EXPECTED_CERT" "$RUNNER_TEMP/signature.txt"
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/omnix-release.p12"
       - uses: actions/upload-artifact@v6
         with:
           name: omnix-android-preview
@@ -117,10 +167,12 @@ jobs:
           set -euo pipefail
           mapfile -t apks < <(find downloads -maxdepth 1 -name '*.apk' -type f)
           test "${#apks[@]}" -eq 1
-          mv "${apks[0]}" downloads/omnix-android-preview.apk
+          apk="omnix-android-preview.apk"
+          if [[ "$BUILD_REF" == refs/tags/mobile-v* ]]; then apk="omnix-android.apk"; fi
+          mv "${apks[0]}" "downloads/$apk"
           test -s downloads/omnix-ios-simulator.zip
           cd downloads
-          sha256sum omnix-android-preview.apk omnix-ios-simulator.zip > SHA256SUMS
+          sha256sum "$apk" omnix-ios-simulator.zip > SHA256SUMS
           cd ..
           tag="mobile-preview-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
           title="Omnix companion preview ${GITHUB_RUN_NUMBER}"
@@ -133,11 +185,11 @@ jobs:
           cat > release-notes.md <<EOF
           Companion build from commit $BUILD_SHA.
 
-          - **Android:** download omnix-android-preview.apk and install it on your device. This release-mode APK uses the template preview signing identity, not a Play Store signing key.
+          - **Android:** download $apk. Versioned mobile releases use the private Omnix release certificate; preview builds use a separate application ID and preview signing identity.
           - **iOS:** omnix-ios-simulator.zip is an unsigned simulator app, not an installable iPhone IPA. Physical iOS distribution requires Apple signing and provisioning.
           - SHA256SUMS contains checksums for both downloads.
 
           Pair in Omnix under Settings â†’ Companion app. Pocket ID uses the existing server OIDC configuration.
           EOF
-          gh release create "$tag" downloads/omnix-android-preview.apk downloads/omnix-ios-simulator.zip downloads/SHA256SUMS \
+          gh release create "$tag" "downloads/$apk" downloads/omnix-ios-simulator.zip downloads/SHA256SUMS \
             --target "$BUILD_SHA" --title "$title" --notes-file release-notes.md --latest=false "${options[@]}"
