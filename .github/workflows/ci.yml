@@ -45,11 +45,13 @@ jobs:
       - name: Install browser audit dependencies
         run: |
           npm --prefix web ci
-          npm --prefix web exec -- playwright install --with-deps chromium
+          version=$(node -p "require('./web/node_modules/playwright/package.json').version")
+          echo "OMNIX_PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright:v${version}-noble" >> "$GITHUB_ENV"
+          docker pull "mcr.microsoft.com/playwright:v${version}-noble"
       - name: Verify responsive workspace interactions
-        run: npm --prefix web run test:ui
+        run: docker run --rm --network host --shm-size=1g --cap-drop ALL --security-opt no-new-privileges -v "$PWD:/work:ro" -w /work "$OMNIX_PLAYWRIGHT_IMAGE" npm --prefix web run test:ui
       - name: Verify browser walking routes and GPX downloads
-        run: node scripts/check_walking.cjs
+        run: docker run --rm --network host --shm-size=1g --cap-drop ALL --security-opt no-new-privileges -v "$PWD:/work:ro" -w /work "$OMNIX_PLAYWRIGHT_IMAGE" node scripts/check_walking.cjs
       - name: Inspect startup failure
         if: failure()
         run: docker compose logs --tail=80
