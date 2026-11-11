@@ -218,8 +218,44 @@ def test_weather_and_tfl_protocol(monkeypatch):
     result = daily.load_weather(value["weather"])
     assert result["days"][0]["rain"] == 30 and result["temperature"] == 11
     assert "latitude=51.5" in calls[0] and "forecast_days=7" in calls[0]
+    assert "hourly=" in calls[0] and result["hours"] == []
     result = daily.load_transport(value["transport"])
     assert result["lines"][0]["statuses"][0]["reason"] == "Incident"
+
+
+def test_hourly_weather_keeps_local_current_hour_and_handles_partial_series(monkeypatch):
+    from datetime import datetime, timedelta
+
+    first = datetime(2026, 11, 5)
+    times = [(first + timedelta(hours=i)).isoformat(timespec="minutes") for i in range(48)]
+    response = {
+        "current": {"time": "2026-11-05T12:45", "temperature_2m": 11},
+        "hourly": {
+            "time": times,
+            "temperature_2m": [10] * 13 + [None, float("nan")],
+            "weather_code": [3] * 48,
+            "precipitation_probability": [25] * 48,
+        },
+        "daily": {"time": ["2026-11-05", "2026-11-06"], "temperature_2m_max": [13]},
+    }
+    monkeypatch.setattr(daily, "fetch_json", lambda url: response)
+    result = daily.load_weather(daily.defaults()["weather"])
+    assert len(result["hours"]) == 24
+    assert result["hours"][0]["time"] == "2026-11-05T12:00"
+    assert result["hours"][-1]["time"] == "2026-11-06T11:00"
+    assert result["hours"][0]["temperature"] == 10
+    assert all(hour["temperature"] is None for hour in result["hours"][1:])
+    assert result["hours"][0]["rain"] == 25
+    assert result["days"][1]["high"] is None
+
+
+def test_weather_allows_custom_source_without_hourly_data(monkeypatch):
+    monkeypatch.setattr(daily, "fetch_json", lambda url: {
+        "current": {"temperature_2m": 0}, "daily": {"time": []}, "hourly": None
+    })
+    result = daily.load_weather(daily.defaults()["weather"])
+    assert result["temperature"] == 0
+    assert result["hours"] == [] and result["days"] == []
 
 
 def test_daily_tokens_can_read_data_but_never_provider_keys(signed_client, client):

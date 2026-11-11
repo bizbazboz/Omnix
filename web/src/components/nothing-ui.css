@@ -150,7 +150,7 @@
 .workspace .secondary {
   min-height: var(--control-height);
   padding: 12px 20px;
-  border-radius: 6px;
+  border-radius: 999px;
 }
 .workspace .primary:hover:not(:disabled) {
   background: #e8e8e8;
@@ -202,6 +202,47 @@
 .workspace .settings-tabs {
   padding-right: 16px;
 }
+.workspace .settings-mobile-category {
+  display: none;
+}
+.workspace .project-page .notes-view-bar {
+  align-items: flex-start;
+}
+.workspace .project-page > .notes-heading {
+  flex-wrap: nowrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.workspace .project-page > .notes-heading > .note-actions {
+  width: auto;
+  flex-shrink: 0;
+}
+.workspace .project-page > .notes-heading .icon-button {
+  flex: none;
+  padding: 12px;
+}
+.workspace .modal-backdrop {
+  backdrop-filter: none;
+}
+.workspace .project-page .notes-view-bar > .segmented-control {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0;
+}
+.workspace .project-page .notes-view-bar > .segmented-control > button {
+  flex-shrink: 0;
+  background: transparent;
+  border-radius: 0;
+  border-bottom: 1px solid transparent;
+}
+.workspace .project-page .notes-view-bar > .segmented-control > button.active {
+  color: var(--text-display);
+  border-bottom-color: var(--text-display);
+}
 .workspace .settings-tabs a {
   min-height: 44px;
   border-radius: 4px;
@@ -217,7 +258,7 @@
   margin: 0 0 32px;
 }
 .workspace .settings-card {
-  background: #080808;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 28px;
@@ -414,7 +455,7 @@
   border-radius: 999px;
 }
 .workspace .onboarding-stage {
-  background: #080808;
+  background: var(--surface);
   border-color: var(--border-visible);
   border-radius: 8px;
 }
@@ -451,6 +492,20 @@
   .workspace .settings-layout {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
+  }
+  .workspace .settings-mobile-category {
+    display: flex;
+    flex-direction: column;
+  }
+  .workspace .settings-tabs,
+  .workspace .settings-category-toggle {
+    display: none;
+  }
+  .workspace .project-page .notes-view-bar {
+    gap: 16px;
+  }
+  .workspace .project-page .notes-view-bar > .segmented-control {
+    flex-basis: 100%;
   }
   .workspace .settings-tabs {
     flex-direction: row;
@@ -500,6 +555,14 @@
   }
   .workspace .integration-shortcuts {
     flex-wrap: wrap;
+  }
+  .workspace .user-setting {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .workspace .user-setting > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 }
 @media (prefers-reduced-motion: reduce) {

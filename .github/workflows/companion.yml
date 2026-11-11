@@ -1,0 +1,143 @@
+name: Companion app
+on:
+  pull_request:
+    paths:
+      ["app/**", "backend/app/mobile.py", ".github/workflows/companion.yml"]
+  push:
+    branches: [main]
+    paths:
+      ["app/**", "backend/app/mobile.py", ".github/workflows/companion.yml"]
+    tags: ["mobile-v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: companion-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
+      - run: npm run lint && npm run check && npm test
+        working-directory: app
+  android:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-37.0 build-tools;37.0.0"
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+        working-directory: app
+      - run: npx expo prebuild --platform android --no-install
+        working-directory: app
+        env:
+          CI: "1"
+      - name: Build installable preview APK
+        run: chmod +x gradlew && ./gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
+        working-directory: app/android
+      - uses: actions/upload-artifact@v6
+        with:
+          name: omnix-android-preview
+          path: app/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+  ios-simulator:
+    needs: validate
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
+      - run: npx expo prebuild --platform ios --no-install
+        working-directory: app
+        env:
+          CI: "1"
+      - run: pod install
+        working-directory: app/ios
+        env:
+          RCT_NEW_ARCH_ENABLED: "1"
+      - name: Build iOS simulator app
+        run: xcodebuild -workspace Omnix.xcworkspace -scheme Omnix -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ../build CODE_SIGNING_ALLOWED=NO
+        working-directory: app/ios
+      - run: ditto -c -k --keepParent app/build/Build/Products/Release-iphonesimulator/Omnix.app app/omnix-ios-simulator.zip
+      - uses: actions/upload-artifact@v6
+        with:
+          name: omnix-ios-simulator
+          path: app/omnix-ios-simulator.zip
+          if-no-files-found: error
+  release:
+    name: Publish companion downloads
+    needs: [android, ios-simulator]
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/mobile-v'))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: omnix-*
+          path: downloads
+          merge-multiple: true
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_REF: ${{ github.ref }}
+          BUILD_TAG: ${{ github.ref_name }}
+          BUILD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find downloads -maxdepth 1 -name '*.apk' -type f)
+          test "${#apks[@]}" -eq 1
+          mv "${apks[0]}" downloads/omnix-android-preview.apk
+          test -s downloads/omnix-ios-simulator.zip
+          cd downloads
+          sha256sum omnix-android-preview.apk omnix-ios-simulator.zip > SHA256SUMS
+          cd ..
+          tag="mobile-preview-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+          title="Omnix companion preview ${GITHUB_RUN_NUMBER}"
+          options=(--prerelease)
+          if [[ "$BUILD_REF" == refs/tags/mobile-v* ]]; then
+            tag="$BUILD_TAG"
+            title="Omnix companion $BUILD_TAG"
+            options=()
+          fi
+          cat > release-notes.md <<EOF
+          Companion build from commit $BUILD_SHA.
+
+          - **Android:** download omnix-android-preview.apk and install it on your device. This release-mode APK uses the template preview signing identity, not a Play Store signing key.
+          - **iOS:** omnix-ios-simulator.zip is an unsigned simulator app, not an installable iPhone IPA. Physical iOS distribution requires Apple signing and provisioning.
+          - SHA256SUMS contains checksums for both downloads.
+
+          Pair in Omnix under Settings → Companion app. Pocket ID uses the existing server OIDC configuration.
+          EOF
+          gh release create "$tag" downloads/omnix-android-preview.apk downloads/omnix-ios-simulator.zip downloads/SHA256SUMS \
+            --target "$BUILD_SHA" --title "$title" --notes-file release-notes.md --latest=false "${options[@]}"

@@ -17,6 +17,7 @@ import {
 } from "react-router-dom";
 import { Logo } from "./components/Brand";
 import WorkspaceNavigation from "./components/WorkspaceNavigation";
+import MobileApproval from "./settings/MobileApproval";
 import DataStatus from "./components/DataStatus";
 import "./components/workspace-ui.css";
 import "./components/nothing-ui.css";
@@ -247,6 +248,7 @@ function Workspace({ user }: { user: User }) {
         </header>
         <Suspense fallback={<PageLoading />}>
           <Routes>
+            <Route path="/mobile/approve" element={<MobileApproval />} />
             <Route
               path="/settings"
               element={<Navigate to="/settings/general" replace />}

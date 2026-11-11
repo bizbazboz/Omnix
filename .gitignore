@@ -19,3 +19,10 @@ artifacts/
 
 /data/
 /backups/
+/app/.expo/
+/app/android/
+/app/ios/
+/app/build/
+*.jks
+*.keystore
+*.mobileprovision
