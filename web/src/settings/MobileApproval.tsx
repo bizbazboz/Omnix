@@ -8,7 +8,7 @@ export default function MobileApproval() {
   const [approved, setApproved] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const query = useQuery<{ code: string; platform: string; approved: boolean }>(
+  const query = useQuery<{ platform: string; approved: boolean }>(
     {
       queryKey: ["mobile-request", id],
       queryFn: () => api("/mobile/requests/" + encodeURIComponent(id)),
@@ -45,17 +45,8 @@ export default function MobileApproval() {
           query.data && (
             <>
               <p>
-                Check that this code matches the{" "}
-                {query.data.platform === "ios"
-                  ? "iPhone or iPad"
-                  : "Android device"}{" "}
-                you are connecting.
-              </p>
-              <p
-                className="clock"
-                style={{ fontSize: "clamp(36px, 8vw, 72px)", margin: "32px 0" }}
-              >
-                {query.data.code}
+                Sign in to Omnix on your{" "}
+                {query.data.platform === "ios" ? "iPhone or iPad" : "Android device"}.
               </p>
               <button
                 className="primary"

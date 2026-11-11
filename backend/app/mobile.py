@@ -66,14 +66,12 @@ def build_mobile_router(authenticated, db_session, session_response):
         rate_limits.consume("mobile-create", rate_limits.peer(request.scope), 8)
         config = registration()
         identifier = secrets.token_urlsafe(32)
-        code = str(secrets.randbelow(1000000)).zfill(6)
         redis.set(
             request_key(identifier),
             json.dumps(
                 {
                     "challenge": body.challenge,
                     "platform": body.platform,
-                    "code": code,
                     "version": config["version"],
                 }
             ),
@@ -81,7 +79,6 @@ def build_mobile_router(authenticated, db_session, session_response):
         )
         return {
             "request_id": identifier,
-            "code": code,
             "expires_in": 300,
             "login_url": configured_origin()
             + "/api/v1/auth/login?return_to=%2Fmobile%2Fapprove%3Frequest%3D"
@@ -98,7 +95,6 @@ def build_mobile_router(authenticated, db_session, session_response):
             raise HTTPException(409, "Sign-in configuration changed. Start again.")
         return {
             "platform": value["platform"],
-            "code": value["code"],
             "approved": bool(value.get("user")),
         }
 

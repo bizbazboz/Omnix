@@ -81,7 +81,7 @@ export default function Authentication({
   const form = (
     <>
       <div className="setup-heading">
-        {initial ? <h2>Connect Pocket ID.</h2> : <h1>Authentication</h1>}
+        <h2>{initial ? "Connect Pocket ID." : "Authentication"}</h2>
       </div>
       {initial && window.location.protocol !== "https:" && (
         <p className="notice">
@@ -285,6 +285,6 @@ export default function Authentication({
       </footer>
     </div>
   ) : (
-    <div className="page auth-page">{form}</div>
+    <section className="settings-card auth-page">{form}</section>
   );
 }
