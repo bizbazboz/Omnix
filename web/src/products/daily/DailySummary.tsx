@@ -9,6 +9,7 @@ import {
   type DailyView
 } from "./api";
 import "./daily.css";
+import WeatherGlyph from "./WeatherGlyph";
 
 export default function DailySummary() {
   const query = useDaily(true),
@@ -45,9 +46,12 @@ export default function DailySummary() {
               {data.weather.data ? (
                 <>
                   <span className="eyebrow">{data.weather.data.label}</span>
-                  <div className="daily-hero-number">
-                    {number(data.weather.data.temperature)}
-                    <small>{data.weather.data.unit}</small>
+                  <div className="daily-summary-temperature">
+                    <div className="daily-hero-number">
+                      {number(data.weather.data.temperature)}
+                      <small>{data.weather.data.unit}</small>
+                    </div>
+                    <WeatherGlyph code={data.weather.data.code} size={48} />
                   </div>
                   <p>{weatherLabel(data.weather.data.code)}</p>
                 </>

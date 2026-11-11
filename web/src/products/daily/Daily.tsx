@@ -7,13 +7,12 @@ import {
   articles,
   dailyViews,
   lineStatus,
-  number,
   useDaily,
-  weatherLabel,
   type DailyData
 } from "./api";
 import { DailyFreshness, DailySetup } from "./DailySummary";
 import Select from "../../components/Select";
+import Weather from "./Weather";
 import "./daily.css";
 
 export default function Daily() {
@@ -130,77 +129,6 @@ function News({ data }: { data: DailyData }) {
         </>
       ) : (
         <DailySetup text="Add your RSS and Atom sources" />
-      )}
-    </>
-  );
-}
-function Weather({ data }: { data: DailyData }) {
-  const weather = data.weather.data;
-  return (
-    <>
-      <DailyFreshness value={data.weather} />
-      {weather ? (
-        <>
-          <div className="daily-weather-current">
-            <div>
-              <span className="eyebrow">{weather.label}</span>
-              <div className="daily-hero-number">
-                {number(weather.temperature)}
-                <small>{weather.unit}</small>
-              </div>
-              <h2>{weatherLabel(weather.code)}</h2>
-            </div>
-            <dl>
-              <div>
-                <dt>Feels like</dt>
-                <dd>{number(weather.feels_like, weather.unit)}</dd>
-              </div>
-              <div>
-                <dt>Wind</dt>
-                <dd>{number(weather.wind, " km/h")}</dd>
-              </div>
-            </dl>
-          </div>
-          <div className="daily-forecast" aria-label="Seven day forecast">
-            {weather.days.map((day) => (
-              <div key={day.date}>
-                <time dateTime={day.date}>
-                  {new Date(day.date + "T12:00:00").toLocaleDateString([], {
-                    weekday: "short",
-                    day: "numeric"
-                  })}
-                </time>
-                <span>{weatherLabel(day.code)}</span>
-                <strong>
-                  {number(day.high, "°")} <small>{number(day.low, "°")}</small>
-                </strong>
-                <span>{number(day.rain, "% rain")}</span>
-              </div>
-            ))}
-          </div>
-          <p className="daily-attribution">
-            Weather data:{" "}
-            {weather.source?.endsWith("open-meteo.com") ? (
-              <a
-                href="https://open-meteo.com/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open-Meteo
-              </a>
-            ) : (
-              weather.source || "Custom forecast source"
-            )}
-          </p>
-        </>
-      ) : (
-        <DailySetup
-          text={
-            data.weather.enabled
-              ? "No forecast cached yet. Refresh to fetch it."
-              : "Choose a location and weather source"
-          }
-        />
       )}
     </>
   );
