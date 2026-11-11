@@ -28,15 +28,17 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "@typescript-eslint/parser": "^8.72.2",
     "eslint": "^9.39.0",
     "eslint-config-expo": "~58.0.4",
-    "typescript": "~7.0.2"
+    "typescript": "6.0.3",
+    "typescript-native": "npm:typescript@7.0.2"
   },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "check": "tsc --noEmit",
+    "check": "node node_modules/typescript-native/bin/tsc --noEmit",
     "lint": "expo lint",
     "test": "node --experimental-strip-types tests/protocol.mjs"
   },
