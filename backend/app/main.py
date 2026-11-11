@@ -19,6 +19,7 @@ from .api_tokens import authorize_request, build_token_router
 from . import rate_limits
 from .sessions import create_session, read_session, MAX_SECONDS
 from .workspace_urls import sign_in_destination
+from .mobile import PUBLIC_POSTS, build_mobile_router
 from .workspace_settings import (
     load_zoho,
     preferences,
@@ -112,6 +113,7 @@ async def security(request, call_next):
             "DELETE",
         )
         and request.url.path.startswith("/api/")
+        and request.url.path not in PUBLIC_POSTS
     ):
         setup_path = request.url.path in (
             "/api/v1/setup/oidc",
@@ -1297,6 +1299,7 @@ app.include_router(build_daily_router(authenticated, db_session))
 from .iot import build_iot_router
 
 app.include_router(build_iot_router(authenticated, db_session))
+app.include_router(build_mobile_router(authenticated, db_session, session_response))
 
 from .mcp_server import mount_mcp
 

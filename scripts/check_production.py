@@ -46,6 +46,8 @@ with httpx.Client(
         "/daily",
         "/daily/locations?q=London",
         "/daily/transport/catalog",
+        "/mobile/pairing",
+        "/mobile/requests/nonexistent",
     ]:
         assert client.get("/api/v1" + path).status_code == 401, path
     assert (

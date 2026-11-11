@@ -1,10 +1,11 @@
 import GoveeIntegration from "./GoveeIntegration";
+import Companion from "./Companion";
 import PageHeader from "../components/PageHeader";
 import DailyIntegration from "./DailyIntegration";
 import Select from "../components/Select";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api, qc, type Account, type User } from "../lib/api";
 import CopyField from "../components/CopyField";
 import Authentication from "./Authentication";
@@ -531,6 +532,7 @@ export default function Settings({
   notify: (s: string) => void;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [navHidden, setNavHidden] = useStoredFlag("omnix.settings.navHidden");
   const section = location.pathname.split("/")[2] || "general";
   useEffect(() => {
@@ -543,6 +545,7 @@ export default function Settings({
     ["connections", "Integrations"],
     ["security", "Sessions"],
     ["api-access", "API access"],
+    ["companion", "Companion app"],
     ...(user.is_admin
       ? [
           ["auth", "Authentication"],
@@ -560,7 +563,7 @@ export default function Settings({
         title="Settings"
       >
         <button
-          className="icon-button"
+          className="icon-button settings-category-toggle"
           aria-expanded={!navHidden}
           aria-label={navHidden ? "Show categories" : "Hide categories"}
           title={navHidden ? "Show categories" : "Hide categories"}
@@ -578,6 +581,20 @@ export default function Settings({
           "settings-layout " + (navHidden ? "settings-nav-hidden" : "")
         }
       >
+        <label className="form-label settings-mobile-category">
+          Category
+          <Select
+            aria-label="Settings category"
+            value={section}
+            onChange={(event) => navigate("/settings/" + event.target.value)}
+          >
+            {tabs.map(([key, name]) => (
+              <option key={key} value={key}>
+                {name}
+              </option>
+            ))}
+          </Select>
+        </label>
         {!navHidden && (
           <nav className="settings-tabs" aria-label="Settings categories">
             {tabs.map(([key, name]) => (
@@ -610,6 +627,8 @@ export default function Settings({
               <DailyIntegration />
               <GoveeIntegration />
             </>
+          ) : section === "companion" ? (
+            <Companion />
           ) : section === "api-access" ? (
             <ApiAccess />
           ) : section === "security" ? (

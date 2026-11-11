@@ -29,7 +29,8 @@ async function json(
     throw Error("Online map data is unavailable. Try again later.");
   if (!response.body) throw Error("Online map data is unavailable.");
   const reader = response.body.getReader(),
-    chunks: Uint8Array[] = [];
+    chunks: string[] = [],
+    decoder = new TextDecoder();
   let size = 0;
   while (true) {
     const part = await reader.read();
@@ -39,15 +40,10 @@ async function json(
       await reader.cancel();
       throw Error("Too much map data for this area. Try a shorter distance.");
     }
-    chunks.push(part.value);
+    chunks.push(decoder.decode(part.value, { stream: true }));
   }
-  const bytes = new Uint8Array(size);
-  let at = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, at);
-    at += chunk.length;
-  }
-  return JSON.parse(new TextDecoder().decode(bytes));
+  chunks.push(decoder.decode());
+  return JSON.parse(chunks.join(""));
 }
 self.onmessage = async (event: MessageEvent) => {
   const { id, type } = event.data;
@@ -114,7 +110,7 @@ self.onmessage = async (event: MessageEvent) => {
           "Choose a valid start and a distance between 0.5 and 30 km."
         );
       const point: Point = [longitude, latitude],
-        radius = Math.min(8000, Math.max(1000, target / 3 + 400));
+        radius = Math.min(8000, Math.max(450, target / 3 + 200));
       if (
         !cached ||
         metres(point, cached.point) > 100 ||

@@ -24,6 +24,7 @@
 - See upcoming events, weather, train issues, unread mail and steps at a glance.
 - Control Govee curtain lights and trigger supported actions from iCal events.
 - Sign in with Pocket ID and keep each user's mail private.
+- Pair the [Expo companion](app/README.md) by QR code for a mobile WebView with Pocket ID sign-in.
 - Manage authentication, integrations and preferences in the app.
 - Run with Docker Compose, with images published to GHCR through CI.
 

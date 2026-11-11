@@ -15,7 +15,7 @@ export type Article = {
   url: string;
   published: string | null;
 };
-type Forecast = {
+export type Forecast = {
   source?: string;
   label: string;
   unit: string;
@@ -23,6 +23,13 @@ type Forecast = {
   feels_like: number | null;
   code: number | null;
   wind: number | null;
+  time?: string;
+  hours?: {
+    time: string;
+    temperature: number | null;
+    code: number | null;
+    rain: number | null;
+  }[];
   days: {
     date: string;
     high: number | null;
