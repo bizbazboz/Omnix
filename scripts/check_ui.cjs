@@ -548,7 +548,7 @@ let browser;
       data = { origin: "https://omnix.example.test", version: 1 };
     else if (p === "/mobile/requests/mobile-qa/approve") data = { ok: true };
     else if (p === "/mobile/requests/mobile-qa")
-      data = { code: "123456", platform: "android", approved: false };
+      data = { platform: "android", approved: false };
     else if (p === "/notes/overview") data = { recent: [note], tasks: [] };
     else if (p === "/notes/pages")
       data = { items: [note, ...nestedPages], next_offset: null };
@@ -1188,6 +1188,7 @@ let browser;
     "Pairing QR did not use the configured instance origin"
   );
   await page.goto(origin + "/mobile/approve?request=mobile-qa");
+  assert((await page.getByText("123456", { exact: true }).count()) === 0, "Pairing should not display a numeric approval code");
   await page
     .getByRole("button", { name: "Connect this device", exact: true })
     .click();

@@ -6,9 +6,7 @@ import {
   type ReactNode
 } from "react";
 import {
-  ActivityIndicator,
   Image,
-  Alert,
   BackHandler,
   Linking,
   Platform,
@@ -28,6 +26,8 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { WebView, type WebViewNavigation } from "react-native-webview";
 import { useFonts } from "expo-font";
 import { SpaceGrotesk_400Regular } from "@expo-google-fonts/space-grotesk/400Regular";
+import { SpaceMono_400Regular } from "@expo-google-fonts/space-mono/400Regular";
+import { Doto_600SemiBold } from "@expo-google-fonts/doto/600SemiBold";
 import {
   AUTH_RETURN,
   base64url,
@@ -43,7 +43,7 @@ type Source = {
   headers?: Record<string, string>;
 };
 export default function App({ children }: { children?: ReactNode }) {
-  const [fonts] = useFonts({ SpaceGrotesk_400Regular });
+  const [fonts] = useFonts({ SpaceGrotesk_400Regular, SpaceMono_400Regular, Doto_600SemiBold });
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
@@ -59,9 +59,9 @@ function Companion({ fonts }: { fonts: boolean }) {
     [source, setSource] = useState<Source>(),
     [scan, setScan] = useState(false),
     [busy, setBusy] = useState(false),
-    [code, setCode] = useState(""),
     [error, setError] = useState(""),
     [webError, setWebError] = useState(false),
+    [inputFocused, setInputFocused] = useState(false),
     [back, setBack] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const web = useRef<WebView<object>>(null),
@@ -120,32 +120,12 @@ function Companion({ fonts }: { fonts: boolean }) {
       scanned.current = false;
     }
   }, []);
-  const confirmAddress = useCallback(
-    (address: string) => {
-      Alert.alert("Connect to Omnix", address, [
-        {
-          text: "Cancel",
-          style: "cancel",
-          onPress: () => {
-            scanned.current = false;
-          }
-        },
-        {
-          text: "Connect",
-          onPress: () => {
-            void connect(address);
-          }
-        }
-      ]);
-    },
-    [connect]
-  );
   useEffect(() => {
     if (!loaded) return;
     const receive = (url: string) => {
       if (!/^omnix:\/\/pair\/?\?/.test(url)) return;
       try {
-        confirmAddress(pairingOrigin(url));
+        void connect(pairingOrigin(url));
       } catch (error) {
         setError((error as Error).message);
       }
@@ -155,7 +135,7 @@ function Companion({ fonts }: { fonts: boolean }) {
     });
     const sub = Linking.addEventListener("url", ({ url }) => receive(url));
     return () => sub.remove();
-  }, [loaded, confirmAddress]);
+  }, [loaded, connect]);
   async function call<T>(
     address: string,
     path: string,
@@ -202,7 +182,6 @@ function Companion({ fonts }: { fonts: boolean }) {
         .replace(/=+$/, "");
       const pairing = await call<{
         request_id: string;
-        code: string;
         login_url: string;
       }>(address, "/api/v1/mobile/requests", {
         challenge,
@@ -210,16 +189,17 @@ function Companion({ fonts }: { fonts: boolean }) {
       });
       if (
         !internalNavigation(pairing.login_url, address) ||
-        !/^[\w-]{43}$/.test(pairing.request_id) ||
-        !/^\d{6}$/.test(pairing.code)
+        !/^[\w-]{43}$/.test(pairing.request_id)
       )
         throw new Error("The server returned an invalid sign-in request.");
-      setCode(pairing.code);
       const result = await WebBrowser.openAuthSessionAsync(
         pairing.login_url,
         AUTH_RETURN
       );
-      if (result.type !== "success") return;
+      if (result.type !== "success") {
+        setError("Sign-in was cancelled. Try again when you are ready.");
+        return;
+      }
       if (![AUTH_RETURN, AUTH_RETURN + "/"].includes(result.url))
         throw new Error("Unexpected sign-in callback.");
       const session = await call<{
@@ -242,7 +222,6 @@ function Companion({ fonts }: { fonts: boolean }) {
     } finally {
       signingIn.current = false;
       setBusy(false);
-      setCode("");
     }
   }
   function navigate(
@@ -267,42 +246,47 @@ function Companion({ fonts }: { fonts: boolean }) {
     return false;
   }
   const font = fonts ? { fontFamily: "SpaceGrotesk_400Regular" } : {};
+  const labelFont = fonts ? { fontFamily: "SpaceMono_400Regular" } : {};
+  const displayFont = fonts ? { fontFamily: "Doto_600SemiBold" } : {};
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       {!loaded ? (
-        <ActivityIndicator color="#fff" />
+        <View style={styles.centered} accessibilityRole="progressbar" accessibilityLabel="Opening workspace">
+          <Text style={[styles.label, labelFont]}>[OPENING WORKSPACE...]</Text>
+        </View>
       ) : !origin || scan ? (
         <ScrollView
           contentContainerStyle={styles.pairing}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
         >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-              marginBottom: 32
-            }}
-          >
+          <View style={styles.brandRow}>
             <Image
               source={require("../assets/omnix.png")}
-              style={{ width: 44, height: 44 }}
+              style={styles.logo}
+              accessible={false}
             />
-            <Text style={[styles.brand, font, { marginBottom: 0 }]}>omnix</Text>
+            <Text style={[styles.brand, font]}>omnix</Text>
+            <Text style={[styles.label, labelFont]}>COMPANION</Text>
           </View>
-          <Text style={[styles.title, font]}>
-            Your workspace.{"\n"}On your phone.
-          </Text>
+          <View style={styles.hero}>
+            <Text accessibilityRole="header" style={[styles.title, displayFont]}>
+              {scan ? "Scan.\nConnect." : "Your space.\nAnywhere."}
+            </Text>
+            <Text style={[styles.copy, font]}>
+              {scan ? "Point your camera at the QR in Companion settings." : "Scan the QR in Companion settings, or enter your instance address."}
+            </Text>
+          </View>
           {scan && permission?.granted ? (
             <CameraView
               style={styles.camera}
+              accessibilityLabel="Scan an Omnix instance QR code"
               barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
               onBarcodeScanned={({ data }) => {
                 if (scanned.current) return;
                 scanned.current = true;
                 try {
-                  confirmAddress(pairingOrigin(data));
+                  void connect(pairingOrigin(data));
                 } catch (error) {
                   setError((error as Error).message);
                   scanned.current = false;
@@ -311,28 +295,34 @@ function Companion({ fonts }: { fonts: boolean }) {
             />
           ) : (
             <>
-              <Text style={[styles.copy, font]}>
-                Scan the code in Settings → Companion app, or enter your
-                instance address.
-              </Text>
+              <Text style={[styles.label, labelFont]}>INSTANCE ADDRESS</Text>
               <TextInput
                 accessibilityLabel="Instance address"
-                style={[styles.input, font]}
+                style={[styles.input, labelFont, inputFocused && styles.inputFocused, !!error && styles.inputError]}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
                 value={entry}
                 onChangeText={setEntry}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="url"
                 placeholder="https://omnix.example.com"
-                placeholderTextColor="#777"
+                placeholderTextColor="#999999"
+                selectionColor="#FFFFFF"
+                returnKeyType="go"
+                onSubmitEditing={() => {
+                  if (busy) return;
+                  try { void connect(instanceOrigin(entry)); }
+                  catch (error) { setError((error as Error).message); }
+                }}
                 editable={!busy}
               />
               {
                 <ActionButton
-                  label={"Connect"}
+                  label={busy ? "Connecting..." : "Connect"}
                   onPress={() => {
                     try {
-                      confirmAddress(instanceOrigin(entry));
+                      void connect(instanceOrigin(entry));
                     } catch (error) {
                       setError((error as Error).message);
                     }
@@ -344,7 +334,7 @@ function Companion({ fonts }: { fonts: boolean }) {
               }
               {
                 <ActionButton
-                  label={"Scan pairing code"}
+                  label={"Scan QR code"}
                   onPress={() => {
                     void (async () => {
                       const value = permission?.granted
@@ -377,88 +367,36 @@ function Companion({ fonts }: { fonts: boolean }) {
             />
           )}
           {error ? (
-            <Text accessibilityRole="alert" style={[styles.error, font]}>
+            <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.error, font]}>
               {error}
             </Text>
           ) : null}
         </ScrollView>
       ) : (
         <>
-          <View style={styles.toolbar}>
-            <Text numberOfLines={1} style={[styles.host, font]}>
-              {new URL(origin).host}
-            </Text>
-            {
-              <ActionButton
-                label={"Sign in"}
-                onPress={() => {
-                  void signIn();
-                }}
-                primary={false}
-                disabled={busy}
-                fonts={fonts}
-              />
-            }
-            {
-              <ActionButton
-                label={"Reload"}
-                onPress={() => {
-                  setWebError(false);
-                  setSource({ uri: origin });
-                }}
-                primary={false}
-                disabled={busy}
-                fonts={fonts}
-              />
-            }
-            {
-              <ActionButton
-                label={"Instance"}
-                onPress={() =>
-                  Alert.alert("Instance", origin, [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Switch",
-                      onPress: () => {
-                        void SecureStore.deleteItemAsync(INSTANCE_KEY)
-                          .then(() => {
-                            currentOrigin.current = "";
-                            setOrigin("");
-                            setSource(undefined);
-                            setBack(false);
-                            setError("");
-                          })
-                          .catch(() =>
-                            setError("Could not remove the saved instance.")
-                          );
-                      }
-                    }
-                  ])
-                }
-                primary={false}
-                disabled={busy}
-                fonts={fonts}
-              />
-            }
-          </View>
           {busy && (
             <View style={styles.notice}>
-              <ActivityIndicator color="#fff" />
-              <Text style={[styles.copy, font]}>
-                {code
-                  ? "Confirm code " + code + " in your browser"
-                  : "Connecting…"}
-              </Text>
+              <Text accessibilityLiveRegion="polite" style={[styles.label, labelFont]}>[SIGNING IN...]</Text>
             </View>
           )}
           {error ? (
-            <Text accessibilityRole="alert" style={[styles.error, font]}>
-              {error}
-            </Text>
+            <View style={styles.notice}>
+              <Text accessibilityRole="alert" style={[styles.error, font]}>
+                {error}
+              </Text>
+              <ActionButton
+                label="Try sign-in again"
+                onPress={() => void signIn()}
+                disabled={busy}
+                fonts={fonts}
+              />
+            </View>
           ) : null}
           {webError ? (
             <View style={styles.pairing}>
-              <Text style={[styles.title, font]}>Connection interrupted.</Text>
+              <Text style={[styles.label, labelFont]}>CONNECTION / OFFLINE</Text>
+              <Text accessibilityRole="header" style={[styles.title, displayFont]}>Try again.</Text>
+              <Text style={[styles.copy, font]}>Check your connection and reload the workspace.</Text>
               {
                 <ActionButton
                   label={"Retry"}
@@ -495,7 +433,9 @@ function Companion({ fonts }: { fonts: boolean }) {
                 }}
                 startInLoadingState
                 renderLoading={() => (
-                  <ActivityIndicator color="#fff" style={styles.loading} />
+                  <View style={styles.loading} pointerEvents="none">
+                    <Text accessibilityRole="progressbar" accessibilityLabel="Loading workspace" style={[styles.label, labelFont]}>[LOADING...]</Text>
+                  </View>
                 )}
               />
             )
@@ -522,22 +462,24 @@ function ActionButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.button,
         primary && styles.primary,
+        pressed && styles.pressed,
         disabled && { opacity: 0.5 }
       ]}
     >
       <Text
         style={[
           styles.buttonText,
-          fonts && { fontFamily: "SpaceGrotesk_400Regular" },
+          fonts && { fontFamily: "SpaceMono_400Regular" },
           primary && { color: "#000" }
         ]}
       >
-        {label}
+        {label.toUpperCase()}
       </Text>
     </Pressable>
   );
@@ -545,41 +487,43 @@ function ActionButton({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#000" },
   web: { flex: 1, backgroundColor: "#000" },
-  pairing: { flexGrow: 1, padding: 28, justifyContent: "center", gap: 20 },
-  brand: { color: "#fff", fontSize: 30, marginBottom: 32 },
-  title: { color: "#f5f5f5", fontSize: 36, letterSpacing: -1 },
-  copy: { color: "#aaa", fontSize: 15, lineHeight: 23 },
+  pairing: { flexGrow: 1, width: "100%", maxWidth: 560, alignSelf: "center", padding: 24, paddingTop: 32, paddingBottom: 48, gap: 16 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 48 },
+  logo: { width: 32, height: 32 },
+  brand: { flex: 1, color: "#E8E8E8", fontSize: 16 },
+  hero: { gap: 16, marginBottom: 32 },
+  title: { color: "#FFFFFF", fontSize: 48, lineHeight: 54, letterSpacing: -1 },
+  copy: { color: "#999999", fontSize: 16, lineHeight: 24 },
+  label: { color: "#999999", fontSize: 12, lineHeight: 18, letterSpacing: 0.8 },
   input: {
-    borderWidth: 1,
-    borderColor: "#333",
-    borderRadius: 6,
-    padding: 16,
-    color: "#fff",
+    borderBottomWidth: 1,
+    borderColor: "#333333",
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+    marginTop: -8,
+    marginBottom: 16,
+    minHeight: 56,
+    color: "#E8E8E8",
     fontSize: 16
   },
+  inputFocused: { borderColor: "#E8E8E8" },
+  inputError: { borderColor: "#D71921" },
   button: {
-    minHeight: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    minHeight: 56,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#333",
-    borderRadius: 6
+    borderColor: "#333333",
+    borderRadius: 999
   },
   primary: { backgroundColor: "#fff", borderColor: "#fff" },
-  buttonText: { color: "#eee", fontSize: 14 },
-  toolbar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#222"
-  },
-  host: { flex: 1, color: "#aaa", fontSize: 13 },
-  error: { color: "#ff7070", padding: 16, fontSize: 14 },
-  camera: { height: 300, borderRadius: 8 },
-  notice: { flexDirection: "row", gap: 12, alignItems: "center", padding: 16 },
-  loading: { position: "absolute", top: "45%", alignSelf: "center" }
+  pressed: { opacity: 0.7 },
+  buttonText: { color: "#E8E8E8", fontSize: 12, lineHeight: 18, letterSpacing: 0.8, textAlign: "center" },
+  error: { color: "#E8E8E8", borderLeftWidth: 2, borderLeftColor: "#D71921", paddingLeft: 16, paddingVertical: 8, fontSize: 16, lineHeight: 24 },
+  camera: { width: "100%", aspectRatio: 1, borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: "#333333" },
+  notice: { gap: 16, padding: 24, backgroundColor: "#111111" },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  loading: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#000000" }
 });
