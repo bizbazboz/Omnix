@@ -10,29 +10,29 @@
     "test:ui": "node --experimental-strip-types ../scripts/check_ui_models.mjs && node --experimental-strip-types ../scripts/check_walking_models.mjs && node ../scripts/check_ui.cjs"
   },
   "dependencies": {
-    "@blocknote/core": "0.56.0",
-    "@blocknote/react": "0.56.0",
+    "@blocknote/core": "0.57.0",
+    "@blocknote/react": "0.57.0",
     "@fontsource-variable/doto": "5.3.0",
     "@fontsource/space-grotesk": "5.3.0",
     "@fontsource/space-mono": "5.3.0",
-    "@tanstack/react-query": "5.105.0",
+    "@tanstack/react-query": "5.105.3",
     "acorn": "8.19.0",
     "highlight.js": "11.12.0",
     "leaflet": "1.9.4",
-    "lucide-react": "1.61.0",
-    "pyodide": "0.29.5",
+    "lucide-react": "1.68.0",
+    "pyodide": "314.0.7",
     "qrcode": "^1.5.4",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "react-router-dom": "7.18.4"
+    "react-router-dom": "7.18.5"
   },
   "devDependencies": {
-    "@playwright/test": "1.56.1",
-    "@types/leaflet": "1.9.21",
+    "@playwright/test": "1.64.1",
+    "@types/leaflet": "1.9.22",
     "@types/qrcode": "^1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "@vitejs/plugin-react": "6.1.2",
+    "@vitejs/plugin-react": "6.2.1",
     "typescript": "7.0.2",
     "vite": "8.3.5"
   }
