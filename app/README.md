@@ -28,13 +28,13 @@ npx expo run:android
 npx expo run:ios
 ```
 
-Use a native development build or a compiled app for the `omnix://` authentication callback. Expo Go cannot register this app's custom scheme. Native projects are generated and ignored by Git. Camera permission is optional when entering the address manually. Android back navigation and connection retry are supported.
+Use a native development build or a compiled app for the `omnix-preview://` (default) or `omnix://` (production) authentication callback. Expo Go cannot register this app's custom scheme. Native projects are generated and ignored by Git. Camera permission is optional when entering the address manually. Android back navigation and connection retry are supported.
 
 ## GitHub builds
 
 The **Companion app** workflow runs on relevant PRs, main pushes, `mobile-v*` tags and manual dispatch. After both native builds pass, main builds publish a preview under [GitHub Releases](https://github.com/bizbazboz/Omnix/releases). Pushing a `mobile-v*` tag publishes a versioned companion release. Manual runs publish when run against main or a mobile version tag; PRs and other branches only upload Actions artifacts. Companion releases do not replace the repository's global latest release.
 
-Download **omnix-android-preview.apk** (preview app ID) or **omnix-android.apk** (versioned production release) directly from the release for an installable Android release-mode APK using the template's preview/debug signing identity. It is a testing build, not a Play Store release. **omnix-ios-simulator.zip** contains an unsigned simulator app; physical iOS distribution requires your Apple signing identity and provisioning profile. **SHA256SUMS** provides download checksums. Native SDKs and builds run on GitHub runners; no Expo cloud account or EAS token is needed. The original Actions artifacts remain available for debugging.
+Download **omnix-android-preview.apk** (preview app ID) or **omnix-android.apk** (versioned production release) directly from the release for Android. Preview builds use the template identity and a separate preview app ID; versioned production builds use the private release certificate. GitHub downloads do not publish an app to the Play Store. **omnix-ios-simulator.zip** contains an unsigned simulator app; physical iOS distribution requires your Apple signing identity and provisioning profile. **SHA256SUMS** provides download checksums. Native SDKs and builds run on GitHub runners; no Expo cloud account or EAS token is needed. The original Actions artifacts remain available for debugging.
 
 Store-signed releases should use your own signing credentials; never commit a keystore or provisioning profile. The pinned `glob` and `minimatch` overrides address build-tool advisories in the current Expo dependency tree; keep them until Expo's declared versions include the fixes.
 
