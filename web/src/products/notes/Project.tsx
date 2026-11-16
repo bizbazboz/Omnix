@@ -58,9 +58,14 @@ export default function Project({ id }: { id: string }) {
   const navigate = useNavigate(),
     [params, setParams] = useSearchParams(),
     rawView = params.get("view") === "table" ? "issues" : params.get("view"),
-    view = ["board", "backlog", "issues", "overview", "notes"].includes(
-      rawView || ""
-    )
+    view = [
+      "board",
+      "backlog",
+      "issues",
+      "overview",
+      "notes",
+      "archive"
+    ].includes(rawView || "")
       ? rawView!
       : "board";
   const [draft, setDraft] = useState<Partial<Task> | null>(null),
@@ -73,7 +78,7 @@ export default function Project({ id }: { id: string }) {
   });
   const tasks = useQuery<Task[]>({
     queryKey: ["project-tasks", id],
-    queryFn: () => notesApi(`/projects/${id}/tasks`)
+    queryFn: () => notesApi(`/projects/${id}/tasks?include_archived=true`)
   });
   const pages = useQuery({
     queryKey: ["note-pages", false, ""],
@@ -128,6 +133,7 @@ export default function Project({ id }: { id: string }) {
     notes = (pages.data || []).filter((page) => page.project_id === id);
   const filtered = rows.filter(
     (task) =>
+      (view === "archive" ? Boolean(task.archived_at) : !task.archived_at) &&
       (!search ||
         (
           task.issue_key +
@@ -302,9 +308,14 @@ export default function Project({ id }: { id: string }) {
         <SegmentedControl
           label="Project view"
           value={view}
-          options={["board", "backlog", "issues", "overview", "notes"].map(
-            (value) => ({ value, label: value })
-          )}
+          options={[
+            "board",
+            "backlog",
+            "issues",
+            "overview",
+            "notes",
+            "archive"
+          ].map((value) => ({ value, label: value }))}
           onChange={(mode) => filter("view", mode, false)}
         />
         <button
@@ -333,7 +344,7 @@ export default function Project({ id }: { id: string }) {
         </p>
       )}
       {tasks.error && <p className="error">{tasks.error.message}</p>}
-      {["board", "backlog", "issues"].includes(view) && (
+      {["board", "backlog", "issues", "archive"].includes(view) && (
         <div className="project-filters issue-filters">
           <input
             type="search"
@@ -506,8 +517,14 @@ export default function Project({ id }: { id: string }) {
             </section>
           ))}
         </div>
-      ) : view === "issues" ? (
+      ) : view === "issues" || view === "archive" ? (
         <div className="issue-list" aria-label="Issues list">
+          {view === "archive" && (
+            <p className="muted">
+              Completed issues. Open an issue and change its status to return it
+              to the board.
+            </p>
+          )}
           {filtered.map(issueRow)}
           {!filtered.length && <p className="empty">No matching issues.</p>}
         </div>

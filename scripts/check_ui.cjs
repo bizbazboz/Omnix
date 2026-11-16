@@ -28,6 +28,16 @@ let browser;
     nativeRegistrations = 0,
     firebaseWrites = 0;
   let dailySaved = null;
+  const defaultHomeWidgets = [
+    "clock",
+    "unread",
+    "steps",
+    "calendar",
+    "weather",
+    "transport",
+    "news"
+  ];
+  let homePreferences = { widgets: [...defaultHomeWidgets] };
   page.on("request", (request) => {
     if (request.resourceType() === "script")
       scripts.push(new URL(request.url()).pathname);
@@ -583,6 +593,11 @@ let browser;
           is_admin: true
         }
       ];
+    else if (p === "/settings/home") {
+      if (req.method() === "PUT") homePreferences = req.postDataJSON();
+      data = homePreferences;
+    } else if (p === "/settings/android-links")
+      data = { fingerprints: [Array(32).fill("AB").join(":")] };
     else if (p === "/settings/preferences")
       data = {
         display_name: "Design QA",
@@ -705,7 +720,12 @@ let browser;
         data = { detail: "Update conflict" };
       } else {
         updates.push({ ...body, expected_revision });
-        data = { ...task, ...body, revision: task.revision + 1 };
+        data = {
+          ...task,
+          ...body,
+          archived_at: body.status === "done" ? stamp : null,
+          revision: task.revision + 1
+        };
         tasks = tasks.map((t) => (t.id === task.id ? data : t));
       }
     }
@@ -750,6 +770,25 @@ let browser;
     "Home includes secondary account, notes or health details"
   );
   assert(!requestCounts.has("/notes/overview"), "Home fetched unused notes");
+  await page.getByRole("button", { name: "Customize", exact: true }).click();
+  await page
+    .getByRole("checkbox", { name: "Clock and date", exact: true })
+    .uncheck();
+  await page.locator(".dashboard .clock").waitFor({ state: "detached" });
+  await page.reload();
+  await page.getByRole("button", { name: "Customize", exact: true }).waitFor();
+  assert(
+    (await page.locator(".dashboard .clock").count()) === 0,
+    "Hidden clock did not persist across reload"
+  );
+  await page.getByRole("button", { name: "Customize", exact: true }).click();
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await page.locator(".dashboard .clock").waitFor();
+  assert(
+    homePreferences.widgets.length === defaultHomeWidgets.length,
+    "Reset did not restore home sections"
+  );
+  await page.getByRole("button", { name: "Customize", exact: true }).click();
   await page.getByRole("button", { name: /^Notifications/ }).click();
   await page.getByRole("link", { name: /A new message/ }).click();
   await page.waitForURL("**/email?account=mail-qa&message=message-qa");
@@ -997,6 +1036,7 @@ let browser;
     "/notes/projects/project-qa?view=issues",
     "/notes/projects/project-qa?view=backlog",
     "/notes/projects/project-qa?view=overview",
+    "/notes/projects/project-qa?view=archive",
     "/notes/projects/project-qa?view=notes",
     "/notes/pages/page-qa",
     "/daily/news",
@@ -1549,6 +1589,28 @@ let browser;
     ) === Date.parse(stamp),
     "Retry fabricated a provider timestamp"
   );
+  tasks.push({
+    ...baseTask,
+    id: "archived-qa",
+    issue_key: "OMN-99",
+    issue_number: 99,
+    title: "Archived ticket",
+    status: "done",
+    archived_at: stamp
+  });
+  await page.goto(origin + "/notes/projects/project-qa?view=board");
+  assert(
+    (await page.getByRole("button", { name: /OMN-99/ }).count()) === 0,
+    "Board includes archived issues"
+  );
+  await page.goto(origin + "/notes/projects/project-qa?view=archive");
+  await page.getByRole("button", { name: /OMN-99/ }).waitFor();
+  await page.goto(origin + "/notes/projects/project-qa?issue=archived-qa");
+  await page
+    .getByRole("dialog", { name: "Issue details", exact: true })
+    .waitFor();
+  await page.getByRole("button", { name: "Close issue", exact: true }).click();
+  tasks = tasks.filter((task) => task.id !== "archived-qa");
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(origin + "/notes/projects/project-qa?view=board");
   await page

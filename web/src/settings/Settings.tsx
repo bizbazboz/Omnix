@@ -641,7 +641,7 @@ export default function Settings({
               {user.is_admin && <FirebaseIntegration />}
             </>
           ) : section === "companion" ? (
-            <Companion />
+            <Companion isAdmin={user.is_admin} />
           ) : section === "api-access" ? (
             <ApiAccess />
           ) : section === "security" ? (

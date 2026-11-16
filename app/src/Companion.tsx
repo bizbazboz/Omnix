@@ -41,7 +41,8 @@ import {
   internalNavigation,
   notificationNavigation,
   loginNavigation,
-  pairingOrigin
+  pairingOrigin,
+  appLinkNavigation
 } from "./protocol";
 WebBrowser.maybeCompleteAuthSession();
 Notifications.setNotificationHandler({
@@ -203,26 +204,34 @@ function Companion({ fonts }: { fonts: boolean }) {
     });
     return () => sub.remove();
   }, [scan, back]);
-  const connect = useCallback(async (address: string) => {
-    setBusy(true);
-    setError("");
-    try {
-      await SecureStore.setItemAsync(INSTANCE_KEY, address);
-      currentOrigin.current = address;
-      setOrigin(address);
-      setSource({ uri: address });
-      setWebError(false);
-      setScan(false);
-    } catch {
-      setError("Could not save this instance. Try again.");
-    } finally {
-      setBusy(false);
-      scanned.current = false;
-    }
-  }, []);
+  const connect = useCallback(
+    async (address: string, destination = address) => {
+      setBusy(true);
+      setError("");
+      try {
+        await SecureStore.setItemAsync(INSTANCE_KEY, address);
+        currentOrigin.current = address;
+        setOrigin(address);
+        setSource({ uri: destination });
+        setWebError(false);
+        setScan(false);
+      } catch {
+        setError("Could not save this instance. Try again.");
+      } finally {
+        setBusy(false);
+        scanned.current = false;
+      }
+    },
+    []
+  );
   useEffect(() => {
     if (!loaded) return;
     const receive = (url: string) => {
+      const destination = appLinkNavigation(url);
+      if (destination) {
+        void connect(new URL(destination).origin, destination);
+        return;
+      }
       if (!/^omnix(?:-preview)?:\/\/pair\/?\?/.test(url)) return;
       try {
         void connect(pairingOrigin(url));

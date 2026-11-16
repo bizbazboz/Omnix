@@ -148,3 +148,27 @@ export function base64url(bytes: Uint8Array): string {
   if (bits) output += chars[(value << (6 - bits)) & 63];
   return output;
 }
+
+// Only workspace URLs may become WebView entry points; OIDC callbacks stay in the browser.
+export function appLinkNavigation(input: string): string | null {
+  try {
+    const url = new URL(input);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "omnix.bizbazboz.uk" ||
+      url.port ||
+      url.username ||
+      url.password
+    )
+      return null;
+    if (
+      !/^\/(?:$|(?:email|calendar|health|notes|daily|iot|settings|onboarding)(?:\/|$))/.test(
+        url.pathname
+      )
+    )
+      return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}

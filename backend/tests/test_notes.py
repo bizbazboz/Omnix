@@ -373,7 +373,15 @@ def issue_payload(value, **changes):
             "expected_revision": value["revision"],
             **changes,
         }.items()
-        if key not in ("id", "project_id", "revision", "issue_key", "issue_number")
+        if key
+        not in (
+            "id",
+            "project_id",
+            "revision",
+            "issue_key",
+            "issue_number",
+            "archived_at",
+        )
     }
 
 
@@ -569,3 +577,84 @@ def test_custom_project_keys_are_owner_scoped(signed_client):
         ).status_code
         == 422
     )
+
+
+def test_completed_issues_archive_and_reopen(signed_client):
+    pr = project(signed_client)
+    route = BASE + "/projects/" + pr["id"] + "/tasks"
+    original = task(signed_client, pr, title="Keep history", status="todo")
+    issue = route + "/" + original["id"]
+    assert (
+        signed_client.post(
+            issue + "/comments", json={"body": "Keep this discussion"}
+        ).status_code
+        == 201
+    )
+    done = signed_client.put(
+        issue,
+        json={
+            "title": original["title"],
+            "status": "done",
+            "expected_revision": original["revision"],
+        },
+    )
+    assert done.status_code == 200, done.text
+    archived = done.json()
+    assert archived["archived_at"] and archived["progress"] == 100
+    assert signed_client.get(route).json() == []
+    assert (
+        signed_client.get(route + "?include_archived=true").json()[0]["id"]
+        == original["id"]
+    )
+    assert (
+        signed_client.get(issue + "/discussion").json()["comments"][0]["body"]
+        == "Keep this discussion"
+    )
+    exported = signed_client.get(BASE + "/export").json()
+    imported = signed_client.post(BASE + "/import", json=exported)
+    assert imported.status_code == 201, imported.text
+    copy_route = BASE + "/projects/" + imported.json()["projects"][0] + "/tasks"
+    assert signed_client.get(copy_route).json() == []
+    assert signed_client.get(copy_route + "?include_archived=true").json()[0][
+        "archived_at"
+    ]
+    reopened = signed_client.put(
+        issue,
+        json={
+            "title": original["title"],
+            "status": "todo",
+            "expected_revision": archived["revision"],
+        },
+    )
+    assert reopened.status_code == 200, reopened.text
+    assert reopened.json()["archived_at"] is None
+    assert signed_client.get(route).json()[0]["issue_key"] == original["issue_key"]
+
+
+def test_archive_migration_upgrades_existing_done_issues(signed_client):
+    import importlib.util
+    from pathlib import Path
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import text
+    from app.core import engine
+
+    pr = project(signed_client)
+    done = task(signed_client, pr, status="done")
+    spec = importlib.util.spec_from_file_location(
+        "archive_migration",
+        Path(__file__).resolve().parents[1]
+        / "migrations/versions/0012_task_archive.py",
+    )
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE project_tasks DROP COLUMN archived_at"))
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.upgrade()
+            migration.upgrade()  # Also supports a column created by the fresh-install metadata.
+    route = BASE + "/projects/" + pr["id"] + "/tasks"
+    assert signed_client.get(route).json() == []
+    preserved = signed_client.get(route + "?include_archived=true").json()[0]
+    assert preserved["archived_at"] and preserved["id"] == done["id"]
+    assert preserved["issue_key"] == done["issue_key"]

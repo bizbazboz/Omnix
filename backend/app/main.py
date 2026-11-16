@@ -1328,6 +1328,9 @@ def send_history(user=Depends(authenticated), db=Depends(db_session)):
 
 app.include_router(build_router(authenticated, db_session, rate))
 app.include_router(build_settings_router(authenticated, db_session))
+from .android_links import build_android_links_router
+
+app.include_router(build_android_links_router(authenticated, db_session))
 from .notifications import build_notification_router
 
 app.include_router(build_notification_router(authenticated, db_session))

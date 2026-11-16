@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 import CopyField from "../components/CopyField";
 import { api } from "../lib/api";
 
-export default function Companion() {
+export default function Companion({ isAdmin = false }: { isAdmin?: boolean }) {
   const query = useQuery<{ origin: string }>({
     queryKey: ["mobile-pairing"],
     queryFn: () => api("/mobile/pairing")
@@ -69,6 +69,77 @@ export default function Companion() {
       >
         Download a companion build ↗
       </a>
+      {isAdmin && <AndroidLinks origin={origin} />}
     </section>
+  );
+}
+
+function AndroidLinks({ origin }: { origin: string }) {
+  const query = useQuery<{ fingerprints: string[] }>({
+    queryKey: ["android-links"],
+    queryFn: () => api("/settings/android-links")
+  });
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  async function save() {
+    setBusy(true);
+    setMessage("");
+    try {
+      await api("/settings/android-links", {
+        method: "PUT",
+        body: JSON.stringify({
+          fingerprints: (draft ?? query.data?.fingerprints.join("\n") ?? "")
+            .split(/\n/)
+            .map((value) => value.trim())
+            .filter(Boolean)
+        })
+      });
+      await query.refetch();
+      setDraft(null);
+      setMessage("Saved.");
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="settings-group">
+      <h3>Android App Links</h3>
+      <p className="muted">
+        Production links open in the signed Android app. Keep this public
+        certificate fingerprint aligned with your release signing key. Other
+        instances can still use QR pairing.
+      </p>
+      {origin && (
+        <CopyField
+          label="Website association"
+          name="Android website association URL"
+          value={origin + "/.well-known/assetlinks.json"}
+        />
+      )}
+      <label>
+        SHA-256 signing fingerprints
+        <textarea
+          aria-label="Android signing fingerprints"
+          rows={4}
+          spellCheck={false}
+          value={draft ?? query.data?.fingerprints.join("\n") ?? ""}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+      </label>
+      <button
+        disabled={
+          busy || query.isPending || Boolean(query.error) || draft === null
+        }
+        onClick={() => void save()}
+      >
+        Save fingerprints
+      </button>
+      {(message || query.error) && (
+        <p role="status">{message || query.error?.message}</p>
+      )}
+    </div>
   );
 }

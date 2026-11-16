@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import {
   AUTH_RETURN,
+  appLinkNavigation,
   mobileGrant,
   instanceOrigin,
   pairingOrigin,
@@ -145,3 +146,26 @@ console.log(
     proofEncoding: true
   })
 );
+
+assert.equal(
+  appLinkNavigation(
+    "https://omnix.bizbazboz.uk/notes/projects/one?issue=two#details"
+  ),
+  "https://omnix.bizbazboz.uk/notes/projects/one?issue=two#details"
+);
+assert.equal(
+  appLinkNavigation("https://omnix.bizbazboz.uk/"),
+  "https://omnix.bizbazboz.uk/"
+);
+for (const url of [
+  "https://evil.test/notes",
+  "https://omnix.bizbazboz.uk.evil.test/notes",
+  "https://user@omnix.bizbazboz.uk/notes",
+  "http://omnix.bizbazboz.uk/notes",
+  "https://omnix.bizbazboz.uk/api/v1/auth/callback?code=secret",
+  "https://omnix.bizbazboz.uk/mobile/approve",
+  "https://omnix.bizbazboz.uk/mcp",
+  "https://omnix.bizbazboz.uk/notesevil",
+  "https://omnix.bizbazboz.uk:8080/notes"
+])
+  assert.equal(appLinkNavigation(url), null);
