@@ -10,7 +10,8 @@ from email.utils import parseaddr, parsedate_to_datetime
 from urllib.parse import quote
 import httpx
 from . import providers as transport
-from .core import decrypt, encrypt, redis, now
+from .core import decrypt, encrypt, redis, now, Message
+from sqlalchemy import select
 from .mail_render import plain_text
 
 MAX_ATTACHMENT = 20 * 1024 * 1024
@@ -218,6 +219,11 @@ def mime_data(raw):
 
 
 def fetch_recent(c, db, only=None, start=1):
+    known = (
+        set(db.scalars(select(Message.provider_id).where(Message.mailbox == c.id)))
+        if db is not None
+        else set()
+    )
     folders = profile(c, db)["folders"]
     if only:
         folders = [f for f in folders if f["key"] == only]
@@ -281,7 +287,27 @@ def fetch_recent(c, db, only=None, start=1):
             if status != "OK":
                 continue
             ids = list(reversed(data[0].split()))[start - 1 : start + 199]
+            prefix = folder["id"] + ":" + validity + ":"
+            known_ids = [id for id in ids if prefix + id.decode() in known]
+            if known_ids:
+                status, flags = client.uid("fetch", b",".join(known_ids), "(FLAGS)")
+                if status == "OK":
+                    for raw_flags in flags:
+                        if not isinstance(raw_flags, bytes):
+                            continue
+                        match = re.search(rb"\bUID (\d+)\b", raw_flags)
+                        if match:
+                            yield {
+                                "provider_id": prefix + match[1].decode(),
+                                "folder": folder["key"],
+                                "unread": b"\\Seen" not in raw_flags,
+                                "starred": b"\\Flagged" in raw_flags,
+                            }
             for id in ids:
+                provider_id = folder["id"] + ":" + validity + ":" + id.decode()
+                if provider_id in known:
+                    # Existing MIME content is immutable; flags were refreshed in one batch.
+                    continue
                 status, size = client.uid("fetch", id, "(RFC822.SIZE)")
                 match = (
                     re.search(

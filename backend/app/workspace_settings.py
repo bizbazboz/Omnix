@@ -76,7 +76,7 @@ class ZohoInput(BaseModel):
 
 class PipelineInput(BaseModel):
     sync_enabled: bool = True
-    sync_interval: int = Field(default=120, ge=60, le=86400)
+    sync_interval: int = Field(default=15, ge=15, le=86400)
 
 
 class RoleInput(BaseModel):
@@ -211,7 +211,7 @@ def build_settings_router(authenticated, db_session):
         )
         return {
             "configuration": load_setting(
-                "pipelines", {"sync_enabled": True, "sync_interval": 120}
+                "pipelines", {"sync_enabled": True, "sync_interval": 15}
             ),
             "runs": [
                 {

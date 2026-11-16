@@ -6,9 +6,62 @@ import {
   instanceOrigin,
   pairingOrigin,
   internalNavigation,
+  notificationNavigation,
+  firebaseClientForPackage,
   loginNavigation,
   base64url
 } from "../src/protocol.ts";
+const firebaseClient = {
+  projectId: "omnix-project",
+  appId: "1:123456789012:android:abcdef",
+  apiKey: "AIza" + "a".repeat(35),
+  messagingSenderId: "123456789012",
+  packageName: "com.bizbazboz.omnix"
+};
+assert.deepEqual(
+  firebaseClientForPackage(
+    { clients: [{ ...firebaseClient, private_key: "never-native" }] },
+    firebaseClient.packageName
+  ),
+  firebaseClient
+);
+assert.throws(() =>
+  firebaseClientForPackage(
+    { clients: [firebaseClient] },
+    "com.bizbazboz.omnix.preview"
+  )
+);
+assert.throws(() =>
+  firebaseClientForPackage(
+    { clients: [{ ...firebaseClient, apiKey: "invalid" }] },
+    firebaseClient.packageName
+  )
+);
+assert.equal(
+  firebaseClientForPackage(
+    { clients: [{ ...firebaseClient, projectId: "another-project" }] },
+    firebaseClient.packageName
+  ).projectId,
+  "another-project"
+);
+assert.equal(
+  notificationNavigation(
+    { origin: "https://omnix.example.com", href: "/email/inbox?message=one" },
+    "https://omnix.example.com"
+  ),
+  "https://omnix.example.com/email/inbox?message=one"
+);
+for (const data of [
+  null,
+  {},
+  { origin: "https://other.test", href: "/email" },
+  { origin: "https://omnix.example.com", href: "https://evil.test/email" },
+  { origin: "https://omnix.example.com", href: "/api/v1/auth/logout" }
+])
+  assert.equal(
+    notificationNavigation(data, "https://omnix.example.com"),
+    undefined
+  );
 assert.equal(
   instanceOrigin(" https://omnix.example.com/ "),
   "https://omnix.example.com"

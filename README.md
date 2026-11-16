@@ -21,10 +21,11 @@
 - Embed mail, calendar events and issues into notes with slash commands.
 - Follow custom news feeds, autocomplete weather locations and select TfL lines.
 - Plan walking loops on an online OpenStreetMap, with browser-side routing and GPX export.
+- Get Firebase notifications for new mail and headlines in the Android companion, with direct links. Configure one service-account JSON key in Integrations and enable alerts in the app.
+- Pair the [Expo companion](app/README.md) by QR code for a mobile WebView with Pocket ID sign-in.
 - See upcoming events, weather, train issues, unread mail and steps at a glance.
 - Control Govee curtain lights and trigger supported actions from iCal events.
 - Sign in with Pocket ID and keep each user's mail private.
-- Pair the [Expo companion](app/README.md) by QR code for a mobile WebView with Pocket ID sign-in.
 - Manage authentication, integrations and preferences in the app.
 - Run with Docker Compose, with images published to GHCR through CI.
 

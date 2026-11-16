@@ -23,6 +23,10 @@ let browser;
   let signedIn = true;
   let administrator = false;
   let initialSetup = false;
+  let notificationRead = false;
+  let nativeDevices = [],
+    nativeRegistrations = 0,
+    firebaseWrites = 0;
   let dailySaved = null;
   page.on("request", (request) => {
     if (request.resourceType() === "script")
@@ -408,7 +412,70 @@ let browser;
         { id: "daily", name: "Daily" },
         { id: "iot", name: "IoT" }
       ];
-    else if (p === "/settings/govee") data = { configured: true };
+    else if (p === "/notifications")
+      data = {
+        items: [
+          {
+            id: "notification-qa",
+            title: "A new message",
+            body: "Sender",
+            href: "/email?account=mail-qa&message=message-qa",
+            read: notificationRead,
+            created_at: "2026-11-05T09:00:00Z"
+          }
+        ],
+        unread: notificationRead ? 0 : 1
+      };
+    else if (
+      p === "/notifications/notification-qa/read" ||
+      p === "/notifications/read"
+    )
+      notificationRead = true;
+    else if (p === "/notifications/preferences")
+      data = { email: true, news: false, previews: false };
+    else if (p === "/notifications/devices") {
+      if (req.method() === "POST") {
+        const body = req.postDataJSON();
+        assert(
+          body.kind === "fcm" &&
+            body.endpoint.startsWith("firebase_native_token_"),
+          "Native push did not use an FCM token"
+        );
+        nativeRegistrations++;
+        data = { id: "native-device-" + nativeRegistrations };
+        nativeDevices = [{ ...data, kind: "fcm" }];
+      } else data = nativeDevices;
+    } else if (p.startsWith("/notifications/devices/native-device-")) {
+      nativeDevices = [];
+      data = {};
+    } else if (p === "/settings/firebase/client")
+      data = {
+        clients: ["com.bizbazboz.omnix", "com.bizbazboz.omnix.preview"].map(
+          (packageName) => ({
+            packageName,
+            projectId: "omnix-qa",
+            appId: "1:123456789012:android:abcdef",
+            apiKey: "AIza" + "a".repeat(35),
+            messagingSenderId: "123456789012"
+          })
+        )
+      };
+    else if (p === "/settings/firebase") {
+      if (req.method() === "PUT") {
+        firebaseWrites++;
+        assert(
+          typeof req.postDataJSON().service_account === "string",
+          "Firebase key upload missing"
+        );
+      }
+      data = {
+        configured: true,
+        key_configured: true,
+        android_configured: true,
+        project_id: "omnix-qa",
+        packages: ["com.bizbazboz.omnix"]
+      };
+    } else if (p === "/settings/govee") data = { configured: true };
     else if (p === "/iot/devices")
       data = { configured: true, items: [iotFixture] };
     else if (p === "/iot/devices/discover") data = [iotFixture];
@@ -683,6 +750,14 @@ let browser;
     "Home includes secondary account, notes or health details"
   );
   assert(!requestCounts.has("/notes/overview"), "Home fetched unused notes");
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  await page.getByRole("link", { name: /A new message/ }).click();
+  await page.waitForURL("**/email?account=mail-qa&message=message-qa");
+  await page.waitForFunction(() =>
+    document.querySelector(".reader.reader-open")
+  );
+  assert(notificationRead, "Opening a notification did not mark it read");
+  await page.goto(origin + "/");
   await page
     .getByRole("link", { name: "Open unread mail", exact: true })
     .click();
@@ -931,10 +1006,11 @@ let browser;
     "/iot",
     "/iot/activity",
     "/settings/general",
+    "/settings/companion",
+    "/settings/notifications",
     "/settings/connections",
     "/settings/security",
     "/settings/api-access",
-    "/settings/companion",
     "/settings/auth",
     "/settings/pipelines",
     "/settings/system",
@@ -947,7 +1023,8 @@ let browser;
       "/settings/auth",
       "/settings/pipelines",
       "/settings/system",
-      "/settings/administration"
+      "/settings/administration",
+      "/mobile/approve?request=mobile-qa"
     ].includes(route);
     await page.goto(origin + route);
     await page.locator("main.main").waitFor();
@@ -1065,10 +1142,10 @@ let browser;
     .getByRole("combobox", { name: "Settings category", exact: true })
     .click();
   await page
-    .getByRole("option", { name: "Companion app", exact: true })
+    .getByRole("option", { name: "Notifications", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "Take Omnix with you.", exact: true })
+    .getByRole("heading", { name: "Notifications", exact: true })
     .waitFor();
   await page.goto(origin + "/notes/projects/project-qa");
   assert(
@@ -1317,6 +1394,95 @@ let browser;
       "omnix://paired?request=mobile-qa&code=" + "a".repeat(54),
     "Approval did not return an initiator-bound one-use grant"
   );
+  const previousAdministrator = administrator;
+  administrator = true;
+  await page.goto(origin + "/settings/connections#firebase");
+  const firebasePanel = page.locator("#firebase");
+  await firebasePanel
+    .getByLabel("Service-account JSON key", { exact: true })
+    .setInputFiles({
+      name: "firebase-key.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        '{"type":"service_account","private_key":"synthetic-test-key"}'
+      )
+    });
+  await firebasePanel
+    .getByRole("button", { name: "Save Firebase", exact: true })
+    .click();
+  await firebasePanel
+    .getByText("Firebase settings saved.", { exact: true })
+    .waitFor();
+  assert(firebaseWrites === 1, "Firebase upload was not submitted");
+  administrator = previousAdministrator;
+  await page.goto(origin + "/settings/notifications");
+  assert(
+    await page
+      .getByRole("button", { name: "Enable on this device", exact: true })
+      .isDisabled(),
+    "Browser push should not be available"
+  );
+  const nativePage = await context.newPage();
+  await nativePage.bringToFront();
+  nativePage.on("pageerror", (e) => errors.push(e.message));
+  await nativePage.addInitScript(() => {
+    let count = 0;
+    window.ReactNativeWebView = {
+      postMessage: (message) => {
+        const data = JSON.parse(message);
+        if (data.type !== "omnix-push-register") return;
+        if (
+          !Array.isArray(data.firebase?.clients) ||
+          data.firebase.clients.length !== 2
+        )
+          throw new Error(
+            "Companion did not receive server Firebase configuration"
+          );
+        setTimeout(
+          () =>
+            window.dispatchEvent(
+              new CustomEvent("omnix-push", {
+                detail: {
+                  token:
+                    "firebase_native_token_abcdefghijklmnopqrstuvwxyz123456_" +
+                    ++count
+                }
+              })
+            ),
+          10
+        );
+      }
+    };
+  });
+  await nativePage.goto(origin + "/settings/notifications");
+  await nativePage
+    .getByRole("button", { name: "Enable on this device", exact: true })
+    .click();
+  await nativePage
+    .getByRole("button", { name: "Disable on this device", exact: true })
+    .waitFor();
+  assert(nativeRegistrations === 1, "Native device was not registered");
+  await nativePage.evaluate(() =>
+    window.dispatchEvent(new Event("omnix-token-changed"))
+  );
+  await nativePage.waitForFunction(
+    () => localStorage.getItem("omnix.push-device:qa") === "native-device-2"
+  );
+  assert(nativeRegistrations === 2, "Token rotation was not synchronized");
+  await nativePage
+    .getByRole("button", { name: "Send test", exact: true })
+    .click();
+  await nativePage
+    .getByText("Test notification queued.", { exact: true })
+    .waitFor();
+  await nativePage
+    .getByRole("button", { name: "Disable on this device", exact: true })
+    .click();
+  await nativePage
+    .getByRole("button", { name: "Enable on this device", exact: true })
+    .waitFor();
+  assert(nativeDevices.length === 0, "Opting out left a registered token");
+  await nativePage.close();
   await page.goto(origin + "/onboarding");
   await page
     .getByRole("heading", { name: "You're connected.", exact: true })

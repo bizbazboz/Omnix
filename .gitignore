@@ -23,6 +23,7 @@ artifacts/
 /app/android/
 /app/ios/
 /app/build/
+/app/google-services.json
 *.jks
 *.keystore
 *.mobileprovision

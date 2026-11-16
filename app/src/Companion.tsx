@@ -21,6 +21,8 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
+import * as Notifications from "expo-notifications";
+import { AndroidImportance } from "expo-notifications";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { WebView, type WebViewNavigation } from "react-native-webview";
@@ -28,17 +30,28 @@ import { useFonts } from "expo-font";
 import { SpaceGrotesk_400Regular } from "@expo-google-fonts/space-grotesk/400Regular";
 import { SpaceMono_400Regular } from "@expo-google-fonts/space-mono/400Regular";
 import { Doto_600SemiBold } from "@expo-google-fonts/doto/600SemiBold";
+import RuntimeFirebase from "../modules/omnix-firebase";
 import {
   AUTH_RETURN,
   AUTH_SCHEME,
   mobileGrant,
+  firebaseClientForPackage,
   base64url,
   instanceOrigin,
   internalNavigation,
+  notificationNavigation,
   loginNavigation,
   pairingOrigin
 } from "./protocol";
 WebBrowser.maybeCompleteAuthSession();
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true
+  })
+});
 const INSTANCE_KEY = "omnix.instance";
 type Source = {
   uri: string;
@@ -74,6 +87,87 @@ function Companion({ fonts }: { fonts: boolean }) {
     signingIn = useRef(false),
     scanned = useRef(false),
     currentOrigin = useRef(origin);
+  const handledNotification = useRef("");
+  useEffect(() => {
+    if (!origin) return;
+    const receive = (response: Notifications.NotificationResponse) => {
+      const notification = response.notification;
+      if (handledNotification.current === notification.request.identifier)
+        return;
+      let data = notification.request.content.data || {};
+      // Expo maps native FCM data.body into content.data on Android.
+      if (typeof data.body === "string") {
+        try {
+          data = { ...data, ...JSON.parse(data.body) };
+        } catch {
+          /* Ignore malformed data. */
+        }
+      }
+      const target = notificationNavigation(data, origin);
+      if (!target) return;
+      handledNotification.current = notification.request.identifier;
+      setSource({ uri: target });
+    };
+    void Notifications.getLastNotificationResponseAsync()
+      .then((r) => {
+        if (r) receive(r);
+      })
+      .catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener(receive);
+    return () => sub.remove();
+  }, [origin]);
+  useEffect(() => {
+    const sub = Notifications.addPushTokenListener(() =>
+      web.current?.injectJavaScript(
+        "window.dispatchEvent(new Event('omnix-token-changed'));true;"
+      )
+    );
+    return () => sub.remove();
+  }, []);
+  async function registerPush(url: string, silent = false, firebase?: unknown) {
+    if (!internalNavigation(url, currentOrigin.current)) return;
+    const registeringOrigin = currentOrigin.current;
+    let result: { token?: string; error?: string };
+    try {
+      if (Platform.OS !== "android")
+        throw new Error(
+          "Firebase notifications are currently available in the Android companion."
+        );
+      await Notifications.setNotificationChannelAsync("omnix", {
+        name: "Omnix",
+        importance: AndroidImportance.HIGH
+      });
+      let permission = await Notifications.getPermissionsAsync();
+      if (!permission.granted && !silent)
+        permission = await Notifications.requestPermissionsAsync();
+      if (!permission.granted)
+        throw new Error(
+          "Allow notifications in your device settings to enable alerts."
+        );
+      if (!RuntimeFirebase)
+        throw new Error(
+          "Install the updated generic companion to enable Firebase notifications."
+        );
+      const config = firebaseClientForPackage(
+        firebase,
+        RuntimeFirebase.packageName()
+      );
+      if (currentOrigin.current !== registeringOrigin) return;
+      await RuntimeFirebase.configure(config, registeringOrigin);
+      const token = await Notifications.getDevicePushTokenAsync();
+      if (token.type !== "android" || typeof token.data !== "string")
+        throw new Error(
+          "Could not obtain a Firebase device token. Check this app’s Firebase configuration."
+        );
+      result = { token: token.data };
+    } catch (error) {
+      result = { error: (error as Error).message };
+    }
+    if (currentOrigin.current === registeringOrigin)
+      web.current?.injectJavaScript(
+        `window.dispatchEvent(new CustomEvent('omnix-push',{detail:${JSON.stringify(result)}}));true;`
+      );
+  }
   useEffect(() => {
     let active = true;
     void SecureStore.getItemAsync(INSTANCE_KEY)
@@ -169,7 +263,7 @@ function Companion({ fonts }: { fonts: boolean }) {
       clearTimeout(timeout);
     }
   }
-  async function signIn() {
+  async function signIn(returnTo = "/") {
     if (signingIn.current || !origin) return;
     signingIn.current = true;
     setBusy(true);
@@ -220,7 +314,10 @@ function Companion({ fonts }: { fonts: boolean }) {
       if (currentOrigin.current === address) {
         setWebError(false);
         setSource({
-          uri: address + "/api/v1/mobile/session",
+          uri:
+            address +
+            "/api/v1/mobile/session?return_to=" +
+            encodeURIComponent(returnTo),
           headers: { "X-Omnix-Mobile-Ticket": session.ticket }
         });
       }
@@ -237,7 +334,18 @@ function Companion({ fonts }: { fonts: boolean }) {
     }
   ) {
     if (loginNavigation(request.url, origin)) {
-      void signIn();
+      let target = "/";
+      try {
+        const proposed = new URL(
+          new URL(request.url).searchParams.get("return_to") || "/",
+          origin
+        );
+        if (internalNavigation(proposed.href, origin))
+          target = proposed.pathname + proposed.search + proposed.hash;
+      } catch {
+        /* Keep the safe default for malformed return URLs. */
+      }
+      void signIn(target);
       return false;
     }
     if (internalNavigation(request.url, origin)) return true;
@@ -469,6 +577,21 @@ function Companion({ fonts }: { fonts: boolean }) {
                 setSupportMultipleWindows={false}
                 onShouldStartLoadWithRequest={navigate}
                 onNavigationStateChange={(state) => setBack(state.canGoBack)}
+                onMessage={(event) => {
+                  try {
+                    if (
+                      JSON.parse(event.nativeEvent.data).type ===
+                      "omnix-push-register"
+                    )
+                      void registerPush(
+                        event.nativeEvent.url,
+                        Boolean(JSON.parse(event.nativeEvent.data).silent),
+                        JSON.parse(event.nativeEvent.data).firebase
+                      );
+                  } catch {
+                    /* Ignore unrelated WebView messages. */
+                  }
+                }}
                 onError={() => setWebError(true)}
                 onHttpError={(event) => {
                   if (event.nativeEvent.statusCode >= 500) setWebError(true);

@@ -17,6 +17,7 @@ import {
 } from "react-router-dom";
 import { Logo } from "./components/Brand";
 import WorkspaceNavigation from "./components/WorkspaceNavigation";
+import Notifications from "./components/Notifications";
 import MobileApproval from "./settings/MobileApproval";
 import DataStatus from "./components/DataStatus";
 import "./components/workspace-ui.css";
@@ -233,6 +234,7 @@ function Workspace({ user }: { user: User }) {
           ) : (
             <DataStatus />
           )}
+          <Notifications userId={user.id} />
           {status && (
             <div className="inline-status" role="status">
               {status}

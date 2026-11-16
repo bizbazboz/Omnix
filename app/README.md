@@ -30,7 +30,13 @@ npx expo run:ios
 
 Use a native development build or a compiled app for the `omnix-preview://` (default) or `omnix://` (production) authentication callback. Expo Go cannot register this app's custom scheme. Native projects are generated and ignored by Git. Camera permission is optional when entering the address manually. Android back navigation and connection retry are supported.
 
-## GitHub builds
+## Firebase notifications
+
+Push is Android companion only and goes directly through Firebase Cloud Messaging v1; no Expo account or Expo Push Service is used. In Omnix, upload the Firebase **service-account JSON key** under Settings → Integrations → Firebase. It remains encrypted on the server. Enable email/news alerts in the companion's Notifications settings and use Send test. Notification taps open the matching message or headline in the full-screen WebView.
+
+Upload the public `google-services.json` from Firebase Project settings → Your apps to the same server integration. Include the companion package `com.bizbazboz.omnix` and, if needed, `com.bizbazboz.omnix.preview`; additional client files can be added later without uploading the private key again. The app fetches only the public options for its own package after sign-in, initializes Firebase at runtime, and restores those cached public options at process startup for background delivery. The same APK works with different instances and Firebase projects. No app `.env`, Firebase build variable, bundled Firebase file or per-instance rebuild is needed. Enable FCM HTTP v1 and grant the sending service account Firebase Cloud Messaging API Admin. iPhone push is not part of this Android setup.
+
+## Release builds
 
 The **Companion app** workflow runs on relevant PRs, main pushes, `mobile-v*` tags and manual dispatch. After both native builds pass, main builds publish a preview under [GitHub Releases](https://github.com/bizbazboz/Omnix/releases). Pushing a `mobile-v*` tag publishes a versioned companion release. Manual runs publish when run against main or a mobile version tag; PRs and other branches only upload Actions artifacts. Companion releases do not replace the repository's global latest release.
 

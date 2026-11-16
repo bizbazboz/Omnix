@@ -169,6 +169,7 @@ def build_mobile_router(authenticated, db_session, session_response):
     @router.get("/session")
     def session(
         request: Request,
+        return_to: str = "/",
         x_omnix_mobile_ticket: str = Header(default=""),
         db=Depends(db_session),
     ):
@@ -192,6 +193,8 @@ def build_mobile_router(authenticated, db_session, session_response):
             db.get(User, data["user"]), config
         ):
             raise HTTPException(401, "Sign-in configuration changed. Sign in again.")
-        return session_response(data["user"], request.cookies.get(SESSION_COOKIE))
+        return session_response(
+            data["user"], request.cookies.get(SESSION_COOKIE), return_to=return_to
+        )
 
     return router

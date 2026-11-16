@@ -105,13 +105,19 @@ def render_message(c, db, message):
                 mime = (
                     "image/png"
                     if raw.startswith(b"\x89PNG")
-                    else "image/jpeg"
-                    if raw.startswith(b"\xff\xd8")
-                    else "image/gif"
-                    if raw.startswith(b"GIF8")
-                    else "image/webp"
-                    if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP"
-                    else None
+                    else (
+                        "image/jpeg"
+                        if raw.startswith(b"\xff\xd8")
+                        else (
+                            "image/gif"
+                            if raw.startswith(b"GIF8")
+                            else (
+                                "image/webp"
+                                if raw[:4] == b"RIFF" and raw[8:12] == b"WEBP"
+                                else None
+                            )
+                        )
+                    )
                 )
                 if mime:
                     content["html"] = content["html"].replace(
@@ -175,16 +181,20 @@ def build_mail_router(authenticated, db_session, mailbox):
             else:
                 # Modified UTF-7 is required by IMAP4rev1 for non-ASCII mailbox names.
                 encoded = "".join(
-                    ch
-                    if 0x20 <= ord(ch) <= 0x7E and ch != "&"
-                    else "&-"
-                    if ch == "&"
-                    else "&"
-                    + base64.b64encode(ch.encode("utf-16-be"))
-                    .decode()
-                    .rstrip("=")
-                    .replace("/", ",")
-                    + "-"
+                    (
+                        ch
+                        if 0x20 <= ord(ch) <= 0x7E and ch != "&"
+                        else (
+                            "&-"
+                            if ch == "&"
+                            else "&"
+                            + base64.b64encode(ch.encode("utf-16-be"))
+                            .decode()
+                            .rstrip("=")
+                            .replace("/", ",")
+                            + "-"
+                        )
+                    )
                     for ch in name
                 )
                 with providers.imap_client(decrypt(c.credentials)) as client:
@@ -222,6 +232,10 @@ def build_mail_router(authenticated, db_session, mailbox):
                         422, "Destination folder is unavailable for this account."
                     )
             change_message(c, db, message, value.action, destination)
+            if value.action == "read":
+                from .notifications import email_read
+
+                email_read(db, c.owner, message.id)
             db.commit()
             if c.provider != "zoho" and destination:
                 # IMAP assigns a new UID on MOVE. Drop the old index entry and sync its destination.

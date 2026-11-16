@@ -1,5 +1,8 @@
 import GoveeIntegration from "./GoveeIntegration";
+import Notifications from "./Notifications";
 import Companion from "./Companion";
+import FirebaseIntegration from "./FirebaseIntegration";
+import MailWebhooks from "./MailWebhooks";
 import PageHeader from "../components/PageHeader";
 import DailyIntegration from "./DailyIntegration";
 import Select from "../components/Select";
@@ -364,7 +367,7 @@ function Pipelines() {
           Sync interval · seconds
           <input
             type="number"
-            min={60}
+            min={15}
             max={86400}
             value={interval}
             onChange={(e) => setInterval(Number(e.target.value))}
@@ -542,10 +545,11 @@ export default function Settings({
   }, [location.pathname, location.hash]);
   const tabs = [
     ["general", "General"],
+    ["companion", "Companion app"],
+    ["notifications", "Notifications"],
     ["connections", "Integrations"],
     ["security", "Sessions"],
     ["api-access", "API access"],
-    ["companion", "Companion app"],
     ...(user.is_admin
       ? [
           ["auth", "Authentication"],
@@ -607,6 +611,8 @@ export default function Settings({
         <div className="settings-content">
           {section === "general" ? (
             <General user={user} />
+          ) : section === "notifications" ? (
+            <Notifications userId={user.id} />
           ) : section === "connections" ? (
             <>
               <nav className="integration-shortcuts" aria-label="Integrations">
@@ -617,15 +623,22 @@ export default function Settings({
                 </NavLink>
                 <NavLink to="/settings/connections#daily">Daily</NavLink>
                 <NavLink to="/settings/connections#govee">Govee</NavLink>
+                {user.is_admin && (
+                  <NavLink to="/settings/connections#firebase">
+                    Firebase
+                  </NavLink>
+                )}
               </nav>
               <div id="mail">
                 {user.is_admin && <ZohoRegistration />}
                 <Connections accounts={accounts} notify={notify} />
+                <MailWebhooks accounts={accounts} />
               </div>
               <CalendarIntegration />
               <HealthIntegration notify={notify} />
               <DailyIntegration />
               <GoveeIntegration />
+              {user.is_admin && <FirebaseIntegration />}
             </>
           ) : section === "companion" ? (
             <Companion />

@@ -19,6 +19,7 @@ from .api_tokens import authorize_request, build_token_router
 from . import rate_limits
 from .sessions import create_session, read_session, MAX_SECONDS
 from .workspace_urls import sign_in_destination
+from .mail_hooks import is_mail_hook, build_mail_hook_router
 from .mobile import PUBLIC_POSTS, build_mobile_router
 from .workspace_settings import (
     load_zoho,
@@ -33,7 +34,6 @@ from .auth_settings import (
     configured_origin,
     normalize_origin,
 )
-
 
 app = FastAPI(title="Omnix workspace", version="1.0.0")
 BODY_READ_SECONDS = 15
@@ -90,6 +90,7 @@ async def security(request, call_next):
             "DELETE",
         )
         and request.url.path.startswith("/api/")
+        and not is_mail_hook(request.url.path)
         and request.url.path not in PUBLIC_POSTS
     ):
         setup_path = request.url.path in (
@@ -119,7 +120,11 @@ async def security(request, call_next):
             ):
                 return JSONResponse({"detail": "csrf_failed"}, status_code=403)
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
-        limit = 4096 if request.url.path in PUBLIC_POSTS else 1048576
+        limit = (
+            4096
+            if is_mail_hook(request.url.path) or request.url.path in PUBLIC_POSTS
+            else 1048576
+        )
         if request.method == "POST":
             if request.url.path.startswith(
                 "/api/v1/email/mailboxes/"
@@ -154,6 +159,21 @@ async def security(request, call_next):
             return JSONResponse({"detail": "request_body_timeout"}, status_code=408)
         request._body = bytes(body)
     response = await call_next(request)
+    if (
+        request.method in ("POST", "PUT", "PATCH", "DELETE")
+        and response.status_code < 300
+    ):
+        session = getattr(request.state, "session", None)
+        if session:
+            from .notifications import signal
+
+            for prefix, scope in (
+                ("/api/v1/email", "email"),
+                ("/api/v1/calendar", "calendar"),
+                ("/api/v1/health", "health"),
+            ):
+                if request.url.path.startswith(prefix):
+                    await run_in_threadpool(signal, session["user"], scope)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = (
         "no-referrer"
@@ -329,7 +349,17 @@ def me(request: Request, user=Depends(authenticated)):
 
 
 @app.post("/api/v1/auth/logout")
-def logout(request: Request, user=Depends(authenticated)):
+def logout(request: Request, user=Depends(authenticated), db=Depends(db_session)):
+    from sqlalchemy import delete
+
+    db.execute(
+        delete(PushDevice).where(
+            PushDevice.owner == user.id,
+            PushDevice.session_digest
+            == hashlib.sha256(request.state.sid.encode()).hexdigest(),
+        )
+    )
+    db.commit()
     redis.delete("session:" + request.state.sid)
     response = JSONResponse({"ok": True})
     response.delete_cookie(SESSION_COOKIE)
@@ -1298,6 +1328,14 @@ def send_history(user=Depends(authenticated), db=Depends(db_session)):
 
 app.include_router(build_router(authenticated, db_session, rate))
 app.include_router(build_settings_router(authenticated, db_session))
+from .notifications import build_notification_router
+
+app.include_router(build_notification_router(authenticated, db_session))
+from .firebase_push import build_firebase_router
+
+app.include_router(build_firebase_router(authenticated, db_session))
+app.include_router(build_mobile_router(authenticated, db_session, session_response))
+app.include_router(build_mail_hook_router(authenticated, db_session))
 from .calendars import build_calendar_router
 
 app.include_router(build_calendar_router(authenticated, db_session))
@@ -1320,7 +1358,6 @@ app.include_router(build_daily_router(authenticated, db_session))
 from .iot import build_iot_router
 
 app.include_router(build_iot_router(authenticated, db_session))
-app.include_router(build_mobile_router(authenticated, db_session, session_response))
 
 from .mcp_server import mount_mcp
 

@@ -46,6 +46,8 @@ with httpx.Client(
         "/daily",
         "/daily/locations?q=London",
         "/daily/transport/catalog",
+        "/notifications",
+        "/notifications/devices",
         "/mobile/pairing",
         "/mobile/requests/nonexistent",
     ]:
