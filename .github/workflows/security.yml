@@ -24,7 +24,18 @@ jobs:
             --db-repository ghcr.io/aquasecurity/trivy-db:2 \
             --scanners vuln --severity HIGH,CRITICAL --exit-code 0 --no-progress \
             --format json --output /reports/report.json
-          python -c "import json,os; r=json.load(open(os.path.join(os.environ['RUNNER_TEMP'],'omnix-security','report.json'))); v=[x for item in r.get('Results',[]) for x in item.get('Vulnerabilities',[])]; print('High findings:',sum(x['Severity']=='HIGH' for x in v)); assert not any(x['Severity']=='CRITICAL' or (x['Severity']=='HIGH' and x.get('FixedVersion')) for x in v), 'Critical or fixable High container vulnerabilities block publishing'"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads((Path(os.environ["RUNNER_TEMP"]) / "omnix-security/report.json").read_text())
+          findings = [v for result in report.get("Results", []) for v in result.get("Vulnerabilities", [])]
+          blockers = [v for v in findings if v["Severity"] == "CRITICAL" or (v["Severity"] == "HIGH" and v.get("FixedVersion"))]
+          print("High findings:", sum(v["Severity"] == "HIGH" for v in findings))
+          for v in blockers:
+              print(f"BLOCKED: {v['VulnerabilityID']} {v['PkgName']} {v['InstalledVersion']} -> {v.get('FixedVersion') or 'no fix available'} ({v['Severity']})")
+          if blockers:
+              raise SystemExit("Critical or fixable High container vulnerabilities block publishing")
+          PY
       - name: Keep the security report
         if: always()
         uses: actions/upload-artifact@v4
