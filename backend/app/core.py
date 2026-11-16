@@ -168,6 +168,52 @@ class SystemSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class Notification(Base):
+    __tablename__ = "notifications"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(20))
+    dedup: Mapped[str] = mapped_column(String(180))
+    title: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(String(500), default="")
+    href: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=now, index=True
+    )
+    read: Mapped[bool] = mapped_column(default=False)
+    __table_args__ = (UniqueConstraint("owner", "kind", "dedup"),)
+
+
+class PushDevice(Base):
+    __tablename__ = "push_devices"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    subscription: Mapped[str] = mapped_column(Text)
+    session_digest: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PushDelivery(Base):
+    __tablename__ = "push_deliveries"
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
+    notification: Mapped[str] = mapped_column(
+        ForeignKey("notifications.id", ondelete="CASCADE")
+    )
+    device: Mapped[str] = mapped_column(
+        ForeignKey("push_devices.id", ondelete="CASCADE")
+    )
+    attempts: Mapped[int] = mapped_column(default=0)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    next_attempt: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    __table_args__ = (UniqueConstraint("notification", "device"),)
+
+
 class PipelineRun(Base):
     __tablename__ = "pipeline_runs"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
@@ -336,6 +382,9 @@ class ProjectTask(Base):
     estimate: Mapped[int | None] = mapped_column(nullable=True)
     description: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String, default="todo")
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     priority: Mapped[str] = mapped_column(String, default="normal")
     start: Mapped[str | None] = mapped_column(String, nullable=True)
     end: Mapped[str | None] = mapped_column(String, nullable=True)

@@ -64,6 +64,9 @@ def sync_feed(feed_id):
             feed.status = "error"
             feed.error = "Could not refresh this feed. Check its URL and availability."
         db.commit()
+        from .notifications import signal
+
+        signal(feed.owner, "calendar")
         return feed.status == "ready"
 
 

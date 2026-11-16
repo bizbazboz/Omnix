@@ -268,6 +268,7 @@ def task_json(row):
         "parent_id": row.parent_id,
         "page_id": row.page_id,
         "status": row.status,
+        "archived_at": row.archived_at.isoformat() if row.archived_at else None,
         "priority": row.priority,
         "start": row.start,
         "end": row.end,
@@ -440,6 +441,9 @@ def put_task(row, value):
     row.dependencies = json.dumps(list(dict.fromkeys(value.dependencies)))
     if value.status == "done":
         row.progress = 100
+        row.archived_at = row.archived_at or now()
+    else:
+        row.archived_at = None
     row.updated_at = now()
 
 
@@ -1015,13 +1019,19 @@ def build_notes_router(authenticated, db_session):
         return project_json(row)
 
     @router.get("/projects/{id}/tasks")
-    def tasks(id: str, user=Depends(authenticated), db=Depends(db_session)):
+    def tasks(
+        id: str,
+        include_archived: bool = False,
+        user=Depends(authenticated),
+        db=Depends(db_session),
+    ):
         owned(db, NoteProject, id, user)
         return [
             task_json(row)
             for row in db.scalars(
                 select(ProjectTask)
                 .where(ProjectTask.project_id == id, ProjectTask.owner == user.id)
+                .where(True if include_archived else ProjectTask.archived_at.is_(None))
                 .order_by(ProjectTask.position, ProjectTask.id)
                 .limit(1000)
             )
@@ -1517,6 +1527,7 @@ def build_notes_router(authenticated, db_session):
                     "revision",
                     "issue_number",
                     "issue_key",
+                    "archived_at",
                 ):
                     payload.pop(key)
                 payload.update(

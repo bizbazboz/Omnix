@@ -35,6 +35,7 @@ export type Task = {
   parent_id: string | null;
   page_id: string | null;
   status: string;
+  archived_at?: string | null;
   priority: string;
   start: string | null;
   end: string | null;
@@ -85,7 +86,16 @@ export const defaultTask = {
   "id" | "project_id" | "revision" | "issue_key" | "issue_number"
 >;
 export function taskPayload(task: Task) {
-  const { id, project_id, revision, issue_key, issue_number, ...body } = task;
+  const {
+    id,
+    project_id,
+    revision,
+    issue_key,
+    issue_number,
+    archived_at,
+    ...body
+  } = task;
+  void archived_at;
   void issue_key;
   void issue_number;
   void id;

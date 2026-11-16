@@ -1,6 +1,5 @@
 version: 2
-# Patch/minor PRs are squash-merged after required checks pass by
-# workflows/dependabot-auto-merge.yml. Major upgrades require manual review.
+# Dependency updates open pull requests for manual review and merging.
 
 updates:
   - package-ecosystem: "npm"

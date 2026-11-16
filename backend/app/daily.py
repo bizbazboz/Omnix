@@ -247,7 +247,11 @@ def load_weather(config):
         )
 
     def reading(values, index):
-        return number(values[index]) if isinstance(values, list) and index < len(values) else None
+        return (
+            number(values[index])
+            if isinstance(values, list) and index < len(values)
+            else None
+        )
 
     hourly = data.get("hourly") or {}
     times = hourly.get("time") or []
@@ -335,7 +339,7 @@ def refresh_daily(owner, force=False):
         config = settings(owner)
         cache = load_setting("daily-cache:" + owner, {})
         for name, fetch, enabled, ttl in [
-            ("news", load_news, bool(config["news"]), 900),
+            ("news", load_news, bool(config["news"]), 60),
             ("weather", load_weather, config["weather"]["enabled"], 900),
             ("transport", load_transport, config["transport"]["enabled"], 60),
         ]:
@@ -373,9 +377,46 @@ def refresh_daily(owner, force=False):
             if fingerprint(settings(owner)[name]) != version:
                 continue
             with Session() as db:
+                from .notifications import record, signal
+
+                if (
+                    name == "news"
+                    and entry.get("data")
+                    and previous.get("data")
+                    and previous.get("version") == version
+                ):
+                    old_ids = {
+                        item["id"]
+                        for feed in previous["data"]["feeds"]
+                        for item in feed["items"]
+                    }
+                    new_items = [
+                        item
+                        for feed in entry["data"]["feeds"]
+                        if not feed["error"]
+                        for item in feed["items"]
+                        if item["id"] not in old_ids
+                    ]
+                    # One alert per refresh, linking to the newest new headline.
+                    if new_items:
+                        item = sorted(
+                            new_items,
+                            key=lambda x: x.get("published") or "",
+                            reverse=True,
+                        )[0]
+                        record(
+                            db,
+                            owner,
+                            "news",
+                            item["id"],
+                            item["title"],
+                            str(len(new_items)) + " new headlines",
+                            "/daily/news?article=" + item["id"],
+                        )
                 latest = load_setting("daily-cache:" + owner, {})
                 latest[name] = entry
                 store_setting(db, "daily-cache:" + owner, latest)
+                signal(owner, "daily")
 
 
 def build_daily_router(authenticated, db_session):

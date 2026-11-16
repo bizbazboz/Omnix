@@ -173,3 +173,46 @@
     padding-top: 28px;
   }
 }
+
+.home-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+.home-customize {
+  padding: 24px 0;
+  margin-bottom: 32px;
+  border-block: 1px solid var(--border);
+}
+.home-customize fieldset {
+  border: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px 24px;
+}
+.home-customize label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+.home-customize input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--text-primary);
+}
+.home-customize p {
+  margin-top: 16px;
+  font: 11px var(--font-mono);
+}
+.dashboard-focus .dashboard-hero.without-clock,
+.dashboard-focus .dashboard-briefing.without-calendar {
+  grid-template-columns: 1fr;
+}
+.dashboard-focus .without-clock .dashboard-at-a-glance {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.dashboard-focus .dashboard-hero:empty {
+  display: none;
+}

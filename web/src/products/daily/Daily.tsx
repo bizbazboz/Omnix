@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 import PageHeader from "../../components/PageHeader";
@@ -69,9 +69,17 @@ export default function Daily() {
   );
 }
 function News({ data }: { data: DailyData }) {
+  const location = useLocation();
+  const article = new URLSearchParams(location.search).get("article");
   const [source, setSource] = useState("");
   const all = articles(data),
     shown = all.filter((item) => !source || item.source_id === source);
+  useEffect(() => {
+    if (article)
+      document
+        .getElementById("article-" + article)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [article, data]);
   return (
     <>
       <DailyFreshness value={data.news} />
@@ -101,7 +109,11 @@ function News({ data }: { data: DailyData }) {
             ))}
           <div className="daily-news-list">
             {shown.map((item) => (
-              <article key={item.id}>
+              <article
+                key={item.id}
+                id={"article-" + item.id}
+                className={article === item.id ? "notification-target" : ""}
+              >
                 <div className="daily-news-meta">
                   <span>{item.source}</span>
                   {item.published && (

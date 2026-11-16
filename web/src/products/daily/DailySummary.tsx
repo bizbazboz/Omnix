@@ -11,7 +11,11 @@ import {
 import "./daily.css";
 import WeatherGlyph from "./WeatherGlyph";
 
-export default function DailySummary() {
+export default function DailySummary({
+  widgets = ["weather", "transport", "news"]
+}: {
+  widgets?: string[];
+}) {
   const query = useDaily(true),
     data = query.data;
   const news = articles(data).slice(0, 3),
@@ -40,7 +44,7 @@ export default function DailySummary() {
         <p className="muted">[ Loading daily overview… ]</p>
       ) : (
         <>
-          {data?.widgets.includes("weather") && (
+          {widgets.includes("weather") && data?.widgets.includes("weather") && (
             <section className="daily-summary-weather">
               {heading("Weather", "weather")}
               {data.weather.data ? (
@@ -65,34 +69,36 @@ export default function DailySummary() {
               <DailyFreshness compact value={data?.weather} />
             </section>
           )}
-          {data?.widgets.includes("transport") && (
-            <section className="daily-summary-transport">
-              {heading("Train issues", "transport")}
-              {data.transport.data ? (
-                <>
-                  {!disrupted.length && (
-                    <p className="muted">
-                      {data.transport.data.lines.length
-                        ? "Good service on your lines."
-                        : "No lines selected."}
-                    </p>
-                  )}
-                  {disrupted.slice(0, 2).map((line) => (
-                    <p key={line.id} className="daily-line-compact">
-                      {line.name}
-                      <span>
-                        {lineStatus(line)?.description || "Status unavailable"}
-                      </span>
-                    </p>
-                  ))}
-                </>
-              ) : (
-                <p className="muted">No train lines connected.</p>
-              )}
-              <DailyFreshness compact value={data?.transport} />
-            </section>
-          )}
-          {data?.widgets.includes("news") && (
+          {widgets.includes("transport") &&
+            data?.widgets.includes("transport") && (
+              <section className="daily-summary-transport">
+                {heading("Train issues", "transport")}
+                {data.transport.data ? (
+                  <>
+                    {!disrupted.length && (
+                      <p className="muted">
+                        {data.transport.data.lines.length
+                          ? "Good service on your lines."
+                          : "No lines selected."}
+                      </p>
+                    )}
+                    {disrupted.slice(0, 2).map((line) => (
+                      <p key={line.id} className="daily-line-compact">
+                        {line.name}
+                        <span>
+                          {lineStatus(line)?.description ||
+                            "Status unavailable"}
+                        </span>
+                      </p>
+                    ))}
+                  </>
+                ) : (
+                  <p className="muted">No train lines connected.</p>
+                )}
+                <DailyFreshness compact value={data?.transport} />
+              </section>
+            )}
+          {widgets.includes("news") && data?.widgets.includes("news") && (
             <section className="daily-summary-news">
               {heading("Headlines", "news")}
               {news.length ? (

@@ -14,7 +14,8 @@ celery.conf.update(
     task_soft_time_limit=240,
     task_time_limit=270,
     beat_schedule={
-        "sync-dispatch": {"task": "app.tasks.dispatch_sync", "schedule": 60.0},
+        "sync-dispatch": {"task": "app.tasks.dispatch_sync", "schedule": 5.0},
+        "push-dispatch": {"task": "app.tasks.dispatch_push", "schedule": 5.0},
         "outbox-dispatch": {"task": "app.tasks.dispatch_outbox", "schedule": 15.0},
         "recovery": {"task": "app.tasks.recover", "schedule": 60.0},
         "calendar-dispatch": {"task": "app.tasks.dispatch_calendars", "schedule": 60.0},
@@ -69,6 +70,13 @@ def health_sync(id):
     with execution("health-sync", id):
         if not sync_health(id):
             raise RuntimeError("Health refresh failed; check the connection.")
+        from .core import HealthConnection
+        from .notifications import signal
+
+        with Session() as db:
+            connection = db.get(HealthConnection, id)
+            if connection:
+                signal(connection.owner, "health")
 
 
 @celery.task(name="app.tasks.dispatch_health")
@@ -117,7 +125,7 @@ def dispatch_calendars():
             select(CalendarFeed.id).where(
                 or_(
                     CalendarFeed.last_attempt.is_(None),
-                    CalendarFeed.last_attempt <= now() - timedelta(minutes=15),
+                    CalendarFeed.last_attempt <= now() - timedelta(minutes=1),
                 )
             )
         ):
@@ -141,6 +149,10 @@ def sync(connection_id):
             if not c or c.status == "disconnected" or not c.can_read:
                 return
             try:
+                from .notifications import record, signal
+                from urllib.parse import urlencode
+
+                initial = c.last_sync is None
                 for item in fetch_messages(c, db):
                     existing = db.scalar(
                         select(Message).where(
@@ -161,13 +173,33 @@ def sync(connection_id):
                     if existing:
                         for key, value in item.items():
                             setattr(existing, key, value)
+                        if item.get("unread") is False:
+                            from .notifications import email_read
+
+                            email_read(db, c.owner, existing.id)
                     else:
-                        db.add(Message(mailbox=c.id, **item))
+                        message = Message(mailbox=c.id, **item)
+                        db.add(message)
+                        db.flush()
+                        if not initial and message.folder == "inbox" and message.unread:
+                            record(
+                                db,
+                                c.owner,
+                                "email",
+                                message.id,
+                                message.subject or "New email",
+                                message.sender_name or message.sender,
+                                "/email/inbox?"
+                                + urlencode({"account": c.id, "message": message.id}),
+                            )
                 c.status = "ready"
                 c.last_sync = now()
                 c.error = ""
                 db.commit()
+                redis.delete("sync-backoff:" + connection_id)
+                signal(c.owner, "email")
             except Exception:
+                redis.setex("sync-backoff:" + connection_id, 60, "1")
                 db.rollback()
                 c = db.get(Connection, connection_id)
                 c.status = "degraded"
@@ -176,6 +208,8 @@ def sync(connection_id):
                 raise RuntimeError(
                     "Mail sync failed; check connection status."
                 ) from None
+            finally:
+                redis.delete("sync-queued:" + connection_id)
 
 
 @celery.task(name="app.tasks.sync_older")
@@ -218,6 +252,10 @@ def sync_older(connection_id, folder):
                 db.add(Message(mailbox=c.id, **item))
         db.commit()
 
+        from .notifications import signal
+
+        signal(c.owner, "email")
+
 
 @celery.task(name="app.tasks.send", acks_late=True, reject_on_worker_lost=False)
 def send(attempt_id):
@@ -259,17 +297,20 @@ def send(attempt_id):
         a.status = "accepted"
         a.receipt = json.dumps(result)
         db.commit()
+        from .notifications import signal
+
+        signal(c.owner, "email")
 
 
 @celery.task(name="app.tasks.dispatch_sync")
 def dispatch_sync():
     redis.set("heartbeat:worker", "1", ex=180)
-    config = load_setting("pipelines", {"sync_enabled": True, "sync_interval": 120})
+    config = load_setting("pipelines", {"sync_enabled": True, "sync_interval": 15})
     if not config["sync_enabled"]:
         return
     with (
         execution("sync-dispatch"),
-        redis.lock("scheduler:sync", timeout=50, blocking_timeout=1),
+        redis.lock("scheduler:sync", timeout=4, blocking_timeout=0),
     ):
         with Session() as db:
             for c in db.scalars(
@@ -281,7 +322,31 @@ def dispatch_sync():
                     not c.last_sync
                     or (now() - c.last_sync).total_seconds() > config["sync_interval"]
                 ):
-                    sync.delay(c.id)
+                    if not redis.exists("sync-backoff:" + c.id):
+                        queue_sync(c.id)
+
+
+def queue_sync(id):
+    # De-duplicate webhook, scheduler and manual requests while a sync is queued.
+    if not redis.set("sync-queued:" + id, "1", ex=300, nx=True):
+        return
+    try:
+        sync.delay(id)
+    except Exception:
+        redis.delete("sync-queued:" + id)
+        raise
+
+
+@celery.task(name="app.tasks.dispatch_push")
+def dispatch_push():
+    from .notifications import deliver_pending
+
+    if not redis.set("push-queued", "1", ex=240, nx=True):
+        return
+    try:
+        deliver_pending()
+    finally:
+        redis.delete("push-queued")
 
 
 @celery.task(name="app.tasks.dispatch_outbox")
