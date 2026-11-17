@@ -134,9 +134,19 @@ jobs:
         env:
           RCT_NEW_ARCH_ENABLED: "1"
       - name: Build iOS simulator app
-        run: xcodebuild -workspace Omnix.xcworkspace -scheme Omnix -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ../build CODE_SIGNING_ALLOWED=NO
+        run: |
+          workspaces=( *.xcworkspace )
+          test "${#workspaces[@]}" -eq 1
+          workspace="${workspaces[0]}"
+          scheme="${workspace%.xcworkspace}"
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ../build CODE_SIGNING_ALLOWED=NO
         working-directory: app/ios
-      - run: ditto -c -k --keepParent app/build/Build/Products/Release-iphonesimulator/Omnix.app app/omnix-ios-simulator.zip
+      - name: Package iOS simulator app
+        run: |
+          apps=( app/build/Build/Products/Release-iphonesimulator/*.app )
+          test "${#apps[@]}" -eq 1
+          test -d "${apps[0]}"
+          ditto -c -k --keepParent "${apps[0]}" app/omnix-ios-simulator.zip
       - uses: actions/upload-artifact@v6
         with:
           name: omnix-ios-simulator
