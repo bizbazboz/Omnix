@@ -4,7 +4,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const preview = process.env.EXPO_PUBLIC_OMNIX_CHANNEL !== "production";
   return {
     ...config,
-    name: "Omnix",
+    name: preview ? "Omnix Preview" : "Omnix",
     slug: "omnix-companion",
     scheme: preview ? "omnix-preview" : "omnix",
     plugins: [

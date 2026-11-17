@@ -1,14 +1,25 @@
-/* A quiet home: clock first, daily essentials second. */
+/* A configurable instrument panel: one prominent clock, then daily essentials. */
 .workspace .dashboard.dashboard-focus {
-  padding: 40px var(--page-gutter) 48px;
+  padding: 32px var(--page-gutter) 48px;
   container-type: inline-size;
 }
-.dashboard-focus .dashboard-hero {
+.home-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 24px;
+}
+.home-widget-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 200px;
-  align-items: center;
-  gap: 48px;
-  padding-bottom: 40px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+  gap: 40px 24px;
+}
+.home-widget {
+  grid-column: span var(--widget-columns);
+  min-width: 0;
+}
+.home-widget-clock {
+  container-type: inline-size;
 }
 .workspace .dashboard-focus .clock-section {
   display: flex;
@@ -26,7 +37,7 @@
   color: var(--text-secondary);
 }
 .workspace .dashboard-focus .clock {
-  font-size: clamp(88px, 16cqw, 176px);
+  font-size: clamp(24px, 25cqw, 172px);
   line-height: 1;
   letter-spacing: -0.06em;
   white-space: nowrap;
@@ -41,11 +52,10 @@
   margin: 0;
   color: var(--text-secondary);
 }
-.dashboard-focus .dashboard-at-a-glance {
-  display: grid;
-  gap: 24px;
-}
-.workspace .dashboard-focus .dashboard-health {
+.workspace .dashboard-focus .dashboard-health,
+.workspace .dashboard-focus .dashboard-agenda {
+  min-width: 0;
+  margin: 0;
   padding: 0;
   border: 0;
 }
@@ -54,7 +64,8 @@
   min-height: 44px;
   margin-bottom: 8px;
 }
-.workspace .dashboard-focus .section-title h2 {
+.workspace .dashboard-focus .section-title h2,
+.home-custom-widget h2 {
   font-size: 18px;
   font-weight: 400;
 }
@@ -72,11 +83,8 @@
   min-height: 44px;
   width: fit-content;
 }
-.dashboard-focus .dashboard-stat-value:hover {
-  color: var(--text-display);
-}
-.dashboard-focus .dashboard-at-a-glance .eyebrow {
-  font-size: 9px;
+.dashboard-focus .home-widget-unread .eyebrow {
+  font-size: 10px;
 }
 .dashboard-focus .health-overview-empty {
   gap: 0;
@@ -84,19 +92,6 @@
 }
 .dashboard-focus .health-overview-empty .text-button {
   min-height: 44px;
-}
-.dashboard-focus .dashboard-briefing {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
-  gap: 40px;
-  border-top: 1px solid var(--border);
-  padding-top: 24px;
-}
-.workspace .dashboard-focus .dashboard-agenda {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
 }
 .dashboard-focus .upcoming-event {
   grid-template-columns: 88px minmax(0, 1fr) 14px;
@@ -111,18 +106,13 @@
   font-size: 10px;
 }
 .workspace .dashboard-focus .daily-summary {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-content: start;
-  gap: 24px;
+  display: block;
   margin: 0;
   padding: 0;
   border: 0;
 }
 .workspace .dashboard-focus .daily-summary:empty {
   display: none;
-}
-.dashboard-focus .daily-summary-news {
-  grid-column: 1 / -1;
 }
 .workspace .dashboard-focus .daily-hero-number {
   font: 400 32px/1.4 var(--font-mono);
@@ -141,6 +131,11 @@
 .workspace .dashboard-focus .daily-freshness {
   margin: 12px 0 0;
 }
+.home-widget-news .daily-headlines {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 24px;
+}
 .workspace .dashboard-focus .daily-headlines a {
   min-height: 44px;
   padding: 12px 0;
@@ -150,69 +145,152 @@
 .workspace .dashboard-focus .daily-headlines a:last-child {
   border: 0;
 }
-@container (max-width: 740px) {
-  .dashboard-focus .dashboard-hero {
-    grid-template-columns: 1fr;
-    gap: 32px;
-    padding-bottom: 32px;
-  }
-  .workspace .dashboard-focus .clock {
-    font-size: clamp(72px, 28cqw, 160px);
-  }
-  .dashboard-focus .dashboard-at-a-glance {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px;
-  }
-  .dashboard-focus .dashboard-briefing {
-    grid-template-columns: 1fr;
-    gap: 32px;
-  }
-}
-@media (max-width: 760px) {
-  .workspace .dashboard.dashboard-focus {
-    padding-top: 28px;
-  }
-}
-
-.home-controls {
-  display: flex;
-  justify-content: flex-end;
+.home-custom-widget h2 {
   margin-bottom: 16px;
+}
+.home-custom-widget iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: #000;
 }
 .home-customize {
   padding: 24px 0;
   margin-bottom: 32px;
   border-block: 1px solid var(--border);
 }
-.home-customize fieldset {
-  border: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px 24px;
-}
-.home-customize label {
+.home-customize-actions,
+.home-widget-palette {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.home-customize .section-title {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.home-widget-palette {
+  margin: 16px 0;
+}
+.home-widget-palette button {
   min-height: 44px;
-}
-.home-customize input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--text-primary);
-}
-.home-customize p {
-  margin-top: 16px;
+  padding: 8px 16px;
   font: 11px var(--font-mono);
 }
-.dashboard-focus .dashboard-hero.without-clock,
-.dashboard-focus .dashboard-briefing.without-calendar {
-  grid-template-columns: 1fr;
+.home-widget-palette button[aria-pressed="true"] {
+  color: #000;
+  background: var(--text-primary);
 }
-.dashboard-focus .without-clock .dashboard-at-a-glance {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+.home-customize > p,
+.home-widget-editor > p {
+  font: 11px/1.6 var(--font-mono);
 }
-.dashboard-focus .dashboard-hero:empty {
-  display: none;
+.home-widget-editor {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  max-width: 760px;
+}
+.home-widget-editor > label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.home-widget-editor textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  font: 12px/1.6 var(--font-mono);
+}
+.home-widget-editor > button {
+  justify-self: start;
+}
+.home-layout-error {
+  margin-bottom: 24px;
+  color: var(--error);
+}
+.home-layout-error button {
+  margin: 12px 12px 0 0;
+}
+.is-customizing .home-widget {
+  outline: 1px dashed var(--border-visible);
+  outline-offset: 8px;
+}
+.home-widget-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.home-widget-tools > .eyebrow {
+  flex: 1 1 56px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-widget-tools .select-field {
+  flex: 1 1 86px;
+  min-width: 0;
+}
+.home-widget-tools .select-trigger {
+  padding-inline: 10px;
+}
+.home-widget-tools .icon-button {
+  min-width: 36px;
+  min-height: 44px;
+}
+.home-widget-grip {
+  touch-action: none;
+  cursor: grab;
+}
+.home-widget.is-dragging {
+  opacity: 0.55;
+}
+.home-widget.is-drop-target {
+  outline: 2px solid var(--text-primary);
+}
+.is-customizing .home-custom-widget iframe {
+  pointer-events: none;
+}
+@container (max-width: 740px) {
+  .home-widget {
+    grid-column: span 6;
+  }
+  .home-widget-clock,
+  .home-widget-calendar,
+  .home-widget-news,
+  .home-widget-html,
+  .home-widget-webview {
+    grid-column: 1 / -1;
+  }
+  .home-widget-grid {
+    gap: 32px 24px;
+  }
+}
+@container (max-width: 340px) {
+  .home-widget-weather,
+  .home-widget-transport {
+    grid-column: 1 / -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-widget {
+    transition: none;
+  }
+}
+
+.home-controls button,
+.home-customize-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-widget-palette button {
+  border-radius: 6px;
 }

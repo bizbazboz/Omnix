@@ -2,6 +2,7 @@ import { api, qc, type User } from "./api";
 declare global {
   interface Window {
     ReactNativeWebView?: { postMessage: (data: string) => void };
+    omnixNativeSend?: (data: Record<string, unknown>) => void;
   }
 }
 export async function enablePush(
@@ -21,6 +22,7 @@ export async function enablePush(
     function cleanup() {
       clearTimeout(timer);
       window.removeEventListener("omnix-push", receive);
+      window.removeEventListener("omnix-native-ready", ready);
     }
     async function receive(event: Event) {
       cleanup();
@@ -40,14 +42,22 @@ export async function enablePush(
         reject(error);
       }
     }
+    const message = { type: "omnix-push-register", silent, firebase };
+    function ready() {
+      window.omnixNativeSend?.(message);
+    }
     window.addEventListener("omnix-push", receive);
-    window.ReactNativeWebView!.postMessage(
-      JSON.stringify({ type: "omnix-push-register", silent, firebase })
-    );
+    window.addEventListener("omnix-native-ready", ready);
+    sendNative(message);
   });
 }
 export async function disablePush(id: string) {
   await api("/notifications/devices/" + encodeURIComponent(id), {
     method: "DELETE"
   });
+}
+
+export function sendNative(message: Record<string, unknown>) {
+  if (window.omnixNativeSend) window.omnixNativeSend(message);
+  else window.ReactNativeWebView?.postMessage(JSON.stringify(message));
 }

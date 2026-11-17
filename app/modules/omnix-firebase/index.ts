@@ -8,5 +8,11 @@ export type FirebaseClient = {
 };
 export default requireOptionalNativeModule<{
   packageName(): string;
+  linkStatus(): {
+    packageName: string;
+    supported: boolean;
+    allowed: boolean;
+    domains: Record<string, number>;
+  };
   configure(config: FirebaseClient, origin: string): Promise<void>;
 }>("OmnixFirebase");

@@ -50,8 +50,26 @@ def main():
                     raise RuntimeError(
                         "Test configuration refers to non-isolated storage"
                     )
-        run("docker", "build", "--target", "production", "-t", "omnix:local", ".")
-        run("docker", "build", "--target", "test", "-t", "omnix-test:local", ".")
+        run(
+            "docker",
+            "build",
+            "--load",
+            "--target",
+            "production",
+            "-t",
+            "omnix:local",
+            ".",
+        )
+        run(
+            "docker",
+            "build",
+            "--load",
+            "--target",
+            "test",
+            "-t",
+            "omnix-test:local",
+            ".",
+        )
         run(
             *COMPOSE, "up", "-d", "--wait", "--wait-timeout", "180", "postgres", "redis"
         )

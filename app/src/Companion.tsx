@@ -42,7 +42,9 @@ import {
   notificationNavigation,
   loginNavigation,
   pairingOrigin,
-  appLinkNavigation
+  appLinkNavigation,
+  nativeBridgeBootstrap,
+  nativeBridgeMessage
 } from "./protocol";
 WebBrowser.maybeCompleteAuthSession();
 Notifications.setNotificationHandler({
@@ -84,6 +86,8 @@ function Companion({ fonts }: { fonts: boolean }) {
     [inputFocused, setInputFocused] = useState(false),
     [back, setBack] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
+  const [bridgeToken] = useState(() => base64url(Crypto.getRandomBytes(32)));
+  const bridgeScript = nativeBridgeBootstrap(bridgeToken);
   const web = useRef<WebView<object>>(null),
     signingIn = useRef(false),
     scanned = useRef(false),
@@ -342,6 +346,11 @@ function Companion({ fonts }: { fonts: boolean }) {
       isTopFrame?: boolean;
     }
   ) {
+    if (request.isTopFrame === false)
+      return (
+        request.url.startsWith("https:") ||
+        ["about:blank", "about:srcdoc"].includes(request.url)
+      );
     if (loginNavigation(request.url, origin)) {
       let target = "/";
       try {
@@ -358,11 +367,6 @@ function Companion({ fonts }: { fonts: boolean }) {
       return false;
     }
     if (internalNavigation(request.url, origin)) return true;
-    if (
-      request.isTopFrame === false &&
-      ["about:blank", "about:srcdoc"].includes(request.url)
-    )
-      return true;
     if (/^(https:|mailto:|tel:)/.test(request.url))
       void Linking.openURL(request.url).catch(() =>
         setError("Could not open this link.")
@@ -586,20 +590,40 @@ function Companion({ fonts }: { fonts: boolean }) {
                 setSupportMultipleWindows={false}
                 onShouldStartLoadWithRequest={navigate}
                 onNavigationStateChange={(state) => setBack(state.canGoBack)}
+                injectedJavaScriptBeforeContentLoaded={bridgeScript}
+                injectedJavaScriptBeforeContentLoadedForMainFrameOnly
+                injectedJavaScriptForMainFrameOnly
+                onLoadEnd={() => web.current?.injectJavaScript(bridgeScript)}
                 onMessage={(event) => {
-                  try {
-                    if (
-                      JSON.parse(event.nativeEvent.data).type ===
-                      "omnix-push-register"
+                  if (
+                    !internalNavigation(
+                      event.nativeEvent.url,
+                      currentOrigin.current
                     )
-                      void registerPush(
-                        event.nativeEvent.url,
-                        Boolean(JSON.parse(event.nativeEvent.data).silent),
-                        JSON.parse(event.nativeEvent.data).firebase
-                      );
-                  } catch {
-                    /* Ignore unrelated WebView messages. */
-                  }
+                  )
+                    return;
+                  const message = nativeBridgeMessage(
+                    event.nativeEvent.data,
+                    bridgeToken
+                  );
+                  if (message?.type === "omnix-push-register")
+                    void registerPush(
+                      event.nativeEvent.url,
+                      message.silent,
+                      message.firebase
+                    );
+                  else if (message?.type === "omnix-app-info") {
+                    const info = RuntimeFirebase?.linkStatus?.() ?? {
+                      packageName: RuntimeFirebase?.packageName() || "",
+                      supported: false,
+                      allowed: false,
+                      domains: {}
+                    };
+                    web.current?.injectJavaScript(
+                      `window.dispatchEvent(new CustomEvent('omnix-app-info',{detail:${JSON.stringify({ ...info, platform: Platform.OS })}}));true;`
+                    );
+                  } else if (message?.type === "omnix-open-settings")
+                    void Linking.openSettings();
                 }}
                 onError={() => setWebError(true)}
                 onHttpError={(event) => {

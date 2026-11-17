@@ -521,8 +521,8 @@ export default function Project({ id }: { id: string }) {
         <div className="issue-list" aria-label="Issues list">
           {view === "archive" && (
             <p className="muted">
-              Completed issues. Open an issue and change its status to return it
-              to the board.
+              Issues closed for at least seven days. Change an issue's status to
+              return it to the board.
             </p>
           )}
           {filtered.map(issueRow)}

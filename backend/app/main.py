@@ -190,6 +190,18 @@ async def security(request, call_next):
             "connect-src https://photon.komoot.io https://overpass-api.de; "
             "object-src 'none'; base-uri 'none'"
         )
+    if (
+        response.status_code == 200
+        and request.url.path.startswith("/api/v1/settings/home/widgets/")
+        and request.url.path.endswith("/frame")
+    ):
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; "
+            "img-src https: data:; connect-src https:; frame-src https:; font-src https: data:; "
+            "sandbox allow-scripts; frame-ancestors 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+        )
     if request.url.path == "/notebook/runtime.html":
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Content-Security-Policy"] = (
@@ -1328,6 +1340,9 @@ def send_history(user=Depends(authenticated), db=Depends(db_session)):
 
 app.include_router(build_router(authenticated, db_session, rate))
 app.include_router(build_settings_router(authenticated, db_session))
+from .home_widgets import build_home_router
+
+app.include_router(build_home_router(authenticated, db_session))
 from .android_links import build_android_links_router
 
 app.include_router(build_android_links_router(authenticated, db_session))

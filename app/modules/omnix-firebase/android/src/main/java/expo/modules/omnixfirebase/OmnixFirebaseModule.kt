@@ -1,6 +1,8 @@
 package expo.modules.omnixfirebase
 
 import android.content.Context
+import android.os.Build
+import android.content.pm.verify.domain.DomainVerificationManager
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
@@ -79,6 +81,13 @@ class OmnixFirebaseModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("OmnixFirebase")
     Function("packageName") { appContext.reactContext?.packageName ?: "" }
+    Function("linkStatus") {
+      val context = appContext.reactContext
+      val state = if (context != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+        context.getSystemService(DomainVerificationManager::class.java)?.getDomainVerificationUserState(context.packageName) else null
+      mapOf("packageName" to (context?.packageName ?: ""), "supported" to (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S),
+        "allowed" to (state?.isLinkHandlingAllowed ?: false), "domains" to (state?.hostToStateMap ?: emptyMap<String, Int>()))
+    }
     AsyncFunction("configure") { config: Map<String, String>, origin: String, promise: Promise ->
       val context = appContext.reactContext
       if (context == null) {
