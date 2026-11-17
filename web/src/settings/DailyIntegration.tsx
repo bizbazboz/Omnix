@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MapPin, Plus, Trash2 } from "lucide-react";
 import { api, qc } from "../lib/api";
 import Select from "../components/Select";
-import { dailyViews, type DailyView } from "../products/daily/api";
+import { type DailyView } from "../products/daily/api";
 import "../products/daily/daily.css";
 
 type Provider = {
@@ -191,28 +191,6 @@ export default function DailyIntegration() {
           }
         }}
       >
-        <fieldset>
-          <legend>Home screen</legend>
-          <div className="daily-widget-options">
-            {dailyViews.map((view) => (
-              <label key={view.id}>
-                <input
-                  type="checkbox"
-                  checked={value.widgets.includes(view.id)}
-                  onChange={(e) =>
-                    setForm({
-                      ...value,
-                      widgets: e.target.checked
-                        ? [...value.widgets, view.id]
-                        : value.widgets.filter((id) => id !== view.id)
-                    })
-                  }
-                />
-                {view.name}
-              </label>
-            ))}
-          </div>
-        </fieldset>
         <fieldset>
           <legend>News · RSS / Atom</legend>
           <div className="daily-source-list">

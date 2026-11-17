@@ -49,7 +49,10 @@ let browser;
       path: path.join(process.env.OMNIX_UI_SCREENSHOTS, name + ".png")
     });
   }
-  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("pageerror", (e) => {
+    errors.push(e.message);
+    console.error("Browser runtime error:", e.message);
+  });
   const assert = (v, m) => {
     if (!v) throw Error(m);
   };
@@ -593,9 +596,39 @@ let browser;
           is_admin: true
         }
       ];
-    else if (p === "/settings/home") {
-      if (req.method() === "PUT") homePreferences = req.postDataJSON();
-      data = homePreferences;
+    else if (p.startsWith("/settings/home/widgets/") && p.endsWith("/frame")) {
+      const widget = homePreferences.layout?.find((widget) =>
+        p.includes("/" + widget.id + "/")
+      );
+      await route.fulfill({
+        status: widget ? 200 : 404,
+        contentType: "text/html",
+        headers: {
+          "Content-Security-Policy":
+            "sandbox allow-scripts; frame-ancestors 'self'; form-action 'none'"
+        },
+        body:
+          "<style>body{margin:0;background:#000;color:#e8e8e8;font:14px/1.5 system-ui}</style>" +
+          (widget?.html || "Widget not found")
+      });
+      return;
+    } else if (p === "/settings/home") {
+      if (req.method() === "PUT") {
+        const body = req.postDataJSON();
+        if (
+          body.expected_revision !== undefined &&
+          body.expected_revision !== (homePreferences.revision ?? 0)
+        ) {
+          status = 409;
+          data = { detail: "Layout changed" };
+        } else
+          homePreferences = {
+            widgets: body.widgets,
+            layout: body.layout,
+            revision: (homePreferences.revision ?? 0) + 1
+          };
+      }
+      if (status !== 409) data = homePreferences;
     } else if (p === "/settings/android-links")
       data = { fingerprints: [Array(32).fill("AB").join(":")] };
     else if (p === "/settings/preferences")
@@ -723,7 +756,9 @@ let browser;
         data = {
           ...task,
           ...body,
-          archived_at: body.status === "done" ? stamp : null,
+          completed_at:
+            body.status === "done" ? task.completed_at || stamp : null,
+          archived_at: body.status === "done" ? task.archived_at || null : null,
           revision: task.revision + 1
         };
         tasks = tasks.map((t) => (t.id === task.id ? data : t));
@@ -772,23 +807,155 @@ let browser;
   assert(!requestCounts.has("/notes/overview"), "Home fetched unused notes");
   await page.getByRole("button", { name: "Customize", exact: true }).click();
   await page
-    .getByRole("checkbox", { name: "Clock and date", exact: true })
-    .uncheck();
+    .getByRole("button", { name: "Clock and date", exact: true })
+    .click();
   await page.locator(".dashboard .clock").waitFor({ state: "detached" });
   await page.reload();
   await page.getByRole("button", { name: "Customize", exact: true }).waitFor();
   assert(
     (await page.locator(".dashboard .clock").count()) === 0,
-    "Hidden clock did not persist across reload"
+    "Hidden clock did not persist"
   );
   await page.getByRole("button", { name: "Customize", exact: true }).click();
-  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await page.getByRole("button", { name: "Reset layout", exact: true }).click();
   await page.locator(".dashboard .clock").waitFor();
+  await page.setViewportSize({ width: 1280, height: 1400 });
+  const grip = page.getByRole("button", {
+    name: "Move Unread mail",
+    exact: true
+  });
+  const target = page.getByRole("button", { name: "Move Steps", exact: true });
+  await grip.scrollIntoViewIfNeeded();
+  const a = await grip.boundingBox(),
+    b = await target.boundingBox();
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForFunction(
+    () =>
+      Array.from(document.querySelectorAll("[data-home-widget]")).findIndex(
+        (e) => e.dataset.homeWidget === "steps"
+      ) <
+      Array.from(document.querySelectorAll("[data-home-widget]")).findIndex(
+        (e) => e.dataset.homeWidget === "unread"
+      )
+  );
+  await page
+    .getByRole("status")
+    .filter({ hasText: /^SAVED$/ })
+    .waitFor();
+  assert(
+    homePreferences.layout.findIndex((widget) => widget.kind === "steps") <
+      homePreferences.layout.findIndex((widget) => widget.kind === "unread"),
+    "Drag/drop did not save widget order"
+  );
+  await page
+    .getByRole("button", { name: "Move Unread mail", exact: true })
+    .press("ArrowLeft");
+  await page
+    .getByRole("status")
+    .filter({ hasText: /^SAVED$/ })
+    .waitFor();
+  await page.setViewportSize({ width: 390, height: 900 });
+  const touchGrip = page.getByRole("button", {
+    name: "Move Unread mail",
+    exact: true
+  });
+  const touchTarget = page.getByRole("button", {
+    name: "Move Steps",
+    exact: true
+  });
+  await touchGrip.scrollIntoViewIfNeeded();
+  const ta = await touchGrip.boundingBox(),
+    tb = await touchTarget.boundingBox();
+  const touch = await page.context().newCDPSession(page);
+  await touch.send("Emulation.setTouchEmulationEnabled", { enabled: true });
+  await touch.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: ta.x + ta.width / 2, y: ta.y + ta.height / 2 }]
+  });
+  for (let step = 1; step <= 12; step++)
+    await touch.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [
+        {
+          x: ta.x + ta.width / 2 + ((tb.x - ta.x) * step) / 12,
+          y: ta.y + ta.height / 2 + ((tb.y - ta.y) * step) / 12
+        }
+      ]
+    });
+  await touch.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: []
+  });
+  await page
+    .getByRole("status")
+    .filter({ hasText: /^SAVED$/ })
+    .waitFor();
+  assert(
+    homePreferences.layout.findIndex((widget) => widget.kind === "steps") <
+      homePreferences.layout.findIndex((widget) => widget.kind === "unread"),
+    "Touch drag/drop did not save widget order"
+  );
+  await touch.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+  await touch.detach();
+  await page.setViewportSize({ width: 1280, height: 1400 });
+  await page.getByRole("button", { name: "Add widget", exact: true }).click();
+  const widgetForm = page.getByRole("form", {
+    name: "Widget settings",
+    exact: true
+  });
+  await widgetForm
+    .getByRole("textbox", { name: "Widget title", exact: true })
+    .fill("Custom panel");
+  await widgetForm
+    .getByRole("textbox", { name: "Widget HTML", exact: true })
+    .fill("<h2>My private panel</h2><script>window.widgetReady=true</script>");
+  await widgetForm
+    .getByRole("button", { name: "Add widget", exact: true })
+    .click();
+  await widgetForm.waitFor({ state: "detached" });
+  const custom = page.frameLocator('iframe[title="Custom panel"]');
+  await custom
+    .getByRole("heading", { name: "My private panel", exact: true })
+    .waitFor();
+  const customFrame = page
+    .frames()
+    .find((frame) => frame.url().includes("/settings/home/widgets/"));
+  assert(
+    (await customFrame.evaluate(() => {
+      try {
+        return Boolean(parent.document.body);
+      } catch {
+        return false;
+      }
+    })) === false,
+    "Custom widget accessed the workspace document"
+  );
+  assert(
+    (await customFrame.evaluate(() => window.widgetReady)) === true,
+    "Custom widget scripts did not run in isolation"
+  );
+  await capture("home-customize-desktop");
+  await page.setViewportSize({ width: 390, height: 900 });
+  await capture("home-customize-mobile");
+  await page
+    .getByRole("button", { name: "Remove Custom panel", exact: true })
+    .click();
+  await page
+    .locator('iframe[title="Custom panel"]')
+    .waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Reset layout", exact: true }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: /^SAVED$/ })
+    .waitFor();
   assert(
     homePreferences.widgets.length === defaultHomeWidgets.length,
     "Reset did not restore home sections"
   );
-  await page.getByRole("button", { name: "Customize", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.getByRole("button", { name: /^Notifications/ }).click();
   await page.getByRole("link", { name: /A new message/ }).click();
   await page.waitForURL("**/email?account=mail-qa&message=message-qa");
@@ -1250,10 +1417,6 @@ let browser;
     .check();
   await page.keyboard.press("Escape");
   await dailyForm
-    .getByRole("group", { name: "Home screen", exact: true })
-    .getByRole("checkbox", { name: "Weather", exact: true })
-    .uncheck();
-  await dailyForm
     .getByRole("button", { name: "Save daily sources", exact: true })
     .click();
   await dailyForm
@@ -1271,11 +1434,18 @@ let browser;
     "Train-line dropdown selection did not save"
   );
   assert(
-    dailySaved.news.length === 2 && !dailySaved.widgets.includes("weather"),
+    dailySaved.news.length === 2,
     "Custom Daily sources or widget choice did not save"
   );
   await page.goto(origin + "/");
-  await page.locator(".daily-summary").waitFor();
+  await page.locator(".home-widget-news .daily-summary").waitFor();
+  await page.getByRole("button", { name: "Customize", exact: true }).click();
+  await page.getByRole("button", { name: "Weather", exact: true }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: /^SAVED$/ })
+    .waitFor();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await page
     .locator(".daily-summary")
     .getByRole("link", { name: /A useful daily headline/ })

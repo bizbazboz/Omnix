@@ -63,15 +63,6 @@ class Preferences(BaseModel):
     onboarding_completed: bool = False
 
 
-HOME_WIDGETS = ["clock", "unread", "steps", "calendar", "weather", "transport", "news"]
-
-
-class HomePreferences(BaseModel):
-    widgets: list[
-        Literal["clock", "unread", "steps", "calendar", "weather", "transport", "news"]
-    ] = Field(default_factory=lambda: HOME_WIDGETS.copy(), max_length=7)
-
-
 class WorkspaceInput(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     private_mail_hosts: list[str] = Field(default_factory=list, max_length=50)
@@ -94,20 +85,6 @@ class RoleInput(BaseModel):
 
 def build_settings_router(authenticated, db_session):
     router = APIRouter(prefix="/api/v1/settings")
-
-    @router.get("/home")
-    def get_home(user=Depends(authenticated)):
-        return load_setting("home:" + user.id, HomePreferences().model_dump())
-
-    @router.put("/home")
-    def put_home(
-        body: HomePreferences, user=Depends(authenticated), db=Depends(db_session)
-    ):
-        if len(set(body.widgets)) != len(body.widgets):
-            raise HTTPException(422, "Choose each home section only once.")
-        value = body.model_dump()
-        store_setting(db, "home:" + user.id, value)
-        return value
 
     def administrator(user=Depends(authenticated)):
         if not user.is_admin:

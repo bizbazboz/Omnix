@@ -12,9 +12,11 @@ import "./daily.css";
 import WeatherGlyph from "./WeatherGlyph";
 
 export default function DailySummary({
-  widgets = ["weather", "transport", "news"]
+  widgets = ["weather", "transport", "news"],
+  respectIntegrationVisibility = true
 }: {
   widgets?: string[];
+  respectIntegrationVisibility?: boolean;
 }) {
   const query = useDaily(true),
     data = query.data;
@@ -34,7 +36,12 @@ export default function DailySummary({
     );
   }
   return (
-    <section className="daily-summary" aria-label="Daily overview">
+    <section
+      className="daily-summary"
+      aria-label={
+        widgets.length === 1 ? widgets[0] + " overview" : "Daily overview"
+      }
+    >
       {query.error ? (
         <p className="error">
           Daily overview unavailable.{" "}
@@ -44,33 +51,38 @@ export default function DailySummary({
         <p className="muted">[ Loading daily overview… ]</p>
       ) : (
         <>
-          {widgets.includes("weather") && data?.widgets.includes("weather") && (
-            <section className="daily-summary-weather">
-              {heading("Weather", "weather")}
-              {data.weather.data ? (
-                <>
-                  <span className="eyebrow">{data.weather.data.label}</span>
-                  <div className="daily-summary-temperature">
-                    <div className="daily-hero-number">
-                      {number(data.weather.data.temperature)}
-                      <small>{data.weather.data.unit}</small>
+          {widgets.includes("weather") &&
+            data &&
+            (!respectIntegrationVisibility ||
+              data.widgets.includes("weather")) && (
+              <section className="daily-summary-weather">
+                {heading("Weather", "weather")}
+                {data.weather.data ? (
+                  <>
+                    <span className="eyebrow">{data.weather.data.label}</span>
+                    <div className="daily-summary-temperature">
+                      <div className="daily-hero-number">
+                        {number(data.weather.data.temperature)}
+                        <small>{data.weather.data.unit}</small>
+                      </div>
+                      <WeatherGlyph code={data.weather.data.code} size={48} />
                     </div>
-                    <WeatherGlyph code={data.weather.data.code} size={48} />
-                  </div>
-                  <p>{weatherLabel(data.weather.data.code)}</p>
-                </>
-              ) : (
-                <p className="muted">
-                  {data.weather.enabled
-                    ? "Forecast pending"
-                    : "Weather not connected"}
-                </p>
-              )}
-              <DailyFreshness compact value={data?.weather} />
-            </section>
-          )}
+                    <p>{weatherLabel(data.weather.data.code)}</p>
+                  </>
+                ) : (
+                  <p className="muted">
+                    {data.weather.enabled
+                      ? "Forecast pending"
+                      : "Weather not connected"}
+                  </p>
+                )}
+                <DailyFreshness compact value={data?.weather} />
+              </section>
+            )}
           {widgets.includes("transport") &&
-            data?.widgets.includes("transport") && (
+            data &&
+            (!respectIntegrationVisibility ||
+              data.widgets.includes("transport")) && (
               <section className="daily-summary-transport">
                 {heading("Train issues", "transport")}
                 {data.transport.data ? (
@@ -98,34 +110,37 @@ export default function DailySummary({
                 <DailyFreshness compact value={data?.transport} />
               </section>
             )}
-          {widgets.includes("news") && data?.widgets.includes("news") && (
-            <section className="daily-summary-news">
-              {heading("Headlines", "news")}
-              {news.length ? (
-                <div className="daily-headlines">
-                  {news.map((item) => (
-                    <a
-                      key={item.id}
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <small>{item.source}</small>
-                      <span>{item.title}</span>
-                      <ArrowUpRight size={14} />
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="muted">
-                  {data.news.enabled
-                    ? "Headlines pending"
-                    : "No news sources connected"}
-                </p>
-              )}
-              <DailyFreshness compact value={data?.news} />
-            </section>
-          )}
+          {widgets.includes("news") &&
+            data &&
+            (!respectIntegrationVisibility ||
+              data.widgets.includes("news")) && (
+              <section className="daily-summary-news">
+                {heading("Headlines", "news")}
+                {news.length ? (
+                  <div className="daily-headlines">
+                    {news.map((item) => (
+                      <a
+                        key={item.id}
+                        href={item.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <small>{item.source}</small>
+                        <span>{item.title}</span>
+                        <ArrowUpRight size={14} />
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="muted">
+                    {data.news.enabled
+                      ? "Headlines pending"
+                      : "No news sources connected"}
+                  </p>
+                )}
+                <DailyFreshness compact value={data?.news} />
+              </section>
+            )}
         </>
       )}
     </section>
