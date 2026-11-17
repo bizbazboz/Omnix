@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 import {
   AUTH_RETURN,
   appLinkNavigation,
+  nativeBridgeBootstrap,
+  nativeBridgeMessage,
   mobileGrant,
   instanceOrigin,
   pairingOrigin,
@@ -169,3 +171,29 @@ for (const url of [
   "https://omnix.bizbazboz.uk:8080/notes"
 ])
   assert.equal(appLinkNavigation(url), null);
+
+const bridgeToken = "a".repeat(43);
+assert(nativeBridgeBootstrap(bridgeToken).includes("window.top===window"));
+assert.throws(() => nativeBridgeBootstrap("invalid"));
+assert.equal(
+  nativeBridgeMessage(
+    JSON.stringify({ type: "omnix-push-register" }),
+    bridgeToken
+  ),
+  null
+);
+assert.equal(
+  nativeBridgeMessage(
+    JSON.stringify({ type: "omnix-open-settings", bridgeToken: "forged" }),
+    bridgeToken
+  ),
+  null
+);
+assert.equal(
+  nativeBridgeMessage(
+    JSON.stringify({ type: "omnix-open-settings", bridgeToken }),
+    bridgeToken
+  )?.type,
+  "omnix-open-settings"
+);
+assert.equal(nativeBridgeMessage("not-json", bridgeToken), null);

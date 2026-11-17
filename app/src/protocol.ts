@@ -172,3 +172,39 @@ export function appLinkNavigation(input: string): string | null {
     return null;
   }
 }
+
+export function nativeBridgeBootstrap(token: string): string {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token))
+    throw new Error("Invalid bridge capability");
+  return `if(window.top===window && !window.omnixNativeSend && window.ReactNativeWebView){
+    const send=window.ReactNativeWebView.postMessage.bind(window.ReactNativeWebView);
+    Object.defineProperty(window,'omnixNativeSend',{value:(message)=>send(JSON.stringify({...message,bridgeToken:${JSON.stringify(token)}})),writable:false,configurable:false});
+    window.dispatchEvent(new Event('omnix-native-ready'));
+  }true;`;
+}
+export function nativeBridgeMessage(
+  raw: string,
+  token: string
+): { type: string; silent?: boolean; firebase?: unknown } | null {
+  try {
+    if (raw.length > 200000) return null;
+    const value = JSON.parse(raw);
+    if (
+      !value ||
+      value.bridgeToken !== token ||
+      ![
+        "omnix-push-register",
+        "omnix-app-info",
+        "omnix-open-settings"
+      ].includes(value.type)
+    )
+      return null;
+    return {
+      type: value.type,
+      silent: Boolean(value.silent),
+      firebase: value.firebase
+    };
+  } catch {
+    return null;
+  }
+}
