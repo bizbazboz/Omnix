@@ -19,6 +19,13 @@ export function useLiveUpdates() {
           "drafts",
           "send-history"
         ].forEach((k) => keys.add(k));
+      if (all || scopes.has("notes"))
+        [
+          "project-tasks",
+          "note-project",
+          "note-projects",
+          "notes-overview"
+        ].forEach((k) => keys.add(k));
       if (all || scopes.has("daily")) keys.add("daily");
       if (all || scopes.has("calendar"))
         [

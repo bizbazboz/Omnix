@@ -385,6 +385,9 @@ class ProjectTask(Base):
     archived_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     priority: Mapped[str] = mapped_column(String, default="normal")
     start: Mapped[str | None] = mapped_column(String, nullable=True)
     end: Mapped[str | None] = mapped_column(String, nullable=True)

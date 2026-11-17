@@ -381,6 +381,7 @@ def issue_payload(value, **changes):
             "issue_key",
             "issue_number",
             "archived_at",
+            "completed_at",
         )
     }
 
@@ -579,7 +580,11 @@ def test_custom_project_keys_are_owner_scoped(signed_client):
     )
 
 
-def test_completed_issues_archive_and_reopen(signed_client):
+def test_completed_issues_archive_after_seven_days_and_reopen(signed_client):
+    from datetime import timedelta
+    from app.core import now
+    from app.tasks import archive_completed_issues
+
     pr = project(signed_client)
     route = BASE + "/projects/" + pr["id"] + "/tasks"
     original = task(signed_client, pr, title="Keep history", status="todo")
@@ -590,22 +595,31 @@ def test_completed_issues_archive_and_reopen(signed_client):
         ).status_code
         == 201
     )
-    done = signed_client.put(
-        issue,
-        json={
-            "title": original["title"],
-            "status": "done",
-            "expected_revision": original["revision"],
-        },
-    )
+    done = signed_client.put(issue, json=issue_payload(original, status="done"))
     assert done.status_code == 200, done.text
-    archived = done.json()
-    assert archived["archived_at"] and archived["progress"] == 100
+    closed = done.json()
+    assert closed["completed_at"] and closed["archived_at"] is None
+    assert signed_client.get(route).json()[0]["status"] == "done"
+    edited = signed_client.put(issue, json=issue_payload(closed, title="Still closed"))
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["completed_at"] == closed["completed_at"]
+    with Session() as db:
+        db.get(ProjectTask, original["id"]).completed_at = (
+            now() - timedelta(days=7) + timedelta(minutes=1)
+        )
+        db.commit()
+    assert archive_completed_issues() == 0
+    assert signed_client.get(route).json()[0]["archived_at"] is None
+    with Session() as db:
+        db.get(ProjectTask, original["id"]).completed_at = now() - timedelta(
+            days=7, minutes=1
+        )
+        db.commit()
+    assert archive_completed_issues() == 1
+    assert archive_completed_issues() == 0
     assert signed_client.get(route).json() == []
-    assert (
-        signed_client.get(route + "?include_archived=true").json()[0]["id"]
-        == original["id"]
-    )
+    archived = signed_client.get(route + "?include_archived=true").json()[0]
+    assert archived["archived_at"] and archived["issue_key"] == original["issue_key"]
     assert (
         signed_client.get(issue + "/discussion").json()["comments"][0]["body"]
         == "Keep this discussion"
@@ -618,17 +632,19 @@ def test_completed_issues_archive_and_reopen(signed_client):
     assert signed_client.get(copy_route + "?include_archived=true").json()[0][
         "archived_at"
     ]
-    reopened = signed_client.put(
-        issue,
-        json={
-            "title": original["title"],
-            "status": "todo",
-            "expected_revision": archived["revision"],
-        },
-    )
+    reopened = signed_client.put(issue, json=issue_payload(archived, status="todo"))
     assert reopened.status_code == 200, reopened.text
-    assert reopened.json()["archived_at"] is None
-    assert signed_client.get(route).json()[0]["issue_key"] == original["issue_key"]
+    assert (
+        reopened.json()["archived_at"] is None
+        and reopened.json()["completed_at"] is None
+    )
+    reclosed = signed_client.put(
+        issue, json=issue_payload(reopened.json(), status="done")
+    )
+    assert reclosed.status_code == 200, reclosed.text
+    assert reclosed.json()["completed_at"] != closed["completed_at"]
+    assert reclosed.json()["archived_at"] is None
+    assert archive_completed_issues() == 0
 
 
 def test_archive_migration_upgrades_existing_done_issues(signed_client):
@@ -658,3 +674,41 @@ def test_archive_migration_upgrades_existing_done_issues(signed_client):
     preserved = signed_client.get(route + "?include_archived=true").json()[0]
     assert preserved["archived_at"] and preserved["id"] == done["id"]
     assert preserved["issue_key"] == done["issue_key"]
+
+
+def test_seven_day_archive_migration_restores_recently_closed_issues(signed_client):
+    import importlib.util
+    from pathlib import Path
+    from datetime import timedelta
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import text
+    from app.core import engine, now
+
+    pr = project(signed_client)
+    recent = task(signed_client, pr, status="done")
+    old = task(signed_client, pr, status="done")
+    with Session() as db:
+        db.get(ProjectTask, recent["id"]).archived_at = now() - timedelta(days=1)
+        db.get(ProjectTask, old["id"]).archived_at = now() - timedelta(days=8)
+        db.commit()
+    spec = importlib.util.spec_from_file_location(
+        "seven_day_archive",
+        Path(__file__).resolve().parents[1]
+        / "migrations/versions/0013_seven_day_archive.py",
+    )
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE project_tasks DROP COLUMN completed_at"))
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.upgrade()
+            migration.upgrade()
+            migration.downgrade()
+            migration.upgrade()
+    route = BASE + "/projects/" + pr["id"] + "/tasks"
+    active = signed_client.get(route).json()
+    assert [row["id"] for row in active] == [recent["id"]]
+    assert active[0]["completed_at"] and active[0]["archived_at"] is None
+    history = signed_client.get(route + "?include_archived=true").json()
+    assert next(row for row in history if row["id"] == old["id"])["archived_at"]

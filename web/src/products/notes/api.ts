@@ -36,6 +36,7 @@ export type Task = {
   page_id: string | null;
   status: string;
   archived_at?: string | null;
+  completed_at?: string | null;
   priority: string;
   start: string | null;
   end: string | null;
@@ -93,9 +94,11 @@ export function taskPayload(task: Task) {
     issue_key,
     issue_number,
     archived_at,
+    completed_at,
     ...body
   } = task;
   void archived_at;
+  void completed_at;
   void issue_key;
   void issue_number;
   void id;

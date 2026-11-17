@@ -18,6 +18,10 @@ celery.conf.update(
         "push-dispatch": {"task": "app.tasks.dispatch_push", "schedule": 5.0},
         "outbox-dispatch": {"task": "app.tasks.dispatch_outbox", "schedule": 15.0},
         "recovery": {"task": "app.tasks.recover", "schedule": 60.0},
+        "issue-archive": {
+            "task": "app.tasks.archive_completed_issues",
+            "schedule": 60.0,
+        },
         "calendar-dispatch": {"task": "app.tasks.dispatch_calendars", "schedule": 60.0},
         "health-dispatch": {"task": "app.tasks.dispatch_health", "schedule": 60.0},
         "daily-dispatch": {"task": "app.tasks.dispatch_daily", "schedule": 60.0},
@@ -391,3 +395,35 @@ def dispatch():
     dispatch_sync.delay()
     dispatch_outbox.delay()
     recover.delay()
+
+
+@celery.task(name="app.tasks.archive_completed_issues")
+def archive_completed_issues():
+    from datetime import timedelta
+    from sqlalchemy import update
+    from .core import ProjectTask
+    from .notifications import signal
+
+    with (
+        redis.lock("scheduler:issue-archive", timeout=50, blocking_timeout=1),
+        Session() as db,
+    ):
+        owners = set(
+            db.scalars(
+                update(ProjectTask)
+                .where(
+                    ProjectTask.status == "done",
+                    ProjectTask.completed_at <= now() - timedelta(days=7),
+                    ProjectTask.archived_at.is_(None),
+                )
+                .values(
+                    archived_at=ProjectTask.completed_at + timedelta(days=7),
+                    revision=ProjectTask.revision + 1,
+                )
+                .returning(ProjectTask.owner)
+            )
+        )
+        db.commit()
+    for owner in owners:
+        signal(owner, "notes")
+    return len(owners)

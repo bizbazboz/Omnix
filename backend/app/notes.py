@@ -6,7 +6,7 @@ from urllib.parse import quote, urlsplit, urlunsplit, parse_qsl, urlencode
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import date
+from datetime import date, datetime, timedelta
 from sqlalchemy import select, func
 from .core import (
     User,
@@ -269,6 +269,7 @@ def task_json(row):
         "page_id": row.page_id,
         "status": row.status,
         "archived_at": row.archived_at.isoformat() if row.archived_at else None,
+        "completed_at": row.completed_at.isoformat() if row.completed_at else None,
         "priority": row.priority,
         "start": row.start,
         "end": row.end,
@@ -420,6 +421,7 @@ def validate_task(db, user, project, value, id=None):
 
 
 def put_task(row, value):
+    was_done = row.status == "done"
     row.title = encrypt(value.title.strip() or "Untitled task")
     row.description = encrypt(value.description)
     row.labels = encrypt(list(dict.fromkeys(label.strip() for label in value.labels)))
@@ -441,8 +443,12 @@ def put_task(row, value):
     row.dependencies = json.dumps(list(dict.fromkeys(value.dependencies)))
     if value.status == "done":
         row.progress = 100
-        row.archived_at = row.archived_at or now()
+        if not was_done or not row.completed_at:
+            row.completed_at = now()
+        due = row.completed_at + timedelta(days=7)
+        row.archived_at = due if due <= now() else None
     else:
+        row.completed_at = None
         row.archived_at = None
     row.updated_at = now()
 
@@ -1528,6 +1534,7 @@ def build_notes_router(authenticated, db_session):
                     "issue_number",
                     "issue_key",
                     "archived_at",
+                    "completed_at",
                 ):
                     payload.pop(key)
                 payload.update(
@@ -1541,6 +1548,16 @@ def build_notes_router(authenticated, db_session):
                 value = TaskInput(**payload)
                 validate_task(db, user, project_rows[item["project_id"]], value, row.id)
                 put_task(row, value)
+                if value.status == "done" and item.get("completed_at"):
+                    completed = datetime.fromisoformat(item["completed_at"])
+                    if completed.tzinfo is None or completed > now():
+                        raise HTTPException(
+                            422,
+                            "Archive completion dates must be past timestamps with a timezone.",
+                        )
+                    row.completed_at = completed
+                    due = completed + timedelta(days=7)
+                    row.archived_at = due if due <= now() else None
             for project_row in project_rows.values():
                 if (
                     db.scalar(
