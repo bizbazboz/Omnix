@@ -179,7 +179,9 @@ let browser;
       "steps",
       "distance",
       "calories",
-      "active_minutes",
+      "workout_hours",
+      "calories_in",
+      "protein",
       "sleep",
       "heart_rate",
       "weight",
@@ -1079,6 +1081,26 @@ let browser;
     .getByRole("link", { name: "Health", exact: true })
     .click();
   await page.waitForURL("**/health");
+  await page
+    .locator(".health-metrics-overview .health-metric")
+    .first()
+    .waitFor();
+  assert(
+    (await page.locator(".health-metrics-overview .health-metric").count()) ===
+      5,
+    "Health overview should contain five main readings"
+  );
+  const healthLabels = await page
+    .locator(".health-metrics-overview .metric-label")
+    .allTextContents();
+  assert(
+    healthLabels.includes("Steps") &&
+      healthLabels.includes("Kilometres") &&
+      healthLabels.includes("Weight") &&
+      healthLabels.includes("Calories burned") &&
+      healthLabels.some((label) => label.startsWith("Workouts")),
+    "Health overview is missing a requested reading"
+  );
   assert(
     await page.locator(".sidebar.mobile-open").isVisible(),
     "Health subpages disappeared"
@@ -1461,7 +1483,22 @@ let browser;
             result = {
               available: true,
               status: 3,
-              permissions: ["steps", "distance", "workout_minutes", "sleep"],
+              permissions: [
+                "steps",
+                "distance",
+                "workout_minutes",
+                "sleep",
+                "weight",
+                "calories"
+              ],
+              supported_metrics: [
+                "steps",
+                "distance",
+                "workout_minutes",
+                "sleep",
+                "weight",
+                "calories"
+              ],
               device_id: "test_phone_identifier_12345678901234567890",
               platform: "android",
               timezone: "Europe/London"
@@ -1533,6 +1570,7 @@ let browser;
   await page.evaluate(() =>
     window.dispatchEvent(new Event("omnix-native-ready"))
   );
+  await phoneForm.locator(".health-additional-readings summary").click();
   await phoneForm
     .getByRole("checkbox", { name: "Sync Sleep", exact: true })
     .uncheck();

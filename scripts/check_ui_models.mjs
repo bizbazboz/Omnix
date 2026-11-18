@@ -1,6 +1,31 @@
 // Pure model regressions, using Node's type stripping (Node 22.18+).
 import assert from "node:assert/strict";
 import { pageTreeIndex } from "../web/src/products/notes/pageTreeIndex.ts";
+import {
+  latestDay,
+  weeklyHours,
+  weekStart
+} from "../web/src/products/health/readings.ts";
+
+const workout = {
+  points: {
+    "2026-11-15": 10,
+    "2026-11-16": 1.5,
+    "2026-11-18": 0.5,
+    "2026-11-23": 20
+  }
+};
+assert.equal(weeklyHours(workout, "2026-11-18"), 2);
+assert.equal(weeklyHours(workout, "2026-11-22"), 2);
+assert.equal(weeklyHours(workout, "2026-11-15"), 10);
+assert.equal(weeklyHours(undefined, "2026-11-18"), undefined);
+assert.equal(weeklyHours({ points: { "2026-11-16": 0 } }, "2026-11-18"), 0);
+assert.equal(weekStart("2027-01-01"), "2026-12-28");
+assert.equal(weekStart("2026-10-25"), "2026-10-19");
+assert.equal(
+  latestDay({ points: { "2026-11-16": 82.4, "2026-11-20": 80 } }, "2026-11-18"),
+  "2026-11-16"
+);
 
 const pages = Array.from({ length: 10000 }, (_, i) => ({
   id: String(i),

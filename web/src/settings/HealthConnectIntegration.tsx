@@ -19,8 +19,9 @@ export default function HealthConnectIntegration() {
     [selected, setSelected] = useState<string[]>([
       "steps",
       "distance",
-      "workout_minutes",
-      "sleep"
+      "weight",
+      "calories",
+      "workout_minutes"
     ]);
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -35,7 +36,16 @@ export default function HealthConnectIntegration() {
     const refresh = () => {
       void phoneStatus()
         .then((value) => {
-          if (active) setDevice(value);
+          if (active) {
+            setDevice(value);
+            const available = value.supported_metrics || [
+              "steps",
+              "distance",
+              "workout_minutes",
+              "sleep"
+            ];
+            setSelected((old) => old.filter((id) => available.includes(id)));
+          }
         })
         .catch(() => {
           if (active) setMessage("Update the companion to use Health Connect.");
@@ -64,6 +74,33 @@ export default function HealthConnectIntegration() {
   const user = () => qc.getQueryData<User>(["me"])?.id || "";
   const native = Boolean(window.ReactNativeWebView),
     supported = device?.available;
+  const renderMetric = ([id, label]: readonly [string, string]) => (
+    <label className="notification-option" key={id}>
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        aria-label={`Sync ${label}`}
+        checked={selected.includes(id)}
+        disabled={
+          busy ||
+          !supported ||
+          !(
+            device?.supported_metrics || [
+              "steps",
+              "distance",
+              "workout_minutes",
+              "sleep"
+            ]
+          ).includes(id)
+        }
+        onChange={(e) =>
+          setSelected((old) =>
+            e.target.checked ? [...old, id] : old.filter((v) => v !== id)
+          )
+        }
+      />
+    </label>
+  );
   return (
     <section className="settings-card" id="health-connect">
       <span className="eyebrow">ANDROID / HEALTH CONNECT</span>
@@ -92,29 +129,48 @@ export default function HealthConnectIntegration() {
               includes it; Android 9–13 needs the Health Connect app.
             </p>
           ) : null}
-          {phoneMetrics.map(([id, label]) => (
-            <label className="notification-option" key={id}>
-              <span>{label}</span>
-              <input
-                type="checkbox"
-                aria-label={`Sync ${label}`}
-                checked={selected.includes(id)}
-                disabled={busy || !supported}
-                onChange={(e) =>
-                  setSelected((old) =>
-                    e.target.checked
-                      ? [...old, id]
-                      : old.filter((v) => v !== id)
-                  )
-                }
-              />
-            </label>
-          ))}
           <p className="muted">
-            No location, medical records or write permissions. The first sync
-            reads the last 28 days. Later syncs check changes; no background
-            permission is requested. Revoking access stops new reads and retains
-            saved history.
+            In Samsung Health, enable Health Connect sharing for the categories
+            you want. Samsung may share workout distance and calories rather
+            than its full daily activity totals. Update the companion if a
+            category is unavailable below.
+          </p>
+          {phoneMetrics.slice(0, 5).map(renderMetric)}
+          <details className="health-additional-readings">
+            <summary>Additional readings</summary>
+            <p className="muted">
+              Optional Samsung-compatible readings. Android grants access by
+              category; Omnix uploads only the values selected below.
+            </p>
+            <button
+              className="secondary"
+              disabled={busy || !supported}
+              onClick={() =>
+                setSelected(
+                  phoneMetrics
+                    .filter(([id]) =>
+                      (
+                        device?.supported_metrics || [
+                          "steps",
+                          "distance",
+                          "workout_minutes",
+                          "sleep"
+                        ]
+                      ).includes(id)
+                    )
+                    .map(([id]) => id)
+                )
+              }
+            >
+              Select available readings
+            </button>
+            {phoneMetrics.slice(5).map(renderMetric)}
+          </details>
+          <p className="muted">
+            Read access only, with no route, location or write permissions. The
+            first sync reads the last 28 days. Later syncs check changes; no
+            background permission is requested. Revoking access stops new reads
+            and retains saved history.
           </p>
           {query.data.enabled && (
             <p className="muted">

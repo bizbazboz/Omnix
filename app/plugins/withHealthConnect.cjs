@@ -18,7 +18,26 @@ module.exports = (config) => {
   return withAndroidManifest(config, (config) => {
     const manifest = config.modResults.manifest;
     manifest["uses-permission"] ??= [];
-    for (const type of ["STEPS", "DISTANCE", "EXERCISE", "SLEEP"]) {
+    for (const type of [
+      "STEPS",
+      "DISTANCE",
+      "WEIGHT",
+      "TOTAL_CALORIES_BURNED",
+      "EXERCISE",
+      "SLEEP",
+      "ACTIVE_CALORIES_BURNED",
+      "HEART_RATE",
+      "OXYGEN_SATURATION",
+      "BLOOD_PRESSURE",
+      "BLOOD_GLUCOSE",
+      "BODY_FAT",
+      "BASAL_METABOLIC_RATE",
+      "HEIGHT",
+      "VO2_MAX",
+      "POWER",
+      "SPEED",
+      "NUTRITION"
+    ]) {
       const name = "android.permission.health.READ_" + type;
       if (
         !manifest["uses-permission"].some((p) => p.$["android:name"] === name)

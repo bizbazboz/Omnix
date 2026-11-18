@@ -20,6 +20,7 @@ import { api, qc } from "../../lib/api";
 import { syncPhoneHealth } from "../../lib/healthConnect";
 import type { User } from "../../lib/api";
 import { type HealthStatus, type Statistics, dayLabel, format } from "./api";
+import { latestDay, weeklyHours, weekStart } from "./readings";
 import HistoryChart from "./HistoryChart";
 import { healthViews, metricDefinitions } from "./catalog";
 import SleepBreakdown from "./SleepBreakdown";
@@ -39,20 +40,6 @@ function HealthReadings() {
   const location = useLocation();
   const pageId = location.pathname.split("/")[2] || "overview";
   const view = healthViews.find((view) => view.id === pageId);
-  const metrics = (view || healthViews[0]).metrics.map(
-    (id) => metricDefinitions[id]
-  );
-  const chosenMetric = metrics.some(
-    (metric) => metric.id === params.get("metric")
-  )
-    ? params.get("metric")!
-    : metrics[0].id;
-  const setChosenMetric = (id: string) =>
-    setParams((previous) => {
-      const next = new URLSearchParams(previous);
-      next.set("metric", id);
-      return next;
-    });
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   const [range, setRange] = useState(7),
@@ -68,6 +55,24 @@ function HealthReadings() {
     enabled: !!state.data?.connected,
     refetchInterval: 10000
   });
+  const metrics = (view || healthViews[0]).metrics
+    .map((id) => metricDefinitions[id])
+    .filter(
+      (metric) =>
+        view?.id === "overview" ||
+        Object.keys(readings.data?.metrics[metric.id]?.points || {}).length
+    );
+  const chosenMetric = metrics.some(
+    (metric) => metric.id === params.get("metric")
+  )
+    ? params.get("metric")!
+    : metrics[0]?.id || "steps";
+  const setChosenMetric = (id: string) =>
+    setParams((previous) => {
+      const next = new URLSearchParams(previous);
+      next.set("metric", id);
+      return next;
+    });
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["health-status"] });
     qc.invalidateQueries({ queryKey: ["health-statistics"] });
@@ -117,6 +122,8 @@ function HealthReadings() {
       setBusy(false);
     }
   }
+  if (readings.isSuccess && view?.id !== "overview" && !metrics.length)
+    return <Navigate to="/health" replace />;
   if (!view) return <Navigate to="/health" replace />;
   return (
     <div className="health-product">
@@ -232,8 +239,15 @@ function HealthReadings() {
                     aria-label="Daily health statistics"
                   >
                     {metrics.map((metric) => {
-                      const reading = data?.metrics[metric.id],
-                        value = reading?.points[selected];
+                      const reading = data?.metrics[metric.id];
+                      const recordedDay =
+                        metric.id === "weight"
+                          ? latestDay(reading, selected)
+                          : selected;
+                      const value =
+                        metric.id === "workout_hours"
+                          ? weeklyHours(reading, selected)
+                          : reading?.points[recordedDay || selected];
                       return (
                         <button
                           key={metric.id}
@@ -244,7 +258,13 @@ function HealthReadings() {
                           onClick={() => setChosenMetric(metric.id)}
                           aria-pressed={chosenMetric === metric.id}
                         >
-                          <span className="metric-label">{metric.label}</span>
+                          <span className="metric-label">
+                            {metric.id === "workout_hours"
+                              ? weekStart(selected) === weekStart(today)
+                                ? "Workouts this week"
+                                : "Workouts that week"
+                              : metric.label}
+                          </span>
                           <strong>
                             {format(value, metric.id)}
                             <small>{metric.unit}</small>
@@ -265,29 +285,37 @@ function HealthReadings() {
                                       : value === undefined
                                         ? "NO READING"
                                         : metric.id === "weight"
-                                          ? "DAILY AVERAGE"
+                                          ? "LAST RECORDED " +
+                                            (recordedDay
+                                              ? dayLabel(recordedDay)
+                                              : "")
                                           : "RECORDED"}
                           </span>
                         </button>
                       );
                     })}
                   </section>
-                  {view.id === "sleep" && (
-                    <SleepBreakdown
-                      metrics={data?.metrics || {}}
-                      day={selected}
-                      stale={["error", "reconnect"].includes(
-                        state.data?.status || ""
-                      )}
-                    />
-                  )}
-                  {view.id === "workouts" && (
-                    <Workouts
-                      metric={data?.metrics.workouts}
-                      dates={dates}
-                      zone={data?.timezone}
-                    />
-                  )}
+                  {view.id === "sleep" &&
+                    ["sleep_deep", "sleep_light", "sleep_rem"].some(
+                      (id) =>
+                        Object.keys(data?.metrics[id]?.points || {}).length
+                    ) && (
+                      <SleepBreakdown
+                        metrics={data?.metrics || {}}
+                        day={selected}
+                        stale={["error", "reconnect"].includes(
+                          state.data?.status || ""
+                        )}
+                      />
+                    )}
+                  {view.id === "workouts" &&
+                    !!data?.metrics.workouts?.records?.length && (
+                      <Workouts
+                        metric={data?.metrics.workouts}
+                        dates={dates}
+                        zone={data?.timezone}
+                      />
+                    )}
                   <section
                     className="health-history"
                     aria-label="Health history"

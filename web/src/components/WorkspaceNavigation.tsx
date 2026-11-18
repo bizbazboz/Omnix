@@ -24,7 +24,7 @@ import { PanelLeftClose } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { type Account, type User, api, qc, setCsrf } from "../lib/api";
-import { healthViews } from "../products/health/catalog";
+import HealthNavigation from "../products/health/HealthNavigation";
 import { productRegistry } from "../products/registry";
 import { useMailProfiles } from "../products/email/useMailProfiles";
 import { Avatar, Logo } from "./Brand";
@@ -351,25 +351,7 @@ export default function WorkspaceNavigation({
             ) : activeApp.id === "notes" ? (
               <PageTree onClose={onClose} />
             ) : activeApp.id === "health" ? (
-              <nav aria-label="Health navigation">
-                {healthViews.map((view) => (
-                  <NavLink
-                    key={view.id}
-                    to={
-                      "/health" + (view.id === "overview" ? "" : "/" + view.id)
-                    }
-                    end
-                    onClick={onClose}
-                  >
-                    <activeApp.Icon size={17} />
-                    {view.name}
-                  </NavLink>
-                ))}
-                <NavLink to="/health/walks" end onClick={onClose}>
-                  <activeApp.Icon size={17} />
-                  Walking loops
-                </NavLink>
-              </nav>
+              <HealthNavigation onClose={onClose} />
             ) : (
               <nav aria-label={activeApp.name + " navigation"}>
                 <NavLink to={activeApp.routePrefix} end onClick={onClose}>

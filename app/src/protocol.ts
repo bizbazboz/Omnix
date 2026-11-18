@@ -308,9 +308,36 @@ export function nativeBridgeMessage(
       const metrics = value.metrics ?? [];
       if (
         !Array.isArray(metrics) ||
-        metrics.length > 4 ||
+        metrics.length > 25 ||
         metrics.some(
-          (v) => !["steps", "distance", "workout_minutes", "sleep"].includes(v)
+          (v) =>
+            ![
+              "steps",
+              "distance",
+              "weight",
+              "calories",
+              "workout_minutes",
+              "sleep",
+              "active_energy",
+              "heart_rate",
+              "oxygen",
+              "systolic",
+              "diastolic",
+              "glucose",
+              "body_fat",
+              "bmr",
+              "height",
+              "vo2_max",
+              "power",
+              "speed",
+              "calories_in",
+              "protein",
+              "carbs",
+              "fat",
+              "fibre",
+              "sugar",
+              "sodium"
+            ].includes(v)
         )
       )
         return null;

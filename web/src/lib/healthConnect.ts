@@ -3,9 +3,30 @@ import { api, qc, type User } from "./api";
 import { nativeRequest } from "./native";
 export const phoneMetrics = [
   ["steps", "Steps"],
-  ["distance", "Distance"],
-  ["workout_minutes", "Exercise duration"],
-  ["sleep", "Sleep"]
+  ["distance", "Kilometres"],
+  ["weight", "Weight"],
+  ["calories", "Calories burned"],
+  ["workout_minutes", "Workout time"],
+  ["sleep", "Sleep"],
+  ["active_energy", "Active calories"],
+  ["heart_rate", "Average heart rate"],
+  ["oxygen", "Blood oxygen"],
+  ["systolic", "Systolic pressure"],
+  ["diastolic", "Diastolic pressure"],
+  ["glucose", "Blood glucose"],
+  ["body_fat", "Body fat"],
+  ["bmr", "Basal metabolic rate"],
+  ["height", "Height"],
+  ["vo2_max", "VO₂ max"],
+  ["power", "Average power"],
+  ["speed", "Average speed"],
+  ["calories_in", "Food energy"],
+  ["protein", "Protein"],
+  ["carbs", "Carbohydrates"],
+  ["fat", "Fat"],
+  ["fibre", "Fibre"],
+  ["sugar", "Sugar"],
+  ["sodium", "Sodium"]
 ] as const;
 export type PhoneConfig = {
   user_id: string;
@@ -26,6 +47,7 @@ export type PhoneStatus = {
   permissions: string[];
   device_id?: string;
   platform: string;
+  supported_metrics?: string[];
   timezone?: string;
 };
 export const phoneStatus = () =>
@@ -103,7 +125,10 @@ export async function syncPhoneHealth(userId: string, force = true) {
     }>("read", {
       metrics: config.metrics,
       timezone: config.timezone,
-      changes_token: config.changes_token || "",
+      changes_token:
+        permissions === [...(config.permissions ?? [])].sort().join(",")
+          ? config.changes_token || ""
+          : "",
       force:
         force ||
         today !== lastDay ||
