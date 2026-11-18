@@ -23,6 +23,23 @@ from app.workspace_settings import store_setting
 from app.core import Message
 
 
+def test_malformed_html_preview_cannot_break_mail_sync():
+    from app.notifications import email_content
+
+    message = SimpleNamespace(
+        subject="Test",
+        sender_name="Sender",
+        sender="sender@example.com",
+        recipients="alice@example.com",
+        body="",
+        html="<![broken]>",
+    )
+    title, body = email_content(
+        message, SimpleNamespace(label="Mailbox", address="alice@example.com")
+    )
+    assert title == "Sender · Test" and "Mailbox" in body and "broken" not in body
+
+
 def test_email_rules_validate_owner_order_and_sender(signed_client, user, accounts):
     first = {"id": "rule-first", "sender": "@example.com", "action": "mute"}
     second = {

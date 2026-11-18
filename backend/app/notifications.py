@@ -118,8 +118,12 @@ def email_content(message, mailbox, detail="full"):
         raw = message.body.strip()
         if not raw and message.html:
             parser = Preview()
-            parser.feed(message.html[:100000])
-            raw = " ".join(parser.parts)
+            try:
+                parser.feed(message.html[:100000])
+                raw = " ".join(parser.parts)
+            except Exception:
+                # Malformed provider HTML must never roll back the mailbox sync.
+                raw = ""
         snippet = " ".join(html.unescape(raw).split())[:280]
         body += " · To " + message.recipients[:120]
         if snippet:
