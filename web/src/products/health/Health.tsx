@@ -17,6 +17,8 @@ import {
   Navigate
 } from "react-router-dom";
 import { api, qc } from "../../lib/api";
+import { syncPhoneHealth } from "../../lib/healthConnect";
+import type { User } from "../../lib/api";
 import { type HealthStatus, type Statistics, dayLabel, format } from "./api";
 import HistoryChart from "./HistoryChart";
 import { healthViews, metricDefinitions } from "./catalog";
@@ -88,7 +90,9 @@ function HealthReadings() {
     dates = data?.dates.slice(-range) || [];
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone:
-      data?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      data?.metrics[chosenMetric]?.timezone ||
+      data?.timezone ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit"
@@ -110,8 +114,16 @@ function HealthReadings() {
     setBusy(true);
     setMessage("");
     try {
-      await api("/health/refresh", { method: "POST" });
-      setMessage("Refresh queued");
+      if (state.data?.source === "health_connect") {
+        if (!window.ReactNativeWebView)
+          throw Error("Open the Android companion to sync phone readings.");
+        setMessage(
+          await syncPhoneHealth(qc.getQueryData<User>(["me"])?.id || "", true)
+        );
+      } else {
+        await api("/health/refresh", { method: "POST" });
+        setMessage("Refresh queued");
+      }
       invalidate();
     } catch (error) {
       setMessage((error as Error).message);
@@ -132,7 +144,9 @@ function HealthReadings() {
             <button
               className="secondary"
               onClick={refresh}
-              disabled={busy || syncing}
+              disabled={
+                busy || (syncing && state.data?.source !== "health_connect")
+              }
             >
               {syncing ? (
                 <Loader2 size={15} className="spin" />
@@ -145,6 +159,12 @@ function HealthReadings() {
         )}
       </PageHeader>
       <p className="health-page-caption">{view.description}</p>
+      {state.data?.source === "health_connect" && (
+        <p className="muted">
+          Source: Android Health Connect · Sync from the companion while it is
+          open.
+        </p>
+      )}
       {state.isLoading ? (
         <p className="muted">[LOADING]</p>
       ) : state.error ? (

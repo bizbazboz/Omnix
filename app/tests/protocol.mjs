@@ -197,3 +197,72 @@ assert.equal(
   "omnix-open-settings"
 );
 assert.equal(nativeBridgeMessage("not-json", bridgeToken), null);
+const request_id = "caafcc01-78d1-4d98-a643-aed26eca10c4";
+const content =
+  '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><trk/></gpx>';
+assert.equal(
+  nativeBridgeMessage(
+    JSON.stringify({
+      type: "omnix-export-gpx",
+      request_id,
+      content,
+      bridgeToken
+    }),
+    bridgeToken
+  )?.content,
+  content
+);
+for (const patch of [
+  { content: "<html>wrong</html>" },
+  {
+    content: '<!DOCTYPE gpx [<!ENTITY x SYSTEM "file:///private">]>' + content
+  },
+  { request_id: "wrong" },
+  { content: "x".repeat(2100001) },
+  { bridgeToken: "forged" }
+])
+  assert.equal(
+    nativeBridgeMessage(
+      JSON.stringify({
+        type: "omnix-export-gpx",
+        request_id,
+        content,
+        bridgeToken,
+        ...patch
+      }),
+      bridgeToken
+    ),
+    null
+  );
+assert.equal(
+  nativeBridgeMessage(
+    JSON.stringify({
+      type: "omnix-health",
+      request_id,
+      bridgeToken,
+      action: "read",
+      metrics: ["steps", "sleep"]
+    }),
+    bridgeToken
+  )?.action,
+  "read"
+);
+for (const patch of [
+  { action: "write" },
+  { metrics: ["medical_records"] },
+  { changes_token: "x".repeat(10001) },
+  { bridgeToken: "forged" }
+])
+  assert.equal(
+    nativeBridgeMessage(
+      JSON.stringify({
+        type: "omnix-health",
+        request_id,
+        bridgeToken,
+        action: "read",
+        ...patch
+      }),
+      bridgeToken
+    ),
+    null
+  );

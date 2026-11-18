@@ -1,4 +1,5 @@
 import { canonicalWorkspaceUrl, signInUrl } from "./lib/routes";
+import { useCompanionHealth } from "./lib/healthConnect";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
@@ -102,6 +103,7 @@ export default function App() {
   );
 }
 function Workspace({ user }: { user: User }) {
+  useCompanionHealth(user.id);
   const menuButton = useRef<HTMLButtonElement>(null);
   const drillingInto = useRef<string | null>(null);
   const [mobile, setMobile] = useState(false),

@@ -146,8 +146,11 @@ export default function HealthIntegration({
   notify: (text: string) => void;
 }) {
   const state = useQuery<HealthStatus>({
-    queryKey: ["health-status"],
-    queryFn: () => api("/health/status")
+    queryKey: ["health-status", "google"],
+    queryFn: async () => {
+      const result = await api<HealthStatus>("/health/status");
+      return result.google ?? result;
+    }
   });
   const [groups, setGroups] = useState(["activity", "sleep", "measurements"]);
   const [busy, setBusy] = useState(false),

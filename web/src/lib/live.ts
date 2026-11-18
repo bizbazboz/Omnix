@@ -35,7 +35,7 @@ export function useLiveUpdates() {
           "overview"
         ].forEach((k) => keys.add(k));
       if (all || scopes.has("health"))
-        ["health-status", "health-statistics"].forEach((k) => keys.add(k));
+        ["health-status", "health-statistics", "phone-health"].forEach((k) => keys.add(k));
       scopes.clear();
       for (const key of keys) void qc.invalidateQueries({ queryKey: [key] });
     };

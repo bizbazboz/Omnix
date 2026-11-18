@@ -232,6 +232,7 @@ export const healthViews = [
       "distance",
       "calories",
       "zone_minutes",
+      "workout_minutes",
       "sleep",
       "resting_heart_rate",
       "weight"

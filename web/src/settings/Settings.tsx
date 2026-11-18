@@ -15,6 +15,7 @@ import Authentication from "./Authentication";
 import ApiAccess from "./ApiAccess";
 import Connections from "./Connections";
 import HealthIntegration from "./HealthIntegration";
+import HealthConnectIntegration from "./HealthConnectIntegration";
 import CalendarIntegration from "./CalendarIntegration";
 import TimezoneSelect, { currentTimezone } from "./TimezoneSelect";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -636,6 +637,7 @@ export default function Settings({
               </div>
               <CalendarIntegration />
               <HealthIntegration notify={notify} />
+              <HealthConnectIntegration />
               <DailyIntegration />
               <GoveeIntegration />
               {user.is_admin && <FirebaseIntegration />}

@@ -179,15 +179,27 @@ export function nativeBridgeBootstrap(token: string): string {
   return `if(window.top===window && !window.omnixNativeSend && window.ReactNativeWebView){
     const send=window.ReactNativeWebView.postMessage.bind(window.ReactNativeWebView);
     Object.defineProperty(window,'omnixNativeSend',{value:(message)=>send(JSON.stringify({...message,bridgeToken:${JSON.stringify(token)}})),writable:false,configurable:false});
+    Object.defineProperty(window,'omnixNativeCapabilities',{value:Object.freeze(['export-gpx','health-connect']),writable:false,configurable:false});
     window.dispatchEvent(new Event('omnix-native-ready'));
   }true;`;
 }
 export function nativeBridgeMessage(
   raw: string,
   token: string
-): { type: string; silent?: boolean; firebase?: unknown } | null {
+): {
+  type: string;
+  silent?: boolean;
+  firebase?: unknown;
+  request_id?: string;
+  content?: string;
+  action?: string;
+  metrics?: string[];
+  timezone?: string;
+  changes_token?: string;
+  force?: boolean;
+} | null {
   try {
-    if (raw.length > 200000) return null;
+    if (raw.length > 2100000) return null;
     const value = JSON.parse(raw);
     if (
       !value ||
@@ -195,10 +207,66 @@ export function nativeBridgeMessage(
       ![
         "omnix-push-register",
         "omnix-app-info",
-        "omnix-open-settings"
+        "omnix-open-settings",
+        "omnix-export-gpx",
+        "omnix-health"
       ].includes(value.type)
     )
       return null;
+    if (value.type === "omnix-export-gpx") {
+      if (
+        !/^[a-f0-9-]{36}$/.test(value.request_id ?? "") ||
+        typeof value.content !== "string" ||
+        value.content.length > 2000000 ||
+        !/<gpx\s[^>]*xmlns="http:\/\/www.topografix.com\/GPX\/1\/1"/.test(
+          value.content
+        ) ||
+        /<!DOCTYPE|<!ENTITY/i.test(value.content)
+      )
+        return null;
+      return {
+        type: value.type,
+        request_id: value.request_id,
+        content: value.content
+      };
+    }
+    if (raw.length > 200000) return null;
+    if (value.type === "omnix-health") {
+      if (
+        !/^[a-f0-9-]{36}$/.test(value.request_id ?? "") ||
+        !["status", "permissions", "read", "settings"].includes(value.action)
+      )
+        return null;
+      const metrics = value.metrics ?? [];
+      if (
+        !Array.isArray(metrics) ||
+        metrics.length > 4 ||
+        metrics.some(
+          (v) => !["steps", "distance", "workout_minutes", "sleep"].includes(v)
+        )
+      )
+        return null;
+      if (
+        value.timezone &&
+        (typeof value.timezone !== "string" || value.timezone.length > 100)
+      )
+        return null;
+      if (
+        value.changes_token &&
+        (typeof value.changes_token !== "string" ||
+          value.changes_token.length > 10000)
+      )
+        return null;
+      return {
+        type: value.type,
+        request_id: value.request_id,
+        action: value.action,
+        metrics,
+        timezone: value.timezone ?? "UTC",
+        changes_token: value.changes_token ?? "",
+        force: Boolean(value.force)
+      };
+    }
     return {
       type: value.type,
       silent: Boolean(value.silent),

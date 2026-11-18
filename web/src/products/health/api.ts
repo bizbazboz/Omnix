@@ -1,4 +1,6 @@
 export type HealthStatus = {
+  source?: "google" | "health_connect";
+  google?: HealthStatus;
   configured: boolean;
   can_configure: boolean;
   connected: boolean;
@@ -19,6 +21,8 @@ type Workout = {
   steps: number | null;
 };
 export type Metric = {
+  timezone?: string;
+  source?: string;
   records?: Workout[];
   label: string;
   unit: string;

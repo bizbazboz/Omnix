@@ -2,6 +2,8 @@
 
 An Expo app for Android and iOS. The workspace runs inside a WebView. Pocket ID sign-in runs in the system browser, using the existing Omnix OIDC client and callback URL.
 
+Android builds require Android 8 (API 26) or newer. Health Connect needs Android 9+ and a supported, updated provider; Android 14+ includes the provider in the OS.
+
 ## Pair
 
 1. Deploy this server version behind your HTTPS tunnel.
@@ -35,6 +37,20 @@ Use a native development build or a compiled app for the `omnix-preview://` (def
 Push is Android companion only and goes directly through Firebase Cloud Messaging v1; no Expo account or Expo Push Service is used. In Omnix, upload the Firebase **service-account JSON key** under Settings → Integrations → Firebase. It remains encrypted on the server. Enable email/news alerts in the companion's Notifications settings and use Send test. Notification taps open the matching message or headline in the full-screen WebView.
 
 Upload the public `google-services.json` from Firebase Project settings → Your apps to the same server integration. Include the companion package `com.bizbazboz.omnix` and, if needed, `com.bizbazboz.omnix.preview`; additional client files can be added later without uploading the private key again. The app fetches only the public options for its own package after sign-in, initializes Firebase at runtime, and restores those cached public options at process startup for background delivery. The same APK works with different instances and Firebase projects. No app `.env`, Firebase build variable, bundled Firebase file or per-instance rebuild is needed. Enable FCM HTTP v1 and grant the sending service account Firebase Cloud Messaging API Admin. iPhone push is not part of this Android setup.
+
+## Walking route exports
+
+**Health → Walking loops → Export GPX** opens Android's native Save-as dialog. Choose Downloads or another document provider; cancelling does not report a saved file. No broad storage permission is needed. On iOS, the native share sheet offers Save to Files or a compatible route app. Ordinary browser downloads remain available. Routes stay client-side until you explicitly export them; no server upload is introduced. Native exports are limited to 2 MB. The iOS export cache retains at most ten route files.
+
+## Android Health Connect
+
+Open **Settings → Integrations → Health from your phone** inside the Android companion. Select steps, distance, exercise duration and/or sleep, then **Connect this phone**. Android requests read access only for the selected categories. The app never requests write, location, medical-record or background-health permissions. Health Connect settings include a public permission rationale explaining storage and removal.
+
+The first sync reads daily aggregates for the last 28 days. Android's aggregation API handles overlapping activity/sleep sources according to the phone's priority settings. Later foreground syncs check changes, re-read the bounded window when needed, and replace daily totals rather than adding them. Sync runs on foreground return and every five minutes while open; **Sync phone now** forces a refresh. No background delivery is promised. Offline failures retain the server's existing history and change cursor so a later foreground/manual attempt can retry.
+
+Readings upload through the current signed-in WebView session, remain private to its account and are encrypted in the server database. Revision checks prevent stale settings or old device snapshots from replacing newer data; retrying the same accepted batch does not duplicate totals. No app `.env`, cloud Health key or extra OAuth client is needed. Only one phone is the active source for an account; connecting another retains saved history and changes the active device.
+
+Google remains available and its history is not deleted. Choose the preferred source for overlapping days; totals are never summed. Phone data fills missing Google days when Google is preferred. Daily readings with different source timezones keep their original day boundaries rather than being combined; source history remains stored independently. **Pause phone sync** retains cached readings, marked stale. Revoking Android permissions stops future reads of those categories. **Forget phone data** removes synced phone history only; revoke OS permissions separately if desired. Apple Health is not part of this integration.
 
 ## Release builds
 

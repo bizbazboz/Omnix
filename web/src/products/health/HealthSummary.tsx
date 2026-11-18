@@ -18,7 +18,7 @@ export default function HealthSummary({ zone }: { zone: string }) {
   });
   const data = status.data?.connected ? readings.data : undefined;
   const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: data?.timezone || zone,
+    timeZone: data?.metrics.steps?.timezone || data?.timezone || zone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit"

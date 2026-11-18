@@ -28,6 +28,22 @@ let browser;
     nativeRegistrations = 0,
     firebaseWrites = 0;
   let dailySaved = null;
+  let notificationPreferences = {
+    email: true,
+    news: false,
+    previews: false,
+    email_default: true,
+    email_content: "sender_subject",
+    email_rules: []
+  };
+  let phoneHealth = {
+    user_id: "qa",
+    revision: 0,
+    enabled: false,
+    metrics: [],
+    permissions: [],
+    preferred: true
+  };
   const defaultHomeWidgets = [
     "clock",
     "unread",
@@ -444,9 +460,44 @@ let browser;
       p === "/notifications/read"
     )
       notificationRead = true;
-    else if (p === "/notifications/preferences")
-      data = { email: true, news: false, previews: false };
-    else if (p === "/notifications/devices") {
+    else if (p === "/notifications/preferences") {
+      if (req.method() === "PUT") notificationPreferences = req.postDataJSON();
+      data = notificationPreferences;
+    } else if (p === "/health/connect") {
+      if (req.method() === "PUT")
+        phoneHealth = {
+          ...phoneHealth,
+          ...req.postDataJSON(),
+          revision: phoneHealth.revision + 1
+        };
+      if (req.method() === "DELETE")
+        phoneHealth = {
+          ...phoneHealth,
+          enabled: false,
+          metrics: [],
+          permissions: [],
+          revision: phoneHealth.revision + 1
+        };
+      data = phoneHealth;
+    } else if (p === "/health/connect/sync") {
+      const body = req.postDataJSON();
+      assert(
+        body.expected_revision === phoneHealth.revision,
+        "Phone sync lost its revision"
+      );
+      assert(
+        body.device_id === phoneHealth.device_id,
+        "Phone sync changed device identity"
+      );
+      phoneHealth = {
+        ...phoneHealth,
+        permissions: body.permissions,
+        captured_at: body.captured_at,
+        last_sync: body.captured_at,
+        revision: phoneHealth.revision + 1
+      };
+      data = phoneHealth;
+    } else if (p === "/notifications/devices") {
       if (req.method() === "POST") {
         const body = req.postDataJSON();
         assert(
@@ -1385,6 +1436,133 @@ let browser;
     (await downloadEvent).suggestedFilename() === "omnix-walking-loop.gpx",
     "Browser walking export missing"
   );
+  const ownerId = await page.evaluate(
+    async () => (await (await fetch("/api/v1/me")).json()).id
+  );
+  phoneHealth.user_id = ownerId;
+  await page.evaluate(
+    ({ dates }) => {
+      window.nativeGpxExports = [];
+      window.omnixNativeCapabilities = ["export-gpx", "health-connect"];
+      window.ReactNativeWebView = { postMessage: () => {} };
+      window.omnixNativeSend = (message) => {
+        let result = null;
+        if (message.type === "omnix-export-gpx") {
+          window.nativeGpxExports.push(message.content);
+          result = window.nativeExportResult ?? null;
+        } else if (message.type === "omnix-health") {
+          if (message.action === "status")
+            result = {
+              available: true,
+              status: 3,
+              permissions: ["steps", "distance", "workout_minutes", "sleep"],
+              device_id: "test_phone_identifier_12345678901234567890",
+              platform: "android",
+              timezone: "Europe/London"
+            };
+          else if (message.action === "permissions") result = message.metrics;
+          else if (message.action === "read")
+            result = {
+              unchanged: false,
+              dates,
+              permissions: message.metrics,
+              timezone: "Europe/London",
+              captured_at: new Date().toISOString(),
+              changes_token: "test-cursor",
+              points: Object.fromEntries(
+                message.metrics.map((kind) => [
+                  kind,
+                  { [dates.at(-1)]: kind === "steps" ? 12345 : 5 }
+                ])
+              )
+            };
+        }
+        setTimeout(
+          () =>
+            window.dispatchEvent(
+              new CustomEvent("omnix-native-result", {
+                detail: { request_id: message.request_id, result }
+              })
+            ),
+          10
+        );
+      };
+    },
+    { dates }
+  );
+  await page.getByRole("button", { name: "Export GPX", exact: true }).click();
+  await page
+    .getByText("GPX export opened. Choose where to save or share the route.", {
+      exact: true
+    })
+    .waitFor();
+  assert(
+    await page.evaluate(
+      () =>
+        window.nativeGpxExports.length === 1 &&
+        window.nativeGpxExports[0].includes('<gpx version="1.1"')
+    ),
+    "Companion GPX did not reach the native export bridge"
+  );
+  await page.evaluate(() => {
+    window.nativeExportResult = { saved: true };
+  });
+  await page.getByRole("button", { name: "Export GPX", exact: true }).click();
+  await page.getByText("GPX saved.", { exact: true }).waitFor();
+  await page.evaluate(() => {
+    window.nativeExportResult = { saved: false };
+  });
+  await page.getByRole("button", { name: "Export GPX", exact: true }).click();
+  await page.getByText("GPX export cancelled.", { exact: true }).waitFor();
+  await page.evaluate(() =>
+    history.pushState({}, "", "/settings/connections#health-connect")
+  );
+  await page.evaluate(() =>
+    window.dispatchEvent(new PopStateEvent("popstate"))
+  );
+  const phoneForm = page.locator("#health-connect");
+  await phoneForm
+    .getByRole("button", { name: "Connect this phone", exact: true })
+    .waitFor();
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("omnix-native-ready"))
+  );
+  await phoneForm
+    .getByRole("checkbox", { name: "Sync Sleep", exact: true })
+    .uncheck();
+  await phoneForm
+    .getByRole("button", { name: "Connect this phone", exact: true })
+    .click();
+  await phoneForm
+    .getByText("Phone readings synced.", { exact: true })
+    .waitFor();
+  assert(
+    phoneHealth.enabled &&
+      !phoneHealth.permissions.includes("sleep") &&
+      phoneHealth.last_sync,
+    "Phone settings did not persist selected permissions and sync status"
+  );
+  await page.evaluate(() => {
+    delete window.ReactNativeWebView;
+    delete window.omnixNativeSend;
+    delete window.omnixNativeCapabilities;
+  });
+  await page.goto(origin + "/settings/notifications");
+  const emailRules = page.locator(".email-notification-rules");
+  await emailRules
+    .getByRole("button", { name: "Add email rule", exact: true })
+    .click();
+  await emailRules
+    .getByRole("textbox", { name: "Sender for rule 1", exact: true })
+    .fill("@example.com");
+  await emailRules
+    .getByRole("button", { name: "Save email rules", exact: true })
+    .click();
+  await page.getByText("Email rules saved.", { exact: true }).waitFor();
+  assert(
+    notificationPreferences.email_rules[0].sender === "@example.com",
+    "Notification rules did not persist"
+  );
   await page.goto(origin + "/settings/connections#daily");
   const dailyForm = page.locator(".daily-integration");
   await dailyForm
@@ -1976,6 +2154,9 @@ let browser;
       dailySources: true,
       walkingLoop: true,
       homeWidgets: true,
+      nativeGpxExport: true,
+      phoneHealthPermissions: true,
+      emailNotificationRules: true,
       runtimeErrors: errors.length
     })
   );

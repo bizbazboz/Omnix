@@ -177,7 +177,7 @@ def build_health_router(authenticated, db_session, rate):
     def status(user=Depends(authenticated), db=Depends(db_session)):
         connection = connection_for(db, user)
         scopes = decrypt(connection.credentials).get("scopes", []) if connection else []
-        return {
+        google = {
             "configured": bool(load_setting("google_health")),
             "can_configure": user.is_admin,
             "connected": bool(connection),
@@ -186,15 +186,43 @@ def build_health_router(authenticated, db_session, rate):
             "error": connection.error if connection else "",
             "groups": [group for group, scope in GROUPS.items() if scope in scopes],
         }
+        from .health_connect import saved, summary
+
+        phone = saved(db, user.id)
+        use_phone = (phone.get("enabled") or bool(phone.get("history"))) and (
+            phone.get("preferred", True) or not connection
+        )
+        result = dict(
+            google,
+            google=dict(google),
+            source="health_connect" if use_phone else "google",
+            health_connect={
+                key: value
+                for key, value in summary(phone, user.id).items()
+                if key not in {"changes_token", "device_id", "user_id"}
+            },
+        )
+        if use_phone:
+            result.update(
+                connected=True,
+                status="ready" if phone.get("last_sync") else "pending",
+                last_sync=phone.get("last_sync"),
+                error="",
+                groups=["activity", "sleep"],
+            )
+        return result
 
     @router.get("/statistics")
     def statistics(user=Depends(authenticated), db=Depends(db_session)):
         connection = connection_for(db, user)
-        if not connection:
-            return {"dates": [], "metrics": {}}
-        if not connection.statistics:
-            return {"dates": [], "metrics": {}}
-        return decrypt(connection.statistics)
+        google = (
+            decrypt(connection.statistics)
+            if connection and connection.statistics
+            else {"dates": [], "metrics": {}}
+        )
+        from .health_connect import saved, phone_statistics
+
+        return phone_statistics(saved(db, user.id), google)
 
     @router.post("/google/authorize")
     def authorize(
