@@ -16,7 +16,7 @@ export default function HealthNavigation({ onClose }: { onClose: () => void }) {
           (view) =>
             view.id === "overview" ||
             view.metrics.some(
-              (id) => Object.keys(query.data?.metrics[id]?.points || {}).length
+              (id) => Object.keys(query.data?.metrics?.[id]?.points || {}).length
             )
         )
         .map((view) => (
