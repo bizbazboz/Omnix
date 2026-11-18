@@ -9,7 +9,9 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from typing import Literal
+from email.utils import parseaddr
 from redis.asyncio import Redis as AsyncRedis
 from sqlalchemy import select, func, delete, text, update
 from sqlalchemy.dialects.postgresql import insert
@@ -52,9 +54,77 @@ def signal(owner, scope):
 
 
 def notification_preferences(owner):
-    return load_setting(
-        "notifications:" + owner, {"email": True, "news": False, "previews": False}
-    )
+    return {
+        "email": True,
+        "news": False,
+        "previews": False,
+        "email_default": True,
+        "email_content": "sender_subject",
+        "email_rules": [],
+        **load_setting("notifications:" + owner, {}),
+    }
+
+
+def email_allowed(prefs, message):
+    if not prefs["email"]:
+        return False
+    sender = parseaddr(message.sender)[1].casefold()
+    for rule in prefs.get("email_rules", []):
+        if rule.get("mailbox_id") and rule["mailbox_id"] != message.mailbox:
+            continue
+        match = rule.get("sender", "").casefold()
+        if match and not (
+            sender.endswith(match) if match.startswith("@") else sender == match
+        ):
+            continue
+        if (
+            rule.get("subject")
+            and rule["subject"].casefold() not in message.subject.casefold()
+        ):
+            continue
+        return rule["action"] == "notify"
+    return prefs.get("email_default", True)
+
+
+def email_content(message, mailbox, detail="full"):
+    from html.parser import HTMLParser
+    import html
+
+    class Preview(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.hidden = 0
+            self.parts = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style", "head"):
+                self.hidden += 1
+            elif tag in ("br", "p", "div", "tr"):
+                self.parts.append(" ")
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style", "head"):
+                self.hidden = max(0, self.hidden - 1)
+
+        def handle_data(self, value):
+            if not self.hidden:
+                self.parts.append(value)
+
+    subject = message.subject.strip() or "No subject"
+    sender = message.sender_name.strip() or message.sender
+    title = subject if detail == "subject" else sender + " · " + subject
+    body = mailbox.label or mailbox.address
+    if detail == "full":
+        raw = message.body.strip()
+        if not raw and message.html:
+            parser = Preview()
+            parser.feed(message.html[:100000])
+            raw = " ".join(parser.parts)
+        snippet = " ".join(html.unescape(raw).split())[:280]
+        body += " · To " + message.recipients[:120]
+        if snippet:
+            body += "\n" + snippet
+    return title[:300], body[:500]
 
 
 def email_read(db, owner, message_id):
@@ -73,6 +143,17 @@ def record(db, owner, kind, dedup, title, body, href):
     """Insert in the same transaction as the synced data, once per source item."""
     if not notification_preferences(owner).get(kind, False):
         return
+    if kind == "email":
+        from .core import Message, Connection
+
+        message = db.get(Message, dedup)
+        mailbox = db.get(Connection, message.mailbox) if message else None
+        if message and mailbox:
+            if mailbox.owner != owner or not email_allowed(
+                notification_preferences(owner), message
+            ):
+                return
+            title, body = email_content(message, mailbox)
     id = db.scalar(
         insert(Notification)
         .values(
@@ -94,10 +175,46 @@ def record(db, owner, kind, dedup, title, body, href):
             db.add(PushDelivery(notification=id, device=device.id))
 
 
+class EmailRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    mailbox_id: str = Field(default="", max_length=100)
+    sender: str = Field(default="", max_length=254)
+    subject: str = Field(default="", max_length=150)
+    action: Literal["notify", "mute"] = "notify"
+
+    @field_validator("sender")
+    @classmethod
+    def sender_address(cls, value):
+        value = value.strip().casefold()
+        if value and not re.fullmatch(
+            r"(?:[^\s@<>]+)?@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,63}", value
+        ):
+            raise ValueError("Enter an email address or @domain.example.")
+        return value
+
+    @model_validator(mode="after")
+    def meaningful(self):
+        self.subject = self.subject.strip()
+        if not any((self.mailbox_id, self.sender, self.subject)):
+            raise ValueError("Choose a mailbox, sender or subject for this rule.")
+        return self
+
+
 class NotificationPreferences(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     email: bool = True
     news: bool = False
     previews: bool = False
+    email_default: bool = True
+    email_content: Literal["subject", "sender_subject", "full"] = "sender_subject"
+    email_rules: list[EmailRule] = Field(default_factory=list, max_length=30)
+
+    @model_validator(mode="after")
+    def unique_rules(self):
+        if len({rule.id for rule in self.email_rules}) != len(self.email_rules):
+            raise ValueError("Rule IDs must be unique.")
+        return self
 
 
 class DeviceInput(BaseModel):
@@ -175,6 +292,13 @@ def build_notification_router(authenticated, db_session):
         user=Depends(authenticated),
         db=Depends(db_session),
     ):
+        from .core import Connection
+
+        for rule in body.email_rules:
+            if rule.mailbox_id:
+                mailbox = db.get(Connection, rule.mailbox_id)
+                if not mailbox or mailbox.owner != user.id:
+                    raise HTTPException(422, "Choose one of your connected mailboxes.")
         store_setting(db, "notifications:" + user.id, body.model_dump())
         return body.model_dump()
 
@@ -373,6 +497,24 @@ def deliver_pending():
                 db.commit()
                 continue
             prefs = notification_preferences(n.owner)
+            email_preview = None
+            if n.kind == "email":
+                from .core import Message, Connection
+
+                message = db.get(Message, n.dedup)
+                mailbox = db.get(Connection, message.mailbox) if message else None
+                if message and mailbox and mailbox.owner == n.owner:
+                    if not email_allowed(prefs, message):
+                        delivery.status = "cancelled"
+                        db.commit()
+                        continue
+                    email_preview = email_content(
+                        message, mailbox, prefs["email_content"]
+                    )
+                elif prefs.get("email_rules") or not prefs.get("email_default", True):
+                    delivery.status = "cancelled"
+                    db.commit()
+                    continue
             if n.read and n.kind != "test":
                 delivery.status = "cancelled"
                 db.commit()
@@ -397,6 +539,8 @@ def deliver_pending():
                 "body": n.body if prefs["previews"] else "Open Omnix to view.",
                 "href": n.href,
             }
+            if email_preview and prefs["previews"]:
+                payload["title"], payload["body"] = email_preview
             delivery.attempts += 1
             # Persist attempt before IO. If interrupted, recovery retries after this lease.
             delivery.next_attempt = now() + timedelta(minutes=5)

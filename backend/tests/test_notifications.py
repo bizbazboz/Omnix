@@ -18,8 +18,168 @@ from app.core import (
     now,
     redis,
 )
-from app.notifications import record, deliver_pending
+from app.notifications import record, deliver_pending, email_allowed
 from app.workspace_settings import store_setting
+from app.core import Message
+
+
+def test_email_rules_validate_owner_order_and_sender(signed_client, user, accounts):
+    first = {"id": "rule-first", "sender": "@example.com", "action": "mute"}
+    second = {
+        "id": "rule-second",
+        "mailbox_id": accounts[0].id,
+        "sender": "sender@example.com",
+        "subject": "Message",
+        "action": "notify",
+    }
+    prefs = {
+        "email": True,
+        "news": False,
+        "previews": True,
+        "email_default": False,
+        "email_content": "full",
+        "email_rules": [second, first],
+    }
+    response = signed_client.put("/api/v1/notifications/preferences", json=prefs)
+    assert response.status_code == 200, response.text
+    with Session() as db:
+        messages = list(db.scalars(select(Message).order_by(Message.id)))
+        chosen = next(m for m in messages if m.mailbox == accounts[0].id)
+        assert email_allowed(response.json(), chosen)
+        assert not email_allowed({**prefs, "email_rules": [first, second]}, chosen)
+        chosen.sender = "Sender <SENDER@EXAMPLE.COM>"
+        assert email_allowed(prefs, chosen)
+        chosen.sender = "sender@notexample.com"
+        assert not email_allowed(prefs, chosen)
+        foreign = Connection(
+            owner=user.id,
+            provider="imap",
+            label="Other",
+            address="other@example.com",
+            credentials="",
+        )
+        db.add(foreign)
+        db.flush()
+        another = User(
+            issuer=user.issuer,
+            subject="rules-other",
+            name="Other",
+            email="other@example.com",
+        )
+        db.add(another)
+        db.flush()
+        foreign.owner = another.id
+        db.commit()
+        foreign_id = foreign.id
+    bad = {**prefs, "email_rules": [{**second, "mailbox_id": foreign_id}]}
+    assert (
+        signed_client.put("/api/v1/notifications/preferences", json=bad).status_code
+        == 422
+    )
+    for rules in (
+        [{**second, "sender": "not-an-email"}],
+        [first, first],
+        [{"id": "empty", "action": "notify"}],
+    ):
+        assert (
+            signed_client.put(
+                "/api/v1/notifications/preferences",
+                json={**prefs, "email_rules": rules},
+            ).status_code
+            == 422
+        )
+
+
+def test_email_rules_apply_at_creation_and_delivery_and_verbose_preview(
+    signed_client, user, accounts, monkeypatch
+):
+    device(signed_client)
+    prefs = {
+        "email": True,
+        "news": False,
+        "previews": True,
+        "email_content": "full",
+        "email_rules": [],
+        "email_default": True,
+    }
+    assert (
+        signed_client.put("/api/v1/notifications/preferences", json=prefs).status_code
+        == 200
+    )
+    with Session() as db:
+        message = db.scalar(select(Message).where(Message.mailbox == accounts[0].id))
+        message.body = ""
+        message.html = (
+            "<style>secret-css</style><p>Hello &amp; welcome</p><script>evil()</script>"
+        )
+        message_id = message.id
+        record(
+            db,
+            user.id,
+            "email",
+            message.id,
+            message.subject,
+            message.sender,
+            "/email/inbox?message=" + message.id,
+        )
+        db.commit()
+    sent = []
+    monkeypatch.setattr(
+        "app.firebase_push.send_firebase",
+        lambda token, payload, origin: sent.append(payload),
+    )
+    deliver_pending()
+    assert len(sent) == 1 and "Sender" in sent[0]["title"]
+    assert "Hello & welcome" in sent[0]["body"] and "To alice" in sent[0]["body"]
+    assert "secret-css" not in sent[0]["body"] and "evil" not in sent[0]["body"]
+    with Session() as db:
+        message = db.get(Message, message_id)
+        # Queue an actual second message before muting the sender.
+        message2 = Message(
+            mailbox=message.mailbox,
+            provider_id="rule-second",
+            sender=message.sender,
+            recipients=message.recipients,
+            subject="Second",
+            body="Private",
+        )
+        db.add(message2)
+        db.flush()
+        record(db, user.id, "email", message2.id, "Second", "", "/email")
+        db.commit()
+        second_id = message2.id
+    muted = {
+        **prefs,
+        "email_rules": [
+            {"id": "mute-sender", "sender": "sender@example.com", "action": "mute"}
+        ],
+    }
+    assert (
+        signed_client.put("/api/v1/notifications/preferences", json=muted).status_code
+        == 200
+    )
+    deliver_pending()
+    with Session() as db:
+        n = db.scalar(select(Notification).where(Notification.dedup == second_id))
+        assert (
+            db.scalar(
+                select(PushDelivery).where(PushDelivery.notification == n.id)
+            ).status
+            == "cancelled"
+        )
+        fresh = Message(
+            mailbox=accounts[0].id,
+            provider_id="muted-third",
+            sender="sender@example.com",
+            recipients=accounts[0].address,
+            subject="Muted",
+        )
+        db.add(fresh)
+        db.flush()
+        count = db.scalar(select(func.count()).select_from(Notification))
+        record(db, user.id, "email", fresh.id, "Muted", "", "/email")
+        db.flush()
+        assert db.scalar(select(func.count()).select_from(Notification)) == count
 
 
 def device(client):
