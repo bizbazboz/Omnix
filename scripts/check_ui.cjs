@@ -1441,13 +1441,21 @@ let browser;
   await page.evaluate(
     ({ dates }) => {
       window.nativeGpxExports = [];
-      window.omnixNativeCapabilities = ["export-gpx", "health-connect"];
+      window.nativeArticles = [];
+      window.omnixNativeCapabilities = [
+        "export-gpx",
+        "health-connect",
+        "article-reader"
+      ];
       window.ReactNativeWebView = { postMessage: () => {} };
       window.omnixNativeSend = (message) => {
         let result = null;
         if (message.type === "omnix-export-gpx") {
           window.nativeGpxExports.push(message.content);
           result = window.nativeExportResult ?? null;
+        } else if (message.type === "omnix-open-article") {
+          window.nativeArticles.push(message);
+          result = { opened: true };
         } else if (message.type === "omnix-health") {
           if (message.action === "status")
             result = {
@@ -1539,6 +1547,31 @@ let browser;
       !phoneHealth.permissions.includes("sleep") &&
       phoneHealth.last_sync,
     "Phone settings did not persist selected permissions and sync status"
+  );
+  await page.evaluate(() => {
+    history.pushState({}, "", "/daily/news");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await page.getByRole("link", { name: /A useful daily headline/ }).click();
+  assert(
+    await page.evaluate(
+      () =>
+        window.nativeArticles[0]?.url === "https://news.example.test/article"
+    ),
+    "News did not open the native article reader"
+  );
+  assert(
+    new URL(page.url()).pathname === "/daily/news",
+    "Native article navigation replaced the workspace"
+  );
+  await page.evaluate(() => {
+    history.pushState({}, "", "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await page.getByRole("link", { name: /A useful daily headline/ }).click();
+  assert(
+    await page.evaluate(() => window.nativeArticles.length === 2),
+    "Homepage headline bypassed the native article reader"
   );
   await page.evaluate(() => {
     delete window.ReactNativeWebView;
@@ -2153,6 +2186,7 @@ let browser;
       walkingLoop: true,
       homeWidgets: true,
       nativeGpxExport: true,
+      nativeArticleReader: true,
       phoneHealthPermissions: true,
       emailNotificationRules: true,
       runtimeErrors: errors.length

@@ -34,6 +34,7 @@ import { Doto_600SemiBold } from "@expo-google-fonts/doto/600SemiBold";
 import RuntimeFirebase from "../modules/omnix-firebase";
 import RuntimeHealth from "../modules/omnix-firebase/health";
 import { exportGpx } from "./exportGpx";
+import ArticleReader from "./ArticleReader";
 import {
   AUTH_RETURN,
   AUTH_SCHEME,
@@ -46,6 +47,7 @@ import {
   loginNavigation,
   pairingOrigin,
   appLinkNavigation,
+  companionOpenNavigation,
   nativeBridgeBootstrap,
   nativeBridgeMessage
 } from "./protocol";
@@ -78,6 +80,9 @@ export default function App({ children }: { children?: ReactNode }) {
   );
 }
 function Companion({ fonts }: { fonts: boolean }) {
+  const [article, setArticle] = useState<{ url: string; title: string } | null>(
+    null
+  );
   const [origin, setOrigin] = useState(""),
     [entry, setEntry] = useState(""),
     [loaded, setLoaded] = useState(false),
@@ -128,6 +133,11 @@ function Companion({ fonts }: { fonts: boolean }) {
         } finally {
           exporting.current = false;
         }
+      } else if (message.type === "omnix-open-article") {
+        if (new URL(message.url!).origin === address)
+          throw Error("Open workspace pages using the main navigation.");
+        setArticle({ url: message.url!, title: message.title! });
+        result = { opened: true };
       } else {
         if (Platform.OS !== "android" || !RuntimeHealth) {
           if (message.action === "status")
@@ -312,8 +322,19 @@ function Companion({ fonts }: { fonts: boolean }) {
   useEffect(() => {
     if (!loaded) return;
     const receive = (url: string) => {
-      const destination = appLinkNavigation(url);
+      const destination =
+        appLinkNavigation(url) || companionOpenNavigation(url);
       if (destination) {
+        if (
+          currentOrigin.current &&
+          new URL(destination).origin !== currentOrigin.current
+        ) {
+          setError(
+            "This link belongs to another instance. Pair with that instance first."
+          );
+          return;
+        }
+        setArticle(null);
         void connect(new URL(destination).origin, destination);
         return;
       }
@@ -698,7 +719,8 @@ function Companion({ fonts }: { fonts: boolean }) {
                     );
                   else if (
                     message?.type === "omnix-export-gpx" ||
-                    message?.type === "omnix-health"
+                    message?.type === "omnix-health" ||
+                    message?.type === "omnix-open-article"
                   )
                     void handleNativeRequest(message);
                   else if (message?.type === "omnix-app-info") {
@@ -734,6 +756,14 @@ function Companion({ fonts }: { fonts: boolean }) {
             )
           )}
         </>
+      )}
+      {article && (
+        <ArticleReader
+          key={article.url}
+          article={article}
+          workspaceOrigin={origin}
+          onClose={() => setArticle(null)}
+        />
       )}
     </SafeAreaView>
   );

@@ -7,7 +7,11 @@ export function nativeRequest<T>(
   if (!window.ReactNativeWebView || !window.omnixNativeSend)
     return Promise.reject(Error("Update the companion to use this feature."));
   const capability =
-    type === "omnix-export-gpx" ? "export-gpx" : "health-connect";
+    type === "omnix-export-gpx"
+      ? "export-gpx"
+      : type === "omnix-open-article"
+        ? "article-reader"
+        : "health-connect";
   if (!window.omnixNativeCapabilities?.includes(capability))
     return Promise.reject(Error("Update the companion to use this feature."));
   const request_id = crypto.randomUUID();

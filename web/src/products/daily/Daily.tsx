@@ -1,3 +1,4 @@
+import ArticleLink from "../../components/ArticleLink";
 import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
@@ -126,10 +127,10 @@ function News({ data }: { data: DailyData }) {
                   )}
                 </div>
                 <h2>
-                  <a href={item.url} target="_blank" rel="noreferrer">
+                  <ArticleLink url={item.url} title={item.title}>
                     {item.title}
                     <ArrowUpRight size={18} />
-                  </a>
+                  </ArticleLink>
                 </h2>
                 {item.summary && <p>{item.summary}</p>}
               </article>

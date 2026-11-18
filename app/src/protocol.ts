@@ -173,13 +173,62 @@ export function appLinkNavigation(input: string): string | null {
   }
 }
 
+// Browser prompts work on any paired instance without changing verified-link hosts.
+export function companionOpenNavigation(input: string): string | null {
+  try {
+    const link = new URL(input);
+    if (
+      link.protocol !== AUTH_SCHEME + ":" ||
+      link.hostname !== "open" ||
+      !["", "/"].includes(link.pathname) ||
+      link.username ||
+      link.password ||
+      link.port ||
+      link.hash ||
+      link.searchParams.getAll("url").length !== 1 ||
+      [...link.searchParams.keys()].some((k) => k !== "url")
+    )
+      return null;
+    const url = new URL(link.searchParams.get("url") || "");
+    instanceOrigin(url.origin);
+    if (
+      url.username ||
+      url.password ||
+      !/^\/(?:$|(?:email|calendar|health|notes|daily|iot|settings|onboarding)(?:\/|$))/.test(
+        url.pathname
+      )
+    )
+      return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+export function articleUrl(input: unknown): string | null {
+  try {
+    if (typeof input !== "string" || input.length > 8192) return null;
+    const url = new URL(input);
+    if (
+      url.protocol !== "https:" ||
+      !url.hostname ||
+      url.username ||
+      url.password
+    )
+      return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 export function nativeBridgeBootstrap(token: string): string {
   if (!/^[A-Za-z0-9_-]{43}$/.test(token))
     throw new Error("Invalid bridge capability");
   return `if(window.top===window && !window.omnixNativeSend && window.ReactNativeWebView){
     const send=window.ReactNativeWebView.postMessage.bind(window.ReactNativeWebView);
     Object.defineProperty(window,'omnixNativeSend',{value:(message)=>send(JSON.stringify({...message,bridgeToken:${JSON.stringify(token)}})),writable:false,configurable:false});
-    Object.defineProperty(window,'omnixNativeCapabilities',{value:Object.freeze(['export-gpx','health-connect']),writable:false,configurable:false});
+    Object.defineProperty(window,'omnixNativeCapabilities',{value:Object.freeze(['export-gpx','health-connect','article-reader']),writable:false,configurable:false});
     window.dispatchEvent(new Event('omnix-native-ready'));
   }true;`;
 }
@@ -197,6 +246,8 @@ export function nativeBridgeMessage(
   timezone?: string;
   changes_token?: string;
   force?: boolean;
+  url?: string;
+  title?: string;
 } | null {
   try {
     if (raw.length > 2100000) return null;
@@ -209,7 +260,8 @@ export function nativeBridgeMessage(
         "omnix-app-info",
         "omnix-open-settings",
         "omnix-export-gpx",
-        "omnix-health"
+        "omnix-health",
+        "omnix-open-article"
       ].includes(value.type)
     )
       return null;
@@ -231,6 +283,22 @@ export function nativeBridgeMessage(
       };
     }
     if (raw.length > 200000) return null;
+    if (value.type === "omnix-open-article") {
+      const url = articleUrl(value.url);
+      if (
+        !url ||
+        !/^[a-f0-9-]{36}$/.test(value.request_id ?? "") ||
+        typeof value.title !== "string" ||
+        value.title.length > 250
+      )
+        return null;
+      return {
+        type: value.type,
+        request_id: value.request_id,
+        url,
+        title: value.title
+      };
+    }
     if (value.type === "omnix-health") {
       if (
         !/^[a-f0-9-]{36}$/.test(value.request_id ?? "") ||
