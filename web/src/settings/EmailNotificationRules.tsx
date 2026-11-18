@@ -33,15 +33,13 @@ export default function EmailNotificationRules({
   });
   const [rules, setRules] = useState<Rule[]>(value.email_rules ?? []);
   const [fallback, setFallback] = useState(value.email_default ?? true);
-  const [content, setContent] = useState(
-    value.email_content ?? "sender_subject"
-  );
+  const [content, setContent] = useState(value.email_content ?? "full");
   const [dirty, setDirty] = useState(false);
   useEffect(() => {
     if (!dirty) {
       setRules(value.email_rules ?? []);
       setFallback(value.email_default ?? true);
-      setContent(value.email_content ?? "sender_subject");
+      setContent(value.email_content ?? "full");
     }
   }, [value, dirty]);
   function edit(next: Rule[]) {

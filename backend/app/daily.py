@@ -126,6 +126,14 @@ def link(value, base=""):
     )
 
 
+def news_notification_body(item, count):
+    """A useful preview even when a publisher supplies no article summary."""
+    summary = text(item.get("summary"), 280)
+    source = text(item.get("source"), 100)
+    suffix = " · " + str(count - 1) + " more headlines" if count > 1 else ""
+    return (summary + "\n" if summary else "") + (source or "News") + suffix
+
+
 def news_items(source, raw):
     root = fromstring(raw, forbid_dtd=True)
     atom = "{http://www.w3.org/2005/Atom}"
@@ -410,7 +418,7 @@ def refresh_daily(owner, force=False):
                             "news",
                             item["id"],
                             item["title"],
-                            str(len(new_items)) + " new headlines",
+                            news_notification_body(item, len(new_items)),
                             "/daily/news?article=" + item["id"],
                         )
                 latest = load_setting("daily-cache:" + owner, {})

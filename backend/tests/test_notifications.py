@@ -547,3 +547,62 @@ def test_fcm_rotation_replaces_session_token(signed_client, user):
     assert response.status_code == 200
     rows = signed_client.get("/api/v1/notifications/devices").json()
     assert len(rows) == 1 and rows[0]["id"] != first and rows[0]["kind"] == "fcm"
+
+
+def test_news_push_contains_headline_and_summary_with_privacy(
+    signed_client, user, monkeypatch
+):
+    from app.daily import news_items, news_notification_body
+
+    device(signed_client)
+    item = news_items(
+        {"id": "local", "name": "Local news", "url": "https://news.example.test/feed"},
+        b"<rss><channel><item><title>New station opens</title><link>https://news.example.test/story</link><description>&lt;p&gt;The first trains arrive on Monday.&lt;/p&gt;</description></item></channel></rss>",
+    )[0]
+    prefs = {"email": True, "news": True, "previews": True}
+    with Session() as db:
+        store_setting(db, "notifications:" + user.id, prefs)
+        record(
+            db,
+            user.id,
+            "news",
+            item["id"],
+            item["title"],
+            news_notification_body(item, 3),
+            "/daily/news?article=" + item["id"],
+        )
+        db.commit()
+    payloads = []
+    monkeypatch.setattr(
+        "app.firebase_push.send_firebase",
+        lambda token, payload, origin: payloads.append(payload),
+    )
+    deliver_pending()
+    assert payloads[0]["title"] == "New station opens"
+    assert "The first trains arrive on Monday." in payloads[0]["body"]
+    assert (
+        "Local news" in payloads[0]["body"]
+        and "2 more headlines" in payloads[0]["body"]
+    )
+    assert "<p>" not in payloads[0]["body"]
+    assert payloads[0]["href"].startswith("/daily/news?article=")
+    with Session() as db:
+        store_setting(db, "notifications:" + user.id, {**prefs, "previews": False})
+        record(
+            db,
+            user.id,
+            "news",
+            "private-story",
+            item["title"],
+            item["summary"],
+            "/daily/news?article=private-story",
+        )
+        db.commit()
+    deliver_pending()
+    assert payloads[1]["title"] == "New headlines"
+    assert payloads[1]["body"] == "Open Omnix to view."
+    assert news_notification_body({"source": "News"}, 1) == "News"
+    assert (
+        len(news_notification_body({"summary": "x" * 1000, "source": "y" * 1000}, 99))
+        < 500
+    )

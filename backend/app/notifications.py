@@ -59,7 +59,7 @@ def notification_preferences(owner):
         "news": False,
         "previews": False,
         "email_default": True,
-        "email_content": "sender_subject",
+        "email_content": "full",
         "email_rules": [],
         **load_setting("notifications:" + owner, {}),
     }
@@ -211,7 +211,7 @@ class NotificationPreferences(BaseModel):
     news: bool = False
     previews: bool = False
     email_default: bool = True
-    email_content: Literal["subject", "sender_subject", "full"] = "sender_subject"
+    email_content: Literal["subject", "sender_subject", "full"] = "full"
     email_rules: list[EmailRule] = Field(default_factory=list, max_length=30)
 
     @model_validator(mode="after")
@@ -389,7 +389,7 @@ def build_notification_router(authenticated, db_session):
             kind="test",
             dedup=id,
             title="Notifications connected",
-            body="",
+            body="Push notifications are ready. Tap to manage your notification preferences.",
             href="/settings/notifications",
         )
         db.add(n)
@@ -540,7 +540,11 @@ def deliver_pending():
                         else "New headlines" if n.kind == "news" else n.title
                     )
                 ),
-                "body": n.body if prefs["previews"] else "Open Omnix to view.",
+                "body": (
+                    n.body
+                    if prefs["previews"] or n.kind == "test"
+                    else "Open Omnix to view."
+                ),
                 "href": n.href,
             }
             if email_preview and prefs["previews"]:
