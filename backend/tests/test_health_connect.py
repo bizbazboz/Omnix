@@ -2,12 +2,12 @@ from copy import deepcopy
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy import select
-from app.core import Session, SystemSetting, HealthConnection, User, encrypt, now
+from app.core import Session, SystemSetting, User, encrypt, now
 
 DEVICE = "test_phone_device_identifier_123456789012345"
 
 
-def test_source_preference_never_sums_and_phone_fills_missing_cloud_days():
+def test_phone_overrides_archive_without_summing_or_mixing_timezones():
     from app.health_connect import phone_statistics
 
     phone = {
@@ -23,10 +23,6 @@ def test_source_preference_never_sums_and_phone_fills_missing_cloud_days():
         "dates": ["2026-01-01"],
         "metrics": {"steps": {"points": {"2026-01-01": 999}}},
     }
-    assert phone_statistics(phone, cloud)["metrics"]["steps"]["points"] == {
-        "2026-01-01": 999,
-        "2026-01-02": 200,
-    }
     phone["preferred"] = True
     assert phone_statistics(phone, cloud)["metrics"]["steps"]["points"] == {
         "2026-01-01": 100,
@@ -39,10 +35,6 @@ def test_source_preference_never_sums_and_phone_fills_missing_cloud_days():
         phone_statistics(phone, cloud)["metrics"]["steps"]["timezone"]
         == "Europe/London"
     )
-    phone["preferred"] = False
-    assert phone_statistics(phone, cloud)["metrics"]["steps"]["points"] == {
-        "2026-01-01": 999
-    }
 
 
 def configure(client, **extra):
@@ -101,7 +93,7 @@ def test_phone_health_is_private_encrypted_and_idempotent(signed_client, user):
     assert (
         state["connected"]
         and state["source"] == "health_connect"
-        and not state["google"]["connected"]
+        and "google" not in state
     )
     with Session() as db:
         raw = db.get(SystemSetting, "health-connect:" + user.id).value
@@ -129,7 +121,7 @@ def test_phone_health_is_private_encrypted_and_idempotent(signed_client, user):
     )
 
 
-def test_phone_precedence_deletions_and_google_history_preserved(signed_client, user):
+def test_phone_precedence_deletions_and_archived_history_preserved(signed_client, user):
     config = configure(signed_client)
     body = snapshot(config)
     day = body["dates"][-1]
@@ -148,14 +140,7 @@ def test_phone_precedence_deletions_and_google_history_preserved(signed_client, 
         },
     }
     with Session() as db:
-        db.add(
-            HealthConnection(
-                owner=user.id,
-                credentials=encrypt({"scopes": []}),
-                statistics=encrypt(google),
-                status="ready",
-            )
-        )
+        db.add(SystemSetting(key="health-history:" + user.id, value=encrypt(google)))
         db.commit()
     response = signed_client.post("/api/v1/health/connect/sync", json=body)
     assert response.status_code == 200

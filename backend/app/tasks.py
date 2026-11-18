@@ -23,7 +23,6 @@ celery.conf.update(
             "schedule": 60.0,
         },
         "calendar-dispatch": {"task": "app.tasks.dispatch_calendars", "schedule": 60.0},
-        "health-dispatch": {"task": "app.tasks.dispatch_health", "schedule": 60.0},
         "daily-dispatch": {"task": "app.tasks.dispatch_daily", "schedule": 60.0},
         "iot-dispatch": {"task": "app.tasks.dispatch_iot", "schedule": 30.0},
     },
@@ -65,46 +64,6 @@ def dispatch_daily():
             owner = key.removeprefix("daily:")
             if redis.set("daily-dispatch:" + owner, "1", ex=55, nx=True):
                 daily_sync.delay(owner)
-
-
-@celery.task(name="app.tasks.health_sync")
-def health_sync(id):
-    from .health import sync_health
-
-    with execution("health-sync", id):
-        if not sync_health(id):
-            raise RuntimeError("Health refresh failed; check the connection.")
-        from .core import HealthConnection
-        from .notifications import signal
-
-        with Session() as db:
-            connection = db.get(HealthConnection, id)
-            if connection:
-                signal(connection.owner, "health")
-
-
-@celery.task(name="app.tasks.dispatch_health")
-def dispatch_health():
-    from datetime import timedelta
-    from .core import HealthConnection
-
-    with (
-        redis.lock("scheduler:health", timeout=50, blocking_timeout=1),
-        Session() as db,
-    ):
-        ids = list(
-            db.scalars(
-                select(HealthConnection.id).where(
-                    HealthConnection.status != "reconnect",
-                    or_(
-                        HealthConnection.last_attempt.is_(None),
-                        HealthConnection.last_attempt < now() - timedelta(minutes=30),
-                    ),
-                )
-            )
-        )
-        for id in ids:
-            health_sync.delay(id)
 
 
 @celery.task(name="app.tasks.calendar_sync")

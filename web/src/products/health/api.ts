@@ -1,6 +1,5 @@
 export type HealthStatus = {
-  source?: "google" | "health_connect";
-  google?: HealthStatus;
+  source?: "history" | "health_connect";
   configured: boolean;
   can_configure: boolean;
   connected: boolean;

@@ -50,7 +50,7 @@ The first sync reads daily aggregates for the last 28 days. Android's aggregatio
 
 Readings upload through the current signed-in WebView session, remain private to its account and are encrypted in the server database. Revision checks prevent stale settings or old device snapshots from replacing newer data; retrying the same accepted batch does not duplicate totals. No app `.env`, cloud Health key or extra OAuth client is needed. Only one phone is the active source for an account; connecting another retains saved history and changes the active device.
 
-Google remains available and its history is not deleted. Choose the preferred source for overlapping days; totals are never summed. Phone data fills missing Google days when Google is preferred. Daily readings with different source timezones keep their original day boundaries rather than being combined; source history remains stored independently. **Pause phone sync** retains cached readings, marked stale. Revoking Android permissions stops future reads of those categories. **Forget phone data** removes synced phone history only; revoke OS permissions separately if desired. Apple Health is not part of this integration.
+Google Health cloud support has been retired. Upgrading archives previously saved readings, deletes Google Health OAuth credentials and registration, and stops cloud sync jobs. Health Connect is the only live health source. Phone totals replace overlapping archived days without being summed. Different timezones retain their original daily boundaries. Pause retains saved phone readings; Forget removes phone readings only. Apple Health is not supported.
 
 ## Release builds
 

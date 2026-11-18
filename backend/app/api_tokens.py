@@ -35,7 +35,6 @@ def personal_operation(path: str, method: str) -> bool:
                 "/api/v1/health/statistics",
             }
         )
-        or (method == "POST" and path == "/api/v1/health/refresh")
     )
 
 

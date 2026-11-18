@@ -219,7 +219,7 @@ export default function Onboarding({ user }: { user: User }) {
                     name: "Calendar",
                     detail: "iCal subscriptions"
                   },
-                  { Icon: HeartPulse, name: "Health", detail: "Google Health" }
+                  { Icon: HeartPulse, name: "Health", detail: "Health Connect" }
                 ].map((app) => (
                   <div key={app.name}>
                     <app.Icon size={20} strokeWidth={1.25} />

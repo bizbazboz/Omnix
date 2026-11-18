@@ -1,4 +1,4 @@
-"""Account-scoped daily Health Connect snapshots; Google history remains independent."""
+"""Account-scoped daily Health Connect snapshots; previously saved history remains read-only."""
 
 import hashlib
 import json
@@ -74,7 +74,9 @@ class Configuration(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_revision: int = Field(ge=0)
     enabled: bool = True
-    preferred: bool = True
+    preferred: bool = Field(
+        default=True, exclude=True
+    )  # Compatibility only; phone readings always win.
     device_id: str = Field(pattern=r"^[A-Za-z0-9_-]{32,64}$")
     metrics: list[Kind] = Field(min_length=1, max_length=4)
     timezone: str = Field(max_length=100)
@@ -138,30 +140,27 @@ class Snapshot(BaseModel):
         return self
 
 
-def phone_statistics(value, google):
+def phone_statistics(value, archive):
     if not value.get("enabled") and not value.get("history"):
-        return google
-    result = json.loads(json.dumps(google or {"dates": [], "metrics": {}}))
+        return archive
+    result = json.loads(json.dumps(archive or {"dates": [], "metrics": {}}))
     metrics = result.setdefault("metrics", {})
-    cloud_zone = google.get("timezone", "UTC")
-    phone_zone = value.get("timezone") or cloud_zone
     for metric in metrics.values():
-        metric.setdefault("timezone", cloud_zone)
+        metric.update(stale=True, source="history")
+    archive_zone = archive.get("timezone", "UTC")
+    phone_zone = value.get("timezone") or archive_zone
+    for metric in metrics.values():
+        metric.setdefault("timezone", archive_zone)
     for kind, history in value.get("history", {}).items():
         if kind not in KINDS:
             continue
         points = dict(metrics.get(kind, {}).get("points", {}))
-        if cloud_zone != phone_zone:
-            if points and not value.get("preferred", True):
-                continue
+        if archive_zone != phone_zone:
             points = {}
         # Never sum overlapping sources; retain fallback data outside phone coverage.
-        if value.get("preferred", True):
-            for day in value.get("coverage", {}).get(kind, []):
-                points.pop(day, None)
-            points.update(history)
-        else:
-            points = {**history, **points}
+        for day in value.get("coverage", {}).get(kind, []):
+            points.pop(day, None)
+        points.update(history)
         label, unit, group, _ = KINDS[kind]
         shared = (
             value.get("enabled")
@@ -176,8 +175,8 @@ def phone_statistics(value, google):
             "points": points,
             "source": (
                 "mixed"
-                if cloud_zone == phone_zone
-                and google.get("metrics", {}).get(kind, {}).get("points")
+                if archive_zone == phone_zone
+                and archive.get("metrics", {}).get(kind, {}).get("points")
                 else "health_connect"
             ),
             "timezone": phone_zone,
@@ -186,11 +185,7 @@ def phone_statistics(value, google):
             or (now() - datetime.fromisoformat(value["last_sync"])).total_seconds()
             > 86400,
         }
-    result["timezone"] = (
-        phone_zone
-        if value.get("preferred", True) or not google.get("metrics")
-        else cloud_zone
-    )
+    result["timezone"] = phone_zone
     result["dates"] = sorted(
         set(result.get("dates", []))
         | {day for metric in metrics.values() for day in metric.get("points", {})}

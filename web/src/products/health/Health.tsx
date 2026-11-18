@@ -9,7 +9,7 @@ import {
   Loader2,
   RefreshCw
 } from "lucide-react";
-import { lazy, useEffect, useState } from "react";
+import { lazy, useState } from "react";
 import {
   NavLink,
   useSearchParams,
@@ -72,20 +72,6 @@ function HealthReadings() {
     qc.invalidateQueries({ queryKey: ["health-status"] });
     qc.invalidateQueries({ queryKey: ["health-statistics"] });
   };
-  useEffect(() => {
-    const result = params.get("connect");
-    if (result) {
-      setMessage(
-        result === "success"
-          ? "Google Health connected. Fetching readings."
-          : "Google connection cancelled."
-      );
-      invalidate();
-      const next = new URLSearchParams(params);
-      next.delete("connect");
-      setParams(next, { replace: true });
-    }
-  }, [params]);
   const data = state.data?.connected ? readings.data : undefined,
     dates = data?.dates.slice(-range) || [];
   const today = new Intl.DateTimeFormat("en-CA", {
@@ -121,8 +107,8 @@ function HealthReadings() {
           await syncPhoneHealth(qc.getQueryData<User>(["me"])?.id || "", true)
         );
       } else {
-        await api("/health/refresh", { method: "POST" });
-        setMessage("Refresh queued");
+        await readings.refetch();
+        setMessage("Saved history refreshed");
       }
       invalidate();
     } catch (error) {
@@ -190,12 +176,12 @@ function HealthReadings() {
               </h2>
               <p>
                 {state.data?.connected
-                  ? "Renew your Google connection to resume readings."
-                  : "Connect Google Health in Integrations to see your activity, sleep and measurements."}
+                  ? "Open the Android companion to sync your readings."
+                  : "Connect Health Connect in the Android companion to see your activity and sleep."}
               </p>
               <NavLink
                 className="secondary"
-                to="/settings/connections#google-health"
+                to="/settings/connections#health-connect"
               >
                 Open Integrations <ArrowUpRight size={16} />
               </NavLink>
@@ -228,7 +214,7 @@ function HealthReadings() {
               ) && (
                 <p className="notice">
                   This category has not been shared.{" "}
-                  <NavLink to="/settings/connections#google-health">
+                  <NavLink to="/settings/connections#health-connect">
                     Manage access in Integrations
                   </NavLink>
                   .

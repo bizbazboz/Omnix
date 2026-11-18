@@ -22,13 +22,11 @@ export default function HealthConnectIntegration() {
       "workout_minutes",
       "sleep"
     ]);
-  const [preferred, setPreferred] = useState(true),
-    [busy, setBusy] = useState(false),
+  const [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   useEffect(() => {
     if (query.data?.enabled) {
       setSelected(query.data.metrics);
-      setPreferred(query.data.preferred ?? true);
     }
   }, [query.data]);
   useEffect(() => {
@@ -72,7 +70,7 @@ export default function HealthConnectIntegration() {
       <h2>Health from your phone</h2>
       <p className="muted">
         Read only the categories you choose. Daily totals sync privately to this
-        account while Omnix is open. Google history stays separate.
+        account while Omnix is open. Previously saved history remains available.
       </p>
       {query.error && (
         <p role="alert" className="error">
@@ -112,15 +110,6 @@ export default function HealthConnectIntegration() {
               />
             </label>
           ))}
-          <label className="notification-option">
-            <span>Prefer phone readings for overlapping days</span>
-            <input
-              type="checkbox"
-              checked={preferred}
-              disabled={busy || !supported}
-              onChange={(e) => setPreferred(e.target.checked)}
-            />
-          </label>
           <p className="muted">
             No location, medical records or write permissions. The first sync
             reads the last 28 days. Later syncs check changes; no background
@@ -172,7 +161,6 @@ export default function HealthConnectIntegration() {
                     body: JSON.stringify({
                       expected_revision: config.revision,
                       enabled: true,
-                      preferred,
                       device_id: info.device_id,
                       metrics: selected,
                       timezone:
@@ -235,9 +223,7 @@ export default function HealthConnectIntegration() {
                         timezone: config.timezone
                       })
                     });
-                    setMessage(
-                      "Phone sync paused. Saved phone and Google history retained."
-                    );
+                    setMessage("Phone sync paused. Saved history retained.");
                   })
                 }
               >
@@ -251,7 +237,7 @@ export default function HealthConnectIntegration() {
                 onClick={() => {
                   if (
                     confirm(
-                      "Forget all synced phone health data? Google history will be kept. Android permissions are managed separately."
+                      "Forget all synced phone health data? Previously archived history will be kept. Android permissions are managed separately."
                     )
                   )
                     void run(async () => {

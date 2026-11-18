@@ -754,8 +754,6 @@ let browser;
       };
     else if (p === "/health/statistics")
       data = { dates, timezone: "Europe/London", metrics };
-    else if (p === "/health/google/registration")
-      data = { configured: true, can_configure: false };
     else if (p === "/mobile/pairing")
       data = { origin: "https://omnix.example.test", version: 1 };
     else if (p === "/mobile/requests/mobile-qa/approve")
