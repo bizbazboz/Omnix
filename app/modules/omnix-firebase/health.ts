@@ -4,6 +4,7 @@ export default requireOptionalNativeModule<{
     available: boolean;
     status: number;
     permissions: string[];
+    supported_metrics?: string[];
   }>;
   permissions(metrics: string[]): Promise<string[]>;
   settings(): Promise<void>;

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import { articleUrl } from "./protocol";
+import { articleUrl, readerArticleUrl } from "./protocol";
 
 export default function ArticleReader({
   article,
@@ -50,7 +50,6 @@ export default function ArticleReader({
               <Text numberOfLines={1} style={styles.domain}>
                 {new URL(address).hostname.replace(/^www\./, "")}
               </Text>
-              <Text style={styles.badge}>.app</Text>
             </View>
             <Text numberOfLines={1} style={styles.title}>
               {article.title || "Article"}
@@ -116,6 +115,17 @@ export default function ArticleReader({
             allowsBackForwardNavigationGestures
             onShouldStartLoadWithRequest={(request) => {
               const url = articleUrl(request.url);
+              if (
+                url &&
+                new URL(url).origin !== workspaceOrigin &&
+                request.isTopFrame !== false
+              ) {
+                const target = readerArticleUrl(url)!;
+                if (target !== url) {
+                  setEntry(target);
+                  return false;
+                }
+              }
               return (
                 Boolean(url && new URL(url).origin !== workspaceOrigin) ||
                 (request.isTopFrame === false &&
@@ -179,7 +189,6 @@ const styles = StyleSheet.create({
     fontFamily: "SpaceGrotesk_400Regular",
     flexShrink: 1
   },
-  badge: { color: "#aaa", fontSize: 11, fontFamily: "SpaceMono_400Regular" },
   title: { color: "#999", fontSize: 11, fontFamily: "SpaceMono_400Regular" },
   loading: { padding: 8 },
   error: { flex: 1, justifyContent: "center", padding: 28, gap: 20 },

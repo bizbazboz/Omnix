@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends
 from .core import SystemSetting, decrypt
-from .health_connect import saved, summary, phone_statistics
+from .health_connect import saved, summary, phone_statistics, KINDS
 
 
 def archive(db, owner):
@@ -36,7 +36,11 @@ def build_health_router(authenticated, db_session, rate):
                     m.get("group", "activity")
                     for m in history.get("metrics", {}).values()
                 }
-                | ({"activity", "sleep"} if has_phone else set())
+                | (
+                    {KINDS[k][2] for k in phone.get("metrics", []) if k in KINDS}
+                    if has_phone
+                    else set()
+                )
             ),
             "health_connect": {
                 k: v

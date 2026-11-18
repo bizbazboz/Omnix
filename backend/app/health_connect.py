@@ -12,11 +12,58 @@ from .core import SystemSetting, encrypt, decrypt, now
 
 KINDS = {
     "steps": ("Steps", "steps", "activity", 1000000),
-    "distance": ("Distance", "km", "activity", 2000),
-    "workout_minutes": ("Exercise duration", "min", "activity", 1440),
+    "distance": ("Kilometres", "km", "activity", 2000),
+    "weight": ("Weight", "kg", "measurements", 1000),
+    "calories": ("Calories burned", "kcal", "activity", 100000),
+    "workout_minutes": ("Workout time", "min", "activity", 1440),
     "sleep": ("Sleep", "h", "sleep", 24),
+    "active_energy": ("Active calories", "kcal", "activity", 100000),
+    "heart_rate": ("Average heart rate", "bpm", "measurements", 400),
+    "oxygen": ("Blood oxygen", "%", "measurements", 100),
+    "systolic": ("Systolic pressure", "mmHg", "measurements", 400),
+    "diastolic": ("Diastolic pressure", "mmHg", "measurements", 300),
+    "glucose": ("Blood glucose", "mg/dL", "measurements", 2000),
+    "body_fat": ("Body fat", "%", "measurements", 100),
+    "bmr": ("Basal metabolic rate", "kcal/day", "measurements", 20000),
+    "height": ("Height", "cm", "measurements", 300),
+    "vo2_max": ("VO₂ max", "ml/kg/min", "activity", 200),
+    "power": ("Average power", "W", "activity", 10000),
+    "speed": ("Average speed", "km/h", "activity", 400),
+    "calories_in": ("Food energy", "kcal", "nutrition", 100000),
+    "protein": ("Protein", "g", "nutrition", 10000),
+    "carbs": ("Carbohydrates", "g", "nutrition", 10000),
+    "fat": ("Fat", "g", "nutrition", 10000),
+    "fibre": ("Fibre", "g", "nutrition", 10000),
+    "sugar": ("Sugar", "g", "nutrition", 10000),
+    "sodium": ("Sodium", "mg", "nutrition", 100000),
 }
-Kind = Literal["steps", "distance", "workout_minutes", "sleep"]
+Kind = Literal[
+    "steps",
+    "distance",
+    "weight",
+    "calories",
+    "workout_minutes",
+    "sleep",
+    "active_energy",
+    "heart_rate",
+    "oxygen",
+    "systolic",
+    "diastolic",
+    "glucose",
+    "body_fat",
+    "bmr",
+    "height",
+    "vo2_max",
+    "power",
+    "speed",
+    "calories_in",
+    "protein",
+    "carbs",
+    "fat",
+    "fibre",
+    "sugar",
+    "sodium",
+]
 
 
 def saved(db, owner):
@@ -78,7 +125,7 @@ class Configuration(BaseModel):
         default=True, exclude=True
     )  # Compatibility only; phone readings always win.
     device_id: str = Field(pattern=r"^[A-Za-z0-9_-]{32,64}$")
-    metrics: list[Kind] = Field(min_length=1, max_length=4)
+    metrics: list[Kind] = Field(min_length=1, max_length=len(KINDS))
     timezone: str = Field(max_length=100)
 
     @field_validator("timezone")
@@ -105,9 +152,9 @@ class Snapshot(BaseModel):
     batch_id: str = Field(pattern=r"^[A-Za-z0-9_-]{16,64}$")
     captured_at: datetime
     timezone: str = Field(max_length=100)
-    permissions: list[Kind] = Field(max_length=4)
+    permissions: list[Kind] = Field(max_length=len(KINDS))
     dates: list[date] = Field(min_length=28, max_length=28)
-    points: dict[str, dict[str, float]] = Field(max_length=4)
+    points: dict[str, dict[str, float]] = Field(max_length=len(KINDS))
     changes_token: str = Field(default="", max_length=10000)
 
     @model_validator(mode="after")
@@ -186,6 +233,16 @@ def phone_statistics(value, archive):
             > 86400,
         }
     result["timezone"] = phone_zone
+    if "workout_minutes" in metrics:
+        metric = metrics["workout_minutes"]
+        metrics["workout_hours"] = dict(
+            metric,
+            label="Workout hours",
+            unit="h",
+            points={
+                day: minutes / 60 for day, minutes in metric.get("points", {}).items()
+            },
+        )
     result["dates"] = sorted(
         set(result.get("dates", []))
         | {day for metric in metrics.values() for day in metric.get("points", {})}
