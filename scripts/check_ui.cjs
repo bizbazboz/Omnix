@@ -1534,6 +1534,10 @@ let browser;
     { dates }
   );
   await page.getByRole("button", { name: "Export GPX", exact: true }).click();
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("omnix-native-ready"))
+  );
+  await page.locator(".notification-center").waitFor({ state: "hidden" });
   await page
     .getByText("GPX export opened. Choose where to save or share the route.", {
       exact: true
@@ -1615,7 +1619,9 @@ let browser;
     delete window.ReactNativeWebView;
     delete window.omnixNativeSend;
     delete window.omnixNativeCapabilities;
+    window.dispatchEvent(new Event("omnix-native-ready"));
   });
+  await page.getByRole("button", { name: /^Notifications/ }).waitFor();
   await page.goto(origin + "/settings/notifications");
   const emailRules = page.locator(".email-notification-rules");
   await emailRules

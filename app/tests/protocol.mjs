@@ -5,6 +5,7 @@ import {
   appLinkNavigation,
   companionOpenNavigation,
   articleUrl,
+  readerArticleUrl,
   nativeBridgeBootstrap,
   nativeBridgeMessage,
   mobileGrant,
@@ -175,6 +176,27 @@ for (const url of [
   assert.equal(appLinkNavigation(url), null);
 
 const bridgeToken = "a".repeat(43);
+const bbc = "https://www.bbc.co.uk/news/videos/c8p3vw4q6nzzo";
+assert.equal(readerArticleUrl(bbc), bbc + ".app");
+assert.equal(
+  readerArticleUrl(bbc + "?utm_source=rss&view=full#watch"),
+  bbc + ".app?utm_source=rss&view=full#watch"
+);
+assert.equal(readerArticleUrl(bbc + ".app?view=full"), bbc + ".app?view=full");
+assert.equal(readerArticleUrl(bbc + "/?view=full"), bbc + ".app?view=full");
+assert.equal(
+  readerArticleUrl("https://www.bbc.co.uk.evil.test/news/article?view=full"),
+  "https://www.bbc.co.uk.evil.test/news/article?view=full"
+);
+assert.equal(
+  readerArticleUrl("https://example.com/news/article?view=full"),
+  "https://example.com/news/article?view=full"
+);
+assert.equal(
+  readerArticleUrl("https://www.bbc.co.uk/weather"),
+  "https://www.bbc.co.uk/weather"
+);
+assert.equal(readerArticleUrl("javascript:alert(1)"), null);
 const destination =
   "https://personal.example.test/notes/projects/one?issue=two#comments";
 const openLink =
@@ -251,6 +273,13 @@ const articleMessage = {
   url: "https://publisher.example.test/story",
   title: "A headline"
 };
+assert.equal(
+  nativeBridgeMessage(
+    JSON.stringify({ ...articleMessage, url: bbc + "?utm_source=rss#watch" }),
+    bridgeToken
+  )?.url,
+  bbc + ".app?utm_source=rss#watch"
+);
 assert.equal(
   nativeBridgeMessage(JSON.stringify(articleMessage), bridgeToken)?.url,
   articleMessage.url

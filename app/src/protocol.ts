@@ -232,6 +232,22 @@ export function nativeBridgeBootstrap(token: string): string {
     window.dispatchEvent(new Event('omnix-native-ready'));
   }true;`;
 }
+
+export function readerArticleUrl(input: unknown): string | null {
+  const valid = articleUrl(input);
+  if (!valid) return null;
+  const url = new URL(valid);
+  if (
+    ["bbc.co.uk", "www.bbc.co.uk", "bbc.com", "www.bbc.com"].includes(
+      url.hostname
+    ) &&
+    /^\/news\/.+/.test(url.pathname)
+  ) {
+    const path = url.pathname.replace(/\/+$/, "");
+    url.pathname = path.endsWith(".app") ? path : path + ".app";
+  }
+  return url.href;
+}
 export function nativeBridgeMessage(
   raw: string,
   token: string
@@ -284,7 +300,7 @@ export function nativeBridgeMessage(
     }
     if (raw.length > 200000) return null;
     if (value.type === "omnix-open-article") {
-      const url = articleUrl(value.url);
+      const url = readerArticleUrl(value.url);
       if (
         !url ||
         !/^[a-f0-9-]{36}$/.test(value.request_id ?? "") ||

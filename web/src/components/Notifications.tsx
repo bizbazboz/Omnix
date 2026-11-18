@@ -18,9 +18,19 @@ type Item = {
 export default function Notifications({ userId }: { userId: string }) {
   useLiveUpdates();
   const [open, setOpen] = useState(false);
+  const [native, setNative] = useState(Boolean(window.ReactNativeWebView));
   const [error, setError] = useState("");
   const panel = useRef<HTMLDivElement>(null);
   const registering = useRef(false);
+  useEffect(() => {
+    const ready = () => {
+      const insideApp = Boolean(window.ReactNativeWebView);
+      setNative(insideApp);
+      if (insideApp) setOpen(false);
+    };
+    window.addEventListener("omnix-native-ready", ready);
+    return () => window.removeEventListener("omnix-native-ready", ready);
+  }, []);
   useEffect(() => {
     const key = "omnix.push-device:" + userId;
     const refresh = () => {
@@ -69,6 +79,7 @@ export default function Notifications({ userId }: { userId: string }) {
   const query = useQuery<{ items: Item[]; unread: number }>({
     queryKey: ["notifications"],
     queryFn: () => api("/notifications"),
+    enabled: !native,
     refetchInterval: 60000
   });
   useEffect(() => {
@@ -86,6 +97,7 @@ export default function Notifications({ userId }: { userId: string }) {
       document.removeEventListener("keydown", escape);
     };
   }, [open]);
+  if (native) return null;
   return (
     <div className="notification-center" ref={panel}>
       <button
