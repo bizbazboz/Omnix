@@ -9,7 +9,7 @@ import {
   Loader2,
   RefreshCw
 } from "lucide-react";
-import { lazy, useEffect, useState } from "react";
+import { lazy, useState } from "react";
 import {
   NavLink,
   useSearchParams,
@@ -17,6 +17,8 @@ import {
   Navigate
 } from "react-router-dom";
 import { api, qc } from "../../lib/api";
+import { syncPhoneHealth } from "../../lib/healthConnect";
+import type { User } from "../../lib/api";
 import { type HealthStatus, type Statistics, dayLabel, format } from "./api";
 import HistoryChart from "./HistoryChart";
 import { healthViews, metricDefinitions } from "./catalog";
@@ -70,25 +72,13 @@ function HealthReadings() {
     qc.invalidateQueries({ queryKey: ["health-status"] });
     qc.invalidateQueries({ queryKey: ["health-statistics"] });
   };
-  useEffect(() => {
-    const result = params.get("connect");
-    if (result) {
-      setMessage(
-        result === "success"
-          ? "Google Health connected. Fetching readings."
-          : "Google connection cancelled."
-      );
-      invalidate();
-      const next = new URLSearchParams(params);
-      next.delete("connect");
-      setParams(next, { replace: true });
-    }
-  }, [params]);
   const data = state.data?.connected ? readings.data : undefined,
     dates = data?.dates.slice(-range) || [];
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone:
-      data?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+      data?.metrics[chosenMetric]?.timezone ||
+      data?.timezone ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit"
@@ -110,8 +100,16 @@ function HealthReadings() {
     setBusy(true);
     setMessage("");
     try {
-      await api("/health/refresh", { method: "POST" });
-      setMessage("Refresh queued");
+      if (state.data?.source === "health_connect") {
+        if (!window.ReactNativeWebView)
+          throw Error("Open the Android companion to sync phone readings.");
+        setMessage(
+          await syncPhoneHealth(qc.getQueryData<User>(["me"])?.id || "", true)
+        );
+      } else {
+        await readings.refetch();
+        setMessage("Saved history refreshed");
+      }
       invalidate();
     } catch (error) {
       setMessage((error as Error).message);
@@ -132,7 +130,9 @@ function HealthReadings() {
             <button
               className="secondary"
               onClick={refresh}
-              disabled={busy || syncing}
+              disabled={
+                busy || (syncing && state.data?.source !== "health_connect")
+              }
             >
               {syncing ? (
                 <Loader2 size={15} className="spin" />
@@ -145,6 +145,12 @@ function HealthReadings() {
         )}
       </PageHeader>
       <p className="health-page-caption">{view.description}</p>
+      {state.data?.source === "health_connect" && (
+        <p className="muted">
+          Source: Android Health Connect · Sync from the companion while it is
+          open.
+        </p>
+      )}
       {state.isLoading ? (
         <p className="muted">[LOADING]</p>
       ) : state.error ? (
@@ -170,12 +176,12 @@ function HealthReadings() {
               </h2>
               <p>
                 {state.data?.connected
-                  ? "Renew your Google connection to resume readings."
-                  : "Connect Google Health in Integrations to see your activity, sleep and measurements."}
+                  ? "Open the Android companion to sync your readings."
+                  : "Connect Health Connect in the Android companion to see your activity and sleep."}
               </p>
               <NavLink
                 className="secondary"
-                to="/settings/connections#google-health"
+                to="/settings/connections#health-connect"
               >
                 Open Integrations <ArrowUpRight size={16} />
               </NavLink>
@@ -208,7 +214,7 @@ function HealthReadings() {
               ) && (
                 <p className="notice">
                   This category has not been shared.{" "}
-                  <NavLink to="/settings/connections#google-health">
+                  <NavLink to="/settings/connections#health-connect">
                     Manage access in Integrations
                   </NavLink>
                   .

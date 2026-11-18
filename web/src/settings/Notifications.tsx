@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api, qc } from "../lib/api";
 import { enablePush, disablePush } from "../lib/push";
+import EmailNotificationRules from "./EmailNotificationRules";
+import "./notifications.css";
 
 export default function Notifications({ userId }: { userId: string }) {
   const query = useQuery({
@@ -85,6 +87,29 @@ export default function Notifications({ userId }: { userId: string }) {
               />
             </label>
           ))}
+          <EmailNotificationRules
+            value={query.data}
+            busy={busy}
+            onSave={async (next) => {
+              setBusy(true);
+              setMessage("");
+              try {
+                await api("/notifications/preferences", {
+                  method: "PUT",
+                  body: JSON.stringify(next)
+                });
+                await qc.invalidateQueries({
+                  queryKey: ["notification-preferences"]
+                });
+                setMessage("Email rules saved.");
+              } catch (error) {
+                setMessage((error as Error).message);
+                throw error;
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
           <p className="muted">
             Previews are off by default. Your first mailbox or feed import stays
             quiet.

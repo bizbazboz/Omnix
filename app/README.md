@@ -2,6 +2,8 @@
 
 An Expo app for Android and iOS. The workspace runs inside a WebView. Pocket ID sign-in runs in the system browser, using the existing Omnix OIDC client and callback URL.
 
+Android builds require Android 8 (API 26) or newer. Health Connect needs Android 9+ and a supported, updated provider; Android 14+ includes the provider in the OS.
+
 ## Pair
 
 1. Deploy this server version behind your HTTPS tunnel.
@@ -36,6 +38,20 @@ Push is Android companion only and goes directly through Firebase Cloud Messagin
 
 Upload the public `google-services.json` from Firebase Project settings → Your apps to the same server integration. Include the companion package `com.bizbazboz.omnix` and, if needed, `com.bizbazboz.omnix.preview`; additional client files can be added later without uploading the private key again. The app fetches only the public options for its own package after sign-in, initializes Firebase at runtime, and restores those cached public options at process startup for background delivery. The same APK works with different instances and Firebase projects. No app `.env`, Firebase build variable, bundled Firebase file or per-instance rebuild is needed. Enable FCM HTTP v1 and grant the sending service account Firebase Cloud Messaging API Admin. iPhone push is not part of this Android setup.
 
+## Walking route exports
+
+**Health → Walking loops → Export GPX** opens Android's native Save-as dialog. Choose Downloads or another document provider; cancelling does not report a saved file. No broad storage permission is needed. On iOS, the native share sheet offers Save to Files or a compatible route app. Ordinary browser downloads remain available. Routes stay client-side until you explicitly export them; no server upload is introduced. Native exports are limited to 2 MB. The iOS export cache retains at most ten route files.
+
+## Android Health Connect
+
+Open **Settings → Integrations → Health from your phone** inside the Android companion. Select steps, distance, exercise duration and/or sleep, then **Connect this phone**. Android requests read access only for the selected categories. The app never requests write, location, medical-record or background-health permissions. Health Connect settings include a public permission rationale explaining storage and removal.
+
+The first sync reads daily aggregates for the last 28 days. Android's aggregation API handles overlapping activity/sleep sources according to the phone's priority settings. Later foreground syncs check changes, re-read the bounded window when needed, and replace daily totals rather than adding them. Sync runs on foreground return and every five minutes while open; **Sync phone now** forces a refresh. No background delivery is promised. Offline failures retain the server's existing history and change cursor so a later foreground/manual attempt can retry.
+
+Readings upload through the current signed-in WebView session, remain private to its account and are encrypted in the server database. Revision checks prevent stale settings or old device snapshots from replacing newer data; retrying the same accepted batch does not duplicate totals. No app `.env`, cloud Health key or extra OAuth client is needed. Only one phone is the active source for an account; connecting another retains saved history and changes the active device.
+
+Google Health cloud support has been retired. Upgrading archives previously saved readings, deletes Google Health OAuth credentials and registration, and stops cloud sync jobs. Health Connect is the only live health source. Phone totals replace overlapping archived days without being summed. Different timezones retain their original daily boundaries. Pause retains saved phone readings; Forget removes phone readings only. Apple Health is not supported.
+
 ## Release builds
 
 The **Companion app** workflow runs on relevant PRs, main pushes, `mobile-v*` tags and manual dispatch. After both native builds pass, main builds publish a prerelease under [GitHub Releases](https://github.com/bizbazboz/Omnix/releases), using the production Android package and private signing certificate. Pushing a `mobile-v*` tag publishes a versioned companion release. Manual runs publish when run against main or a mobile version tag; PRs and other branches only upload Actions artifacts. Companion releases do not replace the repository's global latest release.
@@ -57,3 +73,9 @@ Moving from the separate preview package also requires pairing the production ap
 Production APKs claim workspace links on `https://omnix.bizbazboz.uk`; preview APKs do not. The server publishes `/.well-known/assetlinks.json` with the production signing-certificate fingerprint. Administrators can rotate public fingerprints in Settings → Companion app. Deploy the updated server and matching signed production app together, then verify Android Open by default/domain verification on a physical device. API/OIDC callback URLs stay in the system browser. Arbitrary self-hosted origins still use QR pairing; claiming another domain requires a manifest change and rebuild. See the [Companion wiki guide](https://github.com/bizbazboz/Omnix/wiki/Companion) for verification commands.
 
 Inside the Android companion, **Settings → Companion app → Link handling on this device** shows the installed package, Android's domain-verification state and whether link handling is allowed. **Open app settings** opens Android's controls; **Refresh status** reads them again. A preview package showing no verified domains is expected.
+
+## News and browser handoff
+
+HTTPS headlines from News and the homepage open inside the updated companion with a back/close header, the real publisher domain and a visual `.app` badge. Publisher URLs are unchanged. The reader has no Omnix native bridge or authenticated request headers, blocks workspace navigation and unsupported link schemes, and keeps the main workspace mounted. Retry and Open in browser are available when an article fails. Ordinary web browsers continue to open articles in a new tab.
+
+Mobile browsers show an **Open app** prompt on HTTPS workspace pages. It preserves the current path, query and fragment; Android uses a package-targeted intent with an installation fallback. **Get app** opens GitHub Releases. Dismissal lasts for the browser session; the prompt is hidden on desktop and inside the companion. This also works for custom instances without claiming their domains as verified links. The receiving companion must be paired to that instance (or not yet paired); a link cannot silently switch an existing pairing. Authentication/API callback URLs are rejected. The updated production APK is required; preview APKs intentionally use a different scheme and package. Android controls whether verified links open directly or show a chooser; the website prompt provides an explicit open action.

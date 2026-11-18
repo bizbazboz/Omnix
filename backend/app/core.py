@@ -280,22 +280,6 @@ class MailUpload(Base):
     content: Mapped[str] = mapped_column(Text)
 
 
-class HealthConnection(Base):
-    __tablename__ = "health_connections"
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)
-    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
-    credentials: Mapped[str] = mapped_column(Text)
-    statistics: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String, default="pending")
-    error: Mapped[str] = mapped_column(String, default="")
-    last_sync: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    last_attempt: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-
 class NoteProject(Base):
     __tablename__ = "note_projects"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=uid)

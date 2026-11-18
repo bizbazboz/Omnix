@@ -14,7 +14,7 @@ import CopyField from "../components/CopyField";
 import Authentication from "./Authentication";
 import ApiAccess from "./ApiAccess";
 import Connections from "./Connections";
-import HealthIntegration from "./HealthIntegration";
+import HealthConnectIntegration from "./HealthConnectIntegration";
 import CalendarIntegration from "./CalendarIntegration";
 import TimezoneSelect, { currentTimezone } from "./TimezoneSelect";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
@@ -618,7 +618,7 @@ export default function Settings({
               <nav className="integration-shortcuts" aria-label="Integrations">
                 <NavLink to="/settings/connections#mail">Mail</NavLink>
                 <NavLink to="/settings/connections#calendars">Calendar</NavLink>
-                <NavLink to="/settings/connections#google-health">
+                <NavLink to="/settings/connections#health-connect">
                   Health
                 </NavLink>
                 <NavLink to="/settings/connections#daily">Daily</NavLink>
@@ -635,7 +635,7 @@ export default function Settings({
                 <MailWebhooks accounts={accounts} />
               </div>
               <CalendarIntegration />
-              <HealthIntegration notify={notify} />
+              <HealthConnectIntegration />
               <DailyIntegration />
               <GoveeIntegration />
               {user.is_admin && <FirebaseIntegration />}

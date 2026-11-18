@@ -1,6 +1,8 @@
 package expo.modules.omnixfirebase
 
 import android.content.Context
+import android.content.Intent
+import android.app.Activity
 import android.os.Build
 import android.content.pm.verify.domain.DomainVerificationManager
 import com.google.android.gms.tasks.Tasks
@@ -78,8 +80,39 @@ object RuntimeFirebase {
 }
 
 class OmnixFirebaseModule : Module() {
+  private var exportRequest: Pair<String, Promise>? = null
   override fun definition() = ModuleDefinition {
     Name("OmnixFirebase")
+    AsyncFunction("saveGpx") { content: String, promise: Promise ->
+      try {
+        require(exportRequest == null && content.length <= 2000000 && content.contains("<gpx ") && !Regex("<!DOCTYPE|<!ENTITY", RegexOption.IGNORE_CASE).containsMatchIn(content))
+        val activity = requireNotNull(appContext.currentActivity)
+        exportRequest = content to promise
+        activity.runOnUiThread {
+          try { activity.startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE); type = "application/gpx+xml"
+            putExtra(Intent.EXTRA_TITLE, "omnix-walking-loop.gpx")
+          }, 58155) } catch (_: Exception) { exportRequest = null; promise.reject("E_GPX", "Could not open the Android save dialog.", null) }
+        }
+      } catch (_: Exception) { promise.reject("E_GPX", "A GPX export is already open or the route is invalid.", null) }
+    }
+    OnActivityResult { activity, result ->
+      if (result.requestCode == 58155) {
+        val pending = exportRequest
+        exportRequest = null
+        if (pending != null) {
+          val uri = result.data?.data
+          if (result.resultCode != Activity.RESULT_OK || uri == null) pending.second.resolve(false)
+          else RuntimeFirebase.executor.execute {
+            try {
+              requireNotNull(activity.contentResolver.openOutputStream(uri, "wt")).use { it.write(pending.first.toByteArray(Charsets.UTF_8)) }
+              pending.second.resolve(true)
+            } catch (_: Exception) { pending.second.reject("E_GPX", "Could not save the GPX file. Choose another destination.", null) }
+          }
+        }
+      }
+    }
+    OnDestroy { exportRequest?.second?.reject("E_GPX_CANCELLED", "GPX export cancelled.", null); exportRequest = null }
     Function("packageName") { appContext.reactContext?.packageName ?: "" }
     Function("linkStatus") {
       val context = appContext.reactContext

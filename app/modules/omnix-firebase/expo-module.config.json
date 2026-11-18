@@ -1,4 +1,9 @@
 {
   "platforms": ["android"],
-  "android": { "modules": ["expo.modules.omnixfirebase.OmnixFirebaseModule"] }
+  "android": {
+    "modules": [
+      "expo.modules.omnixfirebase.OmnixFirebaseModule",
+      "expo.modules.omnixfirebase.OmnixHealthModule"
+    ]
+  }
 }

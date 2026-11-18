@@ -4,6 +4,7 @@ import PageHeader from "../../components/PageHeader";
 import SegmentedControl from "../../components/SegmentedControl";
 import StreetMap from "./walking/StreetMap";
 import { gpx, type Point, type Walk } from "./walking/graph";
+import { nativeRequest } from "../../lib/native";
 import "../daily/daily.css";
 import "./walking.css";
 type Location = {
@@ -26,6 +27,7 @@ export default function Walking() {
     [progress, setProgress] = useState(""),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
+  const [exporting, setExporting] = useState(false);
   const worker = useRef<Worker | null>(null),
     request = useRef(0),
     seed = useRef(1);
@@ -161,9 +163,29 @@ export default function Walking() {
     setProgress("");
     setMessage("Calculation cancelled.");
   }
-  function download() {
-    if (!route) return;
+  async function download() {
+    if (!route || exporting) return;
+    setExporting(true);
+    setError("");
+    setMessage("");
     try {
+      if (window.ReactNativeWebView) {
+        const content = gpx(route);
+        if (content.length > 2000000)
+          throw Error("This route is too large to export in the companion.");
+        const result = await nativeRequest<{
+          saved?: boolean;
+          opened?: boolean;
+        } | null>("omnix-export-gpx", { content });
+        setMessage(
+          result?.saved === false
+            ? "GPX export cancelled."
+            : result?.saved
+              ? "GPX saved."
+              : "GPX export opened. Choose where to save or share the route."
+        );
+        return;
+      }
       const url = URL.createObjectURL(
           new Blob([gpx(route)], { type: "application/gpx+xml" })
         ),
@@ -175,8 +197,13 @@ export default function Walking() {
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setMessage("GPX downloaded");
-    } catch {
-      setError("The GPX file could not be created. Try again.");
+    } catch (failure) {
+      setError(
+        (failure as Error).message ||
+          "The GPX file could not be created. Try again."
+      );
+    } finally {
+      setExporting(false);
     }
   }
   const point = useMemo(
@@ -408,7 +435,7 @@ export default function Walking() {
                 </h2>
                 <button
                   className="secondary"
-                  disabled={!!busy}
+                  disabled={!!busy || exporting}
                   onClick={download}
                 >
                   <Download size={16} />

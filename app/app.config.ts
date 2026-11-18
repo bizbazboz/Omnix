@@ -10,7 +10,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       ...(config.plugins || []),
       "expo-notifications",
-      "./plugins/withRuntimeFirebase.cjs"
+      "./plugins/withRuntimeFirebase.cjs",
+      "./plugins/withHealthConnect.cjs"
     ],
     android: {
       ...config.android,

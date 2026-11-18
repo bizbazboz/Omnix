@@ -13,7 +13,7 @@ with httpx.Client(
     configuration = client.get("/api/v1/config").json()
     assert "demo" not in configuration
     assert client.get("/api/v1/auth/demo").status_code == 404
-    for path in [
+    protected_paths = [
         "/me",
         "/overview",
         "/products",
@@ -37,7 +37,7 @@ with httpx.Client(
         "/notes/projects/nonexistent/tasks/nonexistent/discussion",
         "/health/status",
         "/health/statistics",
-        "/health/google/registration",
+        "/health/connect",
         "/settings/daily",
         "/settings/govee",
         "/iot/devices",
@@ -50,8 +50,11 @@ with httpx.Client(
         "/notifications/devices",
         "/mobile/pairing",
         "/mobile/requests/nonexistent",
-    ]:
+    ]
+    for path in protected_paths:
         assert client.get("/api/v1" + path).status_code == 401, path
+    for path in ("/health/google/registration", "/health/google/callback"):
+        assert client.get("/api/v1" + path).status_code == 404, path
     assert (
         client.post(
             "/mcp/", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
@@ -93,7 +96,8 @@ with httpx.Client(
             {
                 "production": True,
                 "transport": "http-for-tunnel",
-                "protected_routes": 33,
+                "protected_routes": len(protected_paths),
+                "google_health_removed": True,
                 "mcp_token_required": True,
                 "setup_token_required": True,
                 "security_headers": True,

@@ -1,3 +1,4 @@
+import ArticleLink from "../../components/ArticleLink";
 import { ArrowUpRight } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
@@ -119,16 +120,15 @@ export default function DailySummary({
                 {news.length ? (
                   <div className="daily-headlines">
                     {news.map((item) => (
-                      <a
+                      <ArticleLink
                         key={item.id}
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
+                        url={item.url}
+                        title={item.title}
                       >
                         <small>{item.source}</small>
                         <span>{item.title}</span>
                         <ArrowUpRight size={14} />
-                      </a>
+                      </ArticleLink>
                     ))}
                   </div>
                 ) : (

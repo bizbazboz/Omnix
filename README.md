@@ -15,7 +15,7 @@
 - Send from confirmed Zoho aliases, reply, forward and attach files.
 - Browse folders, organise mail, save drafts and track send attempts.
 - Aggregate iCal subscriptions into one agenda and see upcoming events on the dashboard.
-- Explore private Google Health activity, sleep, vitals, body, nutrition and workouts.
+- Sync steps, distance, exercise and sleep from Android Health Connect, with private saved history.
 - Organise folders and nested pages with a block editor, page links and remote autosave.
 - Track project issues with a backlog, boards, subtasks, comments and activity.
 - Embed mail, calendar events and issues into notes with slash commands.

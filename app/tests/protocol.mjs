@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 import {
   AUTH_RETURN,
   appLinkNavigation,
+  companionOpenNavigation,
+  articleUrl,
   nativeBridgeBootstrap,
   nativeBridgeMessage,
   mobileGrant,
@@ -173,6 +175,50 @@ for (const url of [
   assert.equal(appLinkNavigation(url), null);
 
 const bridgeToken = "a".repeat(43);
+const destination =
+  "https://personal.example.test/notes/projects/one?issue=two#comments";
+const openLink =
+  AUTH_RETURN.split(":")[0] + "://open?url=" + encodeURIComponent(destination);
+assert.equal(companionOpenNavigation(openLink), destination);
+for (const url of [
+  "http://personal.example.test/notes",
+  "https://user:password@personal.example.test/notes",
+  "https://personal.example.test/api/v1/auth/callback?code=secret",
+  "https://personal.example.test/mcp",
+  "https://personal.example.test/notes/../api/v1/me",
+  "https://personal.example.test/notesevil",
+  "javascript:alert(1)"
+]) {
+  assert.equal(
+    companionOpenNavigation(
+      AUTH_RETURN.split(":")[0] + "://open?url=" + encodeURIComponent(url)
+    ),
+    null
+  );
+}
+assert.equal(
+  companionOpenNavigation(openLink + "&url=" + encodeURIComponent(destination)),
+  null
+);
+assert.equal(companionOpenNavigation(openLink + "&extra=unexpected"), null);
+assert.equal(
+  companionOpenNavigation(openLink.replace("://open?", "://evil?")),
+  null
+);
+assert.equal(
+  articleUrl("https://publisher.example.test/news?story=1"),
+  "https://publisher.example.test/news?story=1"
+);
+for (const url of [
+  "javascript:alert(1)",
+  "file:///etc/passwd",
+  "intent://open",
+  "http://publisher.example.test",
+  "https://user:secret@publisher.example.test",
+  null,
+  "x".repeat(8193)
+])
+  assert.equal(articleUrl(url), null);
 assert(nativeBridgeBootstrap(bridgeToken).includes("window.top===window"));
 assert.throws(() => nativeBridgeBootstrap("invalid"));
 assert.equal(
@@ -197,3 +243,97 @@ assert.equal(
   "omnix-open-settings"
 );
 assert.equal(nativeBridgeMessage("not-json", bridgeToken), null);
+const request_id = "caafcc01-78d1-4d98-a643-aed26eca10c4";
+const articleMessage = {
+  type: "omnix-open-article",
+  request_id,
+  bridgeToken,
+  url: "https://publisher.example.test/story",
+  title: "A headline"
+};
+assert.equal(
+  nativeBridgeMessage(JSON.stringify(articleMessage), bridgeToken)?.url,
+  articleMessage.url
+);
+for (const patch of [
+  { url: "javascript:alert(1)" },
+  { url: "https://user:secret@publisher.example.test" },
+  { request_id: "bad" },
+  { title: "x".repeat(251) },
+  { bridgeToken: "forged" }
+])
+  assert.equal(
+    nativeBridgeMessage(
+      JSON.stringify({ ...articleMessage, ...patch }),
+      bridgeToken
+    ),
+    null
+  );
+const content =
+  '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><trk/></gpx>';
+assert.equal(
+  nativeBridgeMessage(
+    JSON.stringify({
+      type: "omnix-export-gpx",
+      request_id,
+      content,
+      bridgeToken
+    }),
+    bridgeToken
+  )?.content,
+  content
+);
+for (const patch of [
+  { content: "<html>wrong</html>" },
+  {
+    content: '<!DOCTYPE gpx [<!ENTITY x SYSTEM "file:///private">]>' + content
+  },
+  { request_id: "wrong" },
+  { content: "x".repeat(2100001) },
+  { bridgeToken: "forged" }
+])
+  assert.equal(
+    nativeBridgeMessage(
+      JSON.stringify({
+        type: "omnix-export-gpx",
+        request_id,
+        content,
+        bridgeToken,
+        ...patch
+      }),
+      bridgeToken
+    ),
+    null
+  );
+assert.equal(
+  nativeBridgeMessage(
+    JSON.stringify({
+      type: "omnix-health",
+      request_id,
+      bridgeToken,
+      action: "read",
+      metrics: ["steps", "sleep"]
+    }),
+    bridgeToken
+  )?.action,
+  "read"
+);
+for (const patch of [
+  { action: "write" },
+  { metrics: ["medical_records"] },
+  { changes_token: "x".repeat(10001) },
+  { bridgeToken: "forged" }
+])
+  assert.equal(
+    nativeBridgeMessage(
+      JSON.stringify({
+        type: "omnix-health",
+        request_id,
+        bridgeToken,
+        action: "read",
+        ...patch
+      }),
+      bridgeToken
+    ),
+    null
+  );

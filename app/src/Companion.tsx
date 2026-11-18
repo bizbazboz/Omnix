@@ -8,6 +8,7 @@ import {
 import {
   Image,
   BackHandler,
+  AppState,
   Linking,
   Platform,
   Pressable,
@@ -31,6 +32,9 @@ import { SpaceGrotesk_400Regular } from "@expo-google-fonts/space-grotesk/400Reg
 import { SpaceMono_400Regular } from "@expo-google-fonts/space-mono/400Regular";
 import { Doto_600SemiBold } from "@expo-google-fonts/doto/600SemiBold";
 import RuntimeFirebase from "../modules/omnix-firebase";
+import RuntimeHealth from "../modules/omnix-firebase/health";
+import { exportGpx } from "./exportGpx";
+import ArticleReader from "./ArticleReader";
 import {
   AUTH_RETURN,
   AUTH_SCHEME,
@@ -43,6 +47,7 @@ import {
   loginNavigation,
   pairingOrigin,
   appLinkNavigation,
+  companionOpenNavigation,
   nativeBridgeBootstrap,
   nativeBridgeMessage
 } from "./protocol";
@@ -75,6 +80,9 @@ export default function App({ children }: { children?: ReactNode }) {
   );
 }
 function Companion({ fonts }: { fonts: boolean }) {
+  const [article, setArticle] = useState<{ url: string; title: string } | null>(
+    null
+  );
   const [origin, setOrigin] = useState(""),
     [entry, setEntry] = useState(""),
     [loaded, setLoaded] = useState(false),
@@ -88,11 +96,94 @@ function Companion({ fonts }: { fonts: boolean }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [bridgeToken] = useState(() => base64url(Crypto.getRandomBytes(32)));
   const bridgeScript = nativeBridgeBootstrap(bridgeToken);
+  const documentGeneration = useRef(0);
+  const exporting = useRef(false);
   const web = useRef<WebView<object>>(null),
     signingIn = useRef(false),
     scanned = useRef(false),
     currentOrigin = useRef(origin);
   const handledNotification = useRef("");
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active")
+        web.current?.injectJavaScript(
+          "window.dispatchEvent(new Event('omnix-foreground'));true;"
+        );
+    });
+    return () => subscription.remove();
+  }, []);
+  async function handleNativeRequest(
+    message: NonNullable<ReturnType<typeof nativeBridgeMessage>>
+  ) {
+    const address = currentOrigin.current,
+      generation = documentGeneration.current;
+    let result: unknown = null,
+      error = "";
+    try {
+      if (message.type === "omnix-export-gpx") {
+        if (exporting.current) throw Error("A file export is already open.");
+        exporting.current = true;
+        try {
+          if (Platform.OS === "android" && RuntimeFirebase)
+            result = { saved: await RuntimeFirebase.saveGpx(message.content!) };
+          else {
+            await exportGpx(message.content!);
+            result = { opened: true };
+          }
+        } finally {
+          exporting.current = false;
+        }
+      } else if (message.type === "omnix-open-article") {
+        if (new URL(message.url!).origin === address)
+          throw Error("Open workspace pages using the main navigation.");
+        setArticle({ url: message.url!, title: message.title! });
+        result = { opened: true };
+      } else {
+        if (Platform.OS !== "android" || !RuntimeHealth) {
+          if (message.action === "status")
+            result = {
+              available: false,
+              status: 0,
+              permissions: [],
+              platform: Platform.OS
+            };
+          else
+            throw Error(
+              "Health Connect requires an updated Android companion."
+            );
+        } else if (message.action === "status") {
+          let device_id = await SecureStore.getItemAsync("omnix.health-device");
+          if (!device_id) {
+            device_id = base64url(await Crypto.getRandomBytesAsync(32));
+            await SecureStore.setItemAsync("omnix.health-device", device_id);
+          }
+          result = {
+            ...(await RuntimeHealth.status()),
+            device_id,
+            platform: Platform.OS
+          };
+        } else if (message.action === "permissions")
+          result = await RuntimeHealth.permissions(message.metrics ?? []);
+        else if (message.action === "settings") await RuntimeHealth.settings();
+        else
+          result = await RuntimeHealth.read(
+            message.metrics ?? [],
+            message.timezone ?? "UTC",
+            message.changes_token ?? "",
+            Boolean(message.force)
+          );
+      }
+    } catch (failure) {
+      error = (failure as Error).message || "The device request failed.";
+    }
+    if (
+      currentOrigin.current === address &&
+      documentGeneration.current === generation
+    )
+      web.current?.injectJavaScript(
+        `window.dispatchEvent(new CustomEvent('omnix-native-result',{detail:${JSON.stringify({ request_id: message.request_id, result, error })}}));true;`
+      );
+  }
   useEffect(() => {
     if (!origin) return;
     const receive = (response: Notifications.NotificationResponse) => {
@@ -231,8 +322,19 @@ function Companion({ fonts }: { fonts: boolean }) {
   useEffect(() => {
     if (!loaded) return;
     const receive = (url: string) => {
-      const destination = appLinkNavigation(url);
+      const destination =
+        appLinkNavigation(url) || companionOpenNavigation(url);
       if (destination) {
+        if (
+          currentOrigin.current &&
+          new URL(destination).origin !== currentOrigin.current
+        ) {
+          setError(
+            "This link belongs to another instance. Pair with that instance first."
+          );
+          return;
+        }
+        setArticle(null);
         void connect(new URL(destination).origin, destination);
         return;
       }
@@ -593,6 +695,9 @@ function Companion({ fonts }: { fonts: boolean }) {
                 injectedJavaScriptBeforeContentLoaded={bridgeScript}
                 injectedJavaScriptBeforeContentLoadedForMainFrameOnly
                 injectedJavaScriptForMainFrameOnly
+                onLoadStart={() => {
+                  documentGeneration.current++;
+                }}
                 onLoadEnd={() => web.current?.injectJavaScript(bridgeScript)}
                 onMessage={(event) => {
                   if (
@@ -612,6 +717,12 @@ function Companion({ fonts }: { fonts: boolean }) {
                       message.silent,
                       message.firebase
                     );
+                  else if (
+                    message?.type === "omnix-export-gpx" ||
+                    message?.type === "omnix-health" ||
+                    message?.type === "omnix-open-article"
+                  )
+                    void handleNativeRequest(message);
                   else if (message?.type === "omnix-app-info") {
                     const info = RuntimeFirebase?.linkStatus?.() ?? {
                       packageName: RuntimeFirebase?.packageName() || "",
@@ -645,6 +756,14 @@ function Companion({ fonts }: { fonts: boolean }) {
             )
           )}
         </>
+      )}
+      {article && (
+        <ArticleReader
+          key={article.url}
+          article={article}
+          workspaceOrigin={origin}
+          onClose={() => setArticle(null)}
+        />
       )}
     </SafeAreaView>
   );

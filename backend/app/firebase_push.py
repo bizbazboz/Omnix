@@ -226,6 +226,7 @@ def send_firebase(token, payload, origin):
                     "priority": "high",
                     "ttl": "3600s",
                     "notification": {
+                        "icon": "ic_stat_omnix",
                         "channel_id": "omnix",
                         "tag": payload["id"],
                         "sound": "default",

@@ -3,6 +3,7 @@ declare global {
   interface Window {
     ReactNativeWebView?: { postMessage: (data: string) => void };
     omnixNativeSend?: (data: Record<string, unknown>) => void;
+    omnixNativeCapabilities?: readonly string[];
   }
 }
 export async function enablePush(

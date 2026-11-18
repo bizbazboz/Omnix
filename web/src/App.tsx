@@ -1,4 +1,5 @@
 import { canonicalWorkspaceUrl, signInUrl } from "./lib/routes";
+import { useCompanionHealth } from "./lib/healthConnect";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
@@ -19,6 +20,7 @@ import { Logo } from "./components/Brand";
 import WorkspaceNavigation from "./components/WorkspaceNavigation";
 import Notifications from "./components/Notifications";
 import MobileApproval from "./settings/MobileApproval";
+import CompanionBanner from "./components/CompanionBanner";
 import DataStatus from "./components/DataStatus";
 import "./components/workspace-ui.css";
 import "./components/nothing-ui.css";
@@ -34,6 +36,14 @@ const WorkspaceSettings = lazy(() => import("./settings/Settings"));
 const Onboarding = lazy(() => import("./settings/Onboarding"));
 
 export default function App() {
+  return (
+    <>
+      <CompanionBanner />
+      <WorkspaceApp />
+    </>
+  );
+}
+function WorkspaceApp() {
   const me = useQuery<User>({ queryKey: ["me"], queryFn: () => api("/me") });
   const config = useQuery({
     queryKey: ["config"],
@@ -102,6 +112,7 @@ export default function App() {
   );
 }
 function Workspace({ user }: { user: User }) {
+  useCompanionHealth(user.id);
   const menuButton = useRef<HTMLButtonElement>(null);
   const drillingInto = useRef<string | null>(null);
   const [mobile, setMobile] = useState(false),

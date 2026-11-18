@@ -1363,6 +1363,9 @@ app.include_router(build_mail_router(authenticated, db_session, mailbox))
 from .health import build_health_router
 
 app.include_router(build_health_router(authenticated, db_session, rate))
+from .health_connect import build_health_connect_router
+
+app.include_router(build_health_connect_router(authenticated, db_session, rate))
 
 
 from .notes import build_notes_router

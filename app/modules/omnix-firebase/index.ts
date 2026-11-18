@@ -8,6 +8,7 @@ export type FirebaseClient = {
 };
 export default requireOptionalNativeModule<{
   packageName(): string;
+  saveGpx(content: string): Promise<boolean>;
   linkStatus(): {
     packageName: string;
     supported: boolean;

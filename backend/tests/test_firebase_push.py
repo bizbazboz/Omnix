@@ -178,6 +178,7 @@ def test_fcm_signs_oauth_assertion_caches_token_and_sends_deep_link(
         assert message["data"]["href"] == "/email/inbox?message=one"
         assert message["data"]["origin"] == "https://app.example.test"
         assert message["android"]["notification"]["channel_id"] == "omnix"
+        assert message["android"]["notification"]["icon"] == "ic_stat_omnix"
         return httpx.Response(
             200, json={"name": "projects/omnix-test-project/messages/one"}
         )
