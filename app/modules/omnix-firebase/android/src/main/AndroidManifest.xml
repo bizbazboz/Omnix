@@ -1,1 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/ic_stat_omnix" />
+    <meta-data android:name="expo.modules.notifications.default_notification_icon" android:resource="@drawable/ic_stat_omnix" />
+  </application>
+</manifest>
