@@ -107,7 +107,7 @@ jobs:
       - name: Remove temporary signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/omnix-release.p12"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: omnix-android-${{ env.EXPO_PUBLIC_OMNIX_CHANNEL }}
           path: app/android/app/build/outputs/apk/release/*.apk
@@ -147,7 +147,7 @@ jobs:
           test "${#apps[@]}" -eq 1
           test -d "${apps[0]}"
           ditto -c -k --keepParent "${apps[0]}" app/omnix-ios-simulator.zip
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: omnix-ios-simulator
           path: app/omnix-ios-simulator.zip
